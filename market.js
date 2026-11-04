@@ -2,6 +2,20 @@
    Seitenlinie – Anbahnung (Anfragen bei Verein & Berater) und Leihgeschäfte
    ===================================================================== */
 const WS_OPTS=[0,25,50,75,100];
+/* Leihdauer: 'half' = bis zur Winterpause (nur im Sommer), '1' = bis Saisonende, '2' = bis Ende der nächsten Saison */
+function loanDurOpts(p){
+  const winter=S.week>=winterStart(),o=[];
+  if(!winter)o.push(['half','6 Monate (bis Winterpause)']);
+  o.push(['1',winter?'Rest der Saison (ca. 6 Monate)':'1 Saison']);
+  if(!p||p.until>=S.season+1)o.push(['2',winter?'1½ Jahre':'2 Saisons']);
+  return o;
+}
+function loanWeeks(dur){const ws=winterStart();return dur==='half'?Math.max(2,ws-S.week):dur==='2'?Math.max(4,S.weeks-S.week)+S.weeks:Math.max(4,S.weeks-S.week)}
+function loanDurFactor(dur){return dur==='half'?.55:dur==='2'?1.8:1}
+function loanEndIso(L){return L.half?gameDateFor(L.until,winterStart()):`${L.until+1}-06-30`}
+function gameDateFor(season,week){const d=new Date(Date.UTC(season,6,15));d.setUTCDate(d.getUTCDate()+Math.round(week*320/Math.max(S.weeks,1)));return d.toISOString().slice(0,10)}
+function loanEndText(L){return L.half?'bis zur Winterpause ('+fmtDate(loanEndIso(L))+')':'bis 30.06.'+(L.until+1)}
+function durText(dur){const winter=S.week>=winterStart();return dur==='half'?'bis zur Winterpause':dur==='2'?(winter?'1½ Jahre (bis 30.06.'+(S.season+2)+')':'2 Saisons (bis 30.06.'+(S.season+2)+')'):(winter?'bis Saisonende (ca. 6 Monate)':'bis Saisonende')}
 const ROLE_RANK=r=>ROLE_ORDER.indexOf(r); // 0 = Schlüsselspieler … 4 = Perspektive
 function windowSoon(){const ws=winterStart();return (S.week>=ws-2&&S.week<ws)||S.week>=S.weeks-3}
 function windowLabel(){if(isWindow())return 'jetzt';if(S.week<winterStart())return 'im Winterfenster (ab Woche '+(winterStart()+1)+')';return 'im Sommerfenster'}
@@ -18,18 +32,20 @@ function loanAvailable(p){
   return {ok:true};
 }
 // Was der Stammverein bei einer Leihe erwartet
-function loanTarget(p,borrower){
+function loanTarget(p,borrower,dur){
   const young=p.age<=23,role=suggestRole(p,borrower),play=ROLE_RANK(role)<=2;
-  return {fee:nice(Math.max(p.val*(young?.03:.07),2e4)),ws:young?50:75,needPlay:young,play,role,opt:nice(sellerTarget(p)*1.05)};
+  return {fee:nice(Math.max(p.val*(young?.03:.07),2e4)*loanDurFactor(dur||'1')),ws:young?50:75,needPlay:young,play,role,opt:nice(sellerTarget(p)*1.05)};
 }
 function loanValue(p,t,borrower){
-  const L=loanTarget(p,borrower),weeks=Math.max(4,S.weeks-S.week);
+  const dur=t.dur||'1',L=loanTarget(p,borrower,dur),weeks=loanWeeks(dur);
   let v=(t.fee||0)+(t.ws||0)/100*p.wage*weeks+(t.opt?(t.obl?t.opt*.9:Math.min(t.opt,L.opt)*.15):0);
   if(L.needPlay&&L.play)v+=p.val*.04;
   return {v,need:L.fee+L.ws/100*p.wage*weeks+(L.needPlay&&L.play?p.val*.04:0),L};
 }
 function sellerJudgeLoan(p,t,borrower){
   const s=club(p.club),av=loanAvailable(p);if(!av.ok)return {res:'no',msg:`${esc(s.name)} lehnt eine Leihe ab – er ${av.why}.`};
+  if(t.dur==='2'&&p.until<S.season+1)return {res:'no',msg:`${esc(s.name)} kann ihn nicht für zwei Jahre verleihen – sein Vertrag läuft vorher aus.`};
+  if(t.dur==='2'&&p.age>=27&&rnd()<.5)return {res:'counter',terms:{...t,dur:'1'},msg:`${esc(s.name)} will ihn höchstens bis Saisonende verleihen.`};
   const {v,need,L}=loanValue(p,t,borrower);
   if(L.needPlay&&!L.play)return {res:'no',msg:`${esc(s.name)} verleiht ${esc(pname(p))} nur, wenn er regelmäßig spielt – bei ${esc(borrower.name)} wäre er nur ${ROLES[L.role].label}.`};
   if(t.opt&&t.opt<L.opt*.8)return {res:'counter',terms:{...t,opt:L.opt},msg:`${esc(s.name)} ist zu einer Leihe bereit, aber nicht mit einer so niedrigen Kaufoption. Ihr Vorschlag: Kaufoption ${money(L.opt)}.`};
@@ -38,20 +54,20 @@ function sellerJudgeLoan(p,t,borrower){
   const nt={...t,ws:Math.max(t.ws||0,L.ws)};const v2=loanValue(p,nt,borrower).v;if(v2<need)nt.fee=nice((nt.fee||0)+(need-v2));
   return {res:'counter',terms:nt,msg:`${esc(s.name)} macht einen Gegenvorschlag: ${loanText(nt)}.`};
 }
-function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${t.ws||0} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push('bis Saisonende');return x.join(' · ')}
+function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${t.ws||0} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push(durText(t.dur||'1'));return x.join(' · ')}
 function executeLoan(p,borrower,t){
   const parent=club(p.club);if(!parent||p.loan)return;
   closeRow(p);
   parent.players=parent.players.filter(x=>x!==p.id);parent.lineup=parent.lineup.map(x=>x===p.id?null:x);(parent.lout=parent.lout||[]).push(p.id);
   borrower.players.push(p.id);p.club=borrower.id;
-  p.loan={from:parent.id,to:borrower.id,ws:(t.ws||0)/100,fee:t.fee||0,opt:t.opt||0,obl:!!t.obl,until:S.season,since:S.season,w:S.week,role0:p.role};
+  p.loan={from:parent.id,to:borrower.id,ws:(t.ws||0)/100,fee:t.fee||0,opt:t.opt||0,obl:!!t.obl,until:S.season+(t.dur==='2'?1:0),half:t.dur==='half'?1:0,since:S.season,w:S.week,role0:p.role};
   p.role=suggestRole(p,borrower);p.mor=clamp(p.mor+5,15,100);p.listed=false;
   const fee=t.fee||0;borrower.budget-=fee;borrower.tBudget=Math.max(0,(borrower.tBudget||0)-fee);parent.budget+=fee;
   if(borrower.id===S.user)S.fin.tIn+=fee;if(parent.id===S.user)S.fin.tOut+=fee;
   S.transfers.unshift({season:S.season,w:S.week,fid:parent.id,tid:borrower.id,pid:p.id,name:fullname(p),pos:p.pos,age:p.age,o:ovr(p),from:parent.name,to:borrower.name,fee,nat:p.nat,loan:1,det:loanText(t)});
   if(S.transfers.length>800)S.transfers.length=800;
   if(parent.id!==S.user)autoLineup(parent);if(borrower.id!==S.user)autoLineup(borrower);
-  tn(parent.league===userClub().league||borrower.league===userClub().league||parent.id===S.user||borrower.id===S.user,[parent.id,borrower.id],'transfer',`Leihe: ${fullname(p)} zu ${esc(borrower.short)}`,`${esc(pname(p))} wechselt bis Saisonende von ${esc(parent.name)} zu ${esc(borrower.name)} (${loanText(t)}).`);
+  tn(parent.league===userClub().league||borrower.league===userClub().league||parent.id===S.user||borrower.id===S.user,[parent.id,borrower.id],'transfer',`Leihe: ${fullname(p)} zu ${esc(borrower.short)}`,`${esc(pname(p))} wechselt auf Leihbasis von ${esc(parent.name)} zu ${esc(borrower.name)} (${loanText(t)}).`);
 }
 // Rückkehr zum Stammverein (am Saisonende, Karrierezeilen sind dann schon abgeschlossen)
 function endLoan(p,closeRows){
@@ -61,19 +77,20 @@ function endLoan(p,closeRows){
   if(parent){parent.lout=(parent.lout||[]).filter(x=>x!==p.id);parent.players.push(p.id);p.club=parent.id;p.role=suggestRole(p,parent)}
   delete p.loan;
 }
-function processLoanEnds(){
+// mid = Leihen, die zur Winterpause enden
+function processLoanEnds(mid){
   const news=[];
   for(const p of Object.values(S.players)){
-    const L=p.loan;if(!L||L.until>S.season)continue;const b=club(L.to),parent=club(L.from);
+    const L=p.loan;if(!L||L.until>S.season)continue;if(mid?!L.half:false)continue;const b=club(L.to),parent=club(L.from);
     let buy=L.obl||L.buy;
     if(!buy&&L.opt&&b&&b.id!==S.user){buy=ovr(p)>=clubAvg(b)-3&&b.budget>L.opt*1.2&&rnd()<.75}
-    endLoan(p,false);
+    endLoan(p,!!mid);
     if(buy&&b&&parent&&b.budget>=L.opt*(L.obl?0:1)){
-      executeDeal(p,b,{fee:L.opt},{wage:p.wage,until:Math.max(p.until,S.season+2),role:suggestRole(p,b)});
+      executeDeal(p,b,{fee:L.opt},{wage:p.wage,until:Math.max(p.until,S.season+2),role:suggestRole(p,b)});if(b.id===S.user)materializeContract(p);
       tn(b.league===userClub().league||parent.league===userClub().league||b.id===S.user||parent.id===S.user,[b.id,parent.id],'transfer',`${L.obl?'Kaufpflicht':'Kaufoption'} gezogen: ${fullname(p)}`,`${esc(b.name)} übernimmt ${esc(pname(p))} fest für ${money(L.opt)} von ${esc(parent.name)}.`);
     }else if(b&&(b.id===S.user||parent.id===S.user))news.push(`${esc(fullname(p))} (zurück zu ${esc(parent.name)})`);
   }
-  if(news.length)addNews('transfer','Leihen beendet',`Zum Saisonende kehren zurück: ${news.join(', ')}.`);
+  if(news.length)addNews('transfer','Leihen beendet',`${mid?'Zur Winterpause':'Zum Saisonende'} kehren zurück: ${news.join(', ')}.`);
   for(const c of S.clubs)if(c.lout)c.lout=c.lout.filter(id=>S.players[id]&&S.players[id].loan);
 }
 
@@ -83,7 +100,7 @@ function inqFor(pid,by){return (S.inq||[]).filter(x=>x.pid===pid&&x.by===by).sor
 function inqFresh(x){return x&&(S.season*100+S.week)-(x.season*100+x.w)<=12} // gilt etwa 12 Wochen bzw. bis zum nächsten Fenster
 function clubStance(p,asker,kind){
   const s=club(p.club),out={};const tgt=sellerTarget(p),repGap=s.rep-asker.rep;
-  if(p.loan)return {sale:'no',loan:'no',txt:`${esc(pname(p))} ist bis Saisonende an ${esc(club(p.loan.to).name)} ausgeliehen.`};
+  if(p.loan)return {sale:'no',loan:'no',txt:`${esc(pname(p))} ist ${loanEndText(p.loan)} an ${esc(club(p.loan.to).name)} ausgeliehen.`};
   const recent=(p.tr||[]).length&&p.tr[p.tr.length-1][0]===S.season&&p.tr[p.tr.length-1][3]===s.id;
   if(kind!=='loan'){
     if(recent){out.sale='no';out.saleTxt='Er ist gerade erst gekommen – ein Verkauf steht nicht zur Debatte.'}
@@ -206,9 +223,10 @@ function aiLoanTry(c){
 }
 function aiLoanFor(p,c){
   if(!loanAvailable(p).ok)return false;
-  const L=loanTarget(p,c),t={fee:nice(L.fee*(.8+rnd()*.4)),ws:L.ws,opt:rnd()<.35?L.opt:0,obl:false};
+  const opts=loanDurOpts(p).map(o=>o[0]),r=rnd(),dur=opts.includes('half')&&r<.15?'half':opts.includes('2')&&r>.85&&p.age<=23?'2':'1';
+  const L=loanTarget(p,c,dur),t={fee:nice(L.fee*(.8+rnd()*.4)),ws:L.ws,opt:rnd()<.35?L.opt:0,obl:false,dur};
   if(p.club===S.user){if(S.offers.some(o=>o.pid===p.id))return true;S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee:t.fee,loan:t,w:S.week});
-    addNews('offer',`Leihanfrage für ${fullname(p)}`,`${esc(c.name)} möchte ${esc(pname(p))} bis Saisonende ausleihen: ${loanText(t)}.`);return true}
+    addNews('offer',`Leihanfrage für ${fullname(p)}`,`${esc(c.name)} möchte ${esc(pname(p))} ausleihen: ${loanText(t)}.`);return true}
   const j=sellerJudgeLoan(p,t,c);const tt=j.res==='yes'?t:j.res==='counter'&&rnd()<.7?j.terms:null;if(!tt)return false;
   startClauseTalk(p,c,tt.fee,'loan',null,tt);return true;
 }

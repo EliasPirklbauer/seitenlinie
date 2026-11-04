@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.16.0';
+const APP_VERSION='0.16.1';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -839,7 +839,7 @@ function playWeek(){
   processBids();processAiNegs();processInquiries();
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
-  if(S.week===ws)addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');
+  if(S.week===ws){addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');processLoanEnds(true)}
   if(S.week===ws+3)addNews('info','Wintertransferfenster geschlossen','Ab jetzt zählt nur noch der Kader, den du hast.');
   if(S.week===Math.floor(S.weeks*.35)||S.week===Math.floor(S.weeks*.7)){const exp=squadOf(u).filter(p=>p.until<=S.season);if(exp.length)addNews('board','Auslaufende Verträge',`Am Saisonende ablösefrei weg, wenn du nicht verlängerst: ${exp.map(p=>esc(pname(p))+' ('+p.pos+', '+ovr(p)+')').join(', ')}.`)}
   S.rng=RNG;save();
