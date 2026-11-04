@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=6;
-const APP_VERSION='0.8.0';
+const APP_VERSION='0.8.1';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -269,7 +269,7 @@ function isWindow(){return S.week<4||(S.week>=winterStart()&&S.week<winterStart(
 function addNews(type,title,body){S.news.unshift({type,title,body,season:S.season,w:S.week});if(S.news.length>80)S.news.length=80}
 function ovrColor(o){return o>=80?'#38d47c':o>=70?'#8bd86a':o>=60?'#d9cf55':o>=50?'#e0a14a':'#d06060'}
 function ovrTag(o){return `<span class="ovr" style="background:${ovrColor(o)}22;color:${ovrColor(o)}">${o}</span>`}
-function badge(c,sz){return `<span class="badge" style="background:${c.colors[0]};color:${c.colors[1]};border-color:${c.colors[1]}${sz?';width:'+sz+'px;height:'+sz+'px;font-size:'+Math.round(sz/3)+'px':''}">${esc(c.short)}</span>`}
+function badge(c,sz){return `<span class="badge" style="background:${c.colors[0]};color:${c.colors[1]};border-color:${c.colors[1]}${sz?';width:'+sz+'px;height:'+sz+'px;font-size:'+Math.round(sz/2.5)+'px':''}">${esc(c.short)}</span>`}
 function squadOf(c){return c.players.map(id=>S.players[id])}
 function clubAvg(c){const xi=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(Boolean);if(!xi.length)return 0;return Math.round(xi.reduce((s,p)=>s+ovr(p),0)/xi.length)}
 function natName(code){return ASSOC[code]?ASSOC[code].name:code}
