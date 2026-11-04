@@ -38,7 +38,19 @@ function installCard(){
 }
 
 /* ---------- Grundgerüst ---------- */
-const NAV=[['home','🏠','Übersicht'],['squad','👥','Kader'],['tactic','📋','Taktik'],['fixtures','📅','Spielplan'],['table','🏆','Tabelle'],['transfers','💱','Transfers'],['finance','💶','Finanzen'],['cups','🏅','Wettbewerbe'],['world','🌍','Welt'],['menu','⚙️','Menü']];
+const ICONS={
+ home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+ squad:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/>',
+ tactic:'<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M4 12h16"/><circle cx="12" cy="12" r="2.6"/><path d="M9 3v3h6V3M9 21v-3h6v3"/>',
+ fixtures:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h2M12 14h2M8 17h2"/>',
+ table:'<path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 4v16"/>',
+ transfers:'<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
+ finance:'<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/><path d="M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
+ cups:'<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.6 3.5M17 6h2.5a2.5 2.5 0 0 1-2.6 3.5"/><path d="M12 14v3M8.5 20.5h7l-.8-3.5H9.3z"/>',
+ world:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z"/>',
+ menu:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>'};
+const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
+const NAV=[['home','Übersicht'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['table','Tabelle'],['transfers','Transfers'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
 function modalHtml(){return UI.modal?`<div class="ov" data-act="closeModal"><div class="modal" data-stop="1">${UI.modal()}</div></div>`:''}
 function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
 function render(){
@@ -51,13 +63,14 @@ function render(){
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
   else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,table:renderTable,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
-  const nav=NAV.map(([k,i,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}"><span>${i}</span> ${l}</a>`).join('');
+  const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
   const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
   app.innerHTML=`<div class="shell">
    <header class="top">
-     <div class="club">${badge(c)}<div style="min-width:0"><b>${esc(c.name)}</b><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(league(c).name)} · ${S.season}/${(S.season+1)%100}</div></div></div>
-     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<span class="small hide-m muted">Woche <b style="color:var(--text)">${Math.min(S.week+1,S.weeks)}/${S.weeks}</b></span><span class="small hide-m muted">Transferbudget <b style="color:var(--text)">${money(c.tBudget)}</b></span>${adv}</div>
+     <div class="brand"><i></i>Seitenlinie</div>
+     <div class="club">${badge(c,30)}<div style="min-width:0"><b>${esc(c.name)}</b><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(league(c).name)} · ${S.season}/${(S.season+1)%100}</div></div></div>
+     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<div class="stat hide-m"><span>Woche</span><b>${Math.min(S.week+1,S.weeks)} / ${S.weeks}</b></div><div class="stat hide-m"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>${adv}</div>
    </header>
    <nav class="side nav">${nav}</nav>
    <main class="main">${body}</main>
@@ -69,8 +82,8 @@ function toast(msg){UI.toast=msg;render();clearTimeout(toast.t);toast.t=setTimeo
 /* ---------- Titel ---------- */
 function renderTitle(){
   const m=UI.meta;
-  return `<div class="title"><div class="card" style="max-width:480px;width:100%;text-align:center;padding:28px">
-   <div style="font-size:46px">⚽</div><h1 style="font-size:30px">Seitenlinie</h1><p class="muted" style="margin-top:-4px">Fußball Manager · 211 Verbände · offline spielbar</p>
+  return `<div class="title"><div class="card" style="max-width:460px;width:100%;text-align:center;padding:34px 28px 28px">
+   <div class="lamps"><i></i><i></i><i></i><i></i><i></i></div><h1 class="wordmark">Seitenlinie</h1><div class="chalk"></div><p class="muted" style="margin:0">Dein Fußball Manager für 211 Verbände – auch ohne Internet.</p>
    <div class="grid" style="margin-top:20px">
     ${m?`<button class="btn pri" style="justify-content:center;padding:12px" data-act="continue">Karriere fortsetzen</button><div class="small muted">${esc(m.club)} · ${esc(m.league)} · Saison ${m.season}/${(m.season+1)%100} · Woche ${Math.min(m.week+1,m.weeks)}</div>`:''}
     <button class="btn ${m?'':'pri'}" style="justify-content:center;padding:12px" data-act="newCareer">Neue Karriere</button>
@@ -117,7 +130,7 @@ function renderSetupClub(){
    <div class="card" style="margin-bottom:12px"><div class="row"><div style="flex:1;min-width:200px"><label class="f">Dein Managername</label><input id="mgrName" value="${esc(st.name)}" placeholder="z. B. Elias" style="width:100%"></div></div></div>
    ${confedTabs(st.confed,'setConfed')}
    <div class="setup-grid"><div><input placeholder="Verband suchen…" value="${esc(st.q||'')}" data-chg="assocQ" style="width:100%;margin-bottom:8px"><div class="grid assoc-list">${assocList||'<p class="muted">Kein Verband gefunden.</p>'}</div></div><div id="assocRight">${right}</div></div>
-   <div style="position:sticky;bottom:0;padding:14px 0;padding-bottom:calc(14px + var(--sab));background:linear-gradient(transparent,var(--bg) 30%)">
+   <div class="sticky-cta">
     <button class="btn pri" style="width:100%;justify-content:center;padding:13px" data-act="toWorldStep" ${sel?'':'disabled'}>${sel?'Weiter mit '+esc(assocStructure(sel.code,st.seed)[sel.tier-1].clubs[sel.idx])+' ▶':'Verein auswählen'}</button>
    </div></div>`;
 }
@@ -143,7 +156,7 @@ function renderSetupWorld(){
     <div class="small" style="margin-top:10px">Aktiv: <b>${act.size}</b> Länder · ca. <b>${size.clubs}</b> Vereine · <b class="${warn}">${size.players.toLocaleString('de-DE')}</b> Spieler ${size.players>9000?'– auf Handys/iPads spürbar langsamer':size.players>5000?'– auf älteren Handys etwas langsamer':''}</div></div>
    ${confedTabs(conf,'setWConfed')}
    <div class="grid g3">${list}</div>
-   <div style="position:sticky;bottom:0;padding:14px 0;padding-bottom:calc(14px + var(--sab));background:linear-gradient(transparent,var(--bg) 30%)">
+   <div class="sticky-cta">
     <button class="btn pri" style="width:100%;justify-content:center;padding:13px" data-act="startCareer">Karriere starten ▶</button></div></div>`;
 }
 
@@ -161,19 +174,21 @@ function renderHome(){
   let next='<p class="muted">Die Saison ist beendet. Tippe auf „Saisonende“.</p>';
   if(ng.length){
     const g=ng[0],m=g.m,opp=club(m.h===S.user?m.a:m.h),home=m.h===S.user;const co=COACH[opp.staff.coach.trait];
-    const wait=g.w>S.week?`<div class="pill" style="margin-bottom:8px">Diese Woche spielfrei – nächstes Spiel in Woche ${g.w+1}</div>`:'';
-    const more=ng.length>1&&ng[1].w===g.w?`<div class="pill" style="margin-bottom:8px;border-color:var(--gold)">Englische Woche: ${ng.length} Spiele in Woche ${g.w+1}</div>`:'';
+    const wait=g.w>S.week?`<div class="pill wrap" style="margin-bottom:8px">Diese Woche spielfrei – nächstes Spiel in Woche ${g.w+1}</div>`:'';
+    const more=ng.length>1&&ng[1].w===g.w?`<div class="pill wrap" style="margin-bottom:8px;border-color:var(--gold)">Englische Woche: ${ng.length} Spiele in Woche ${g.w+1}</div>`:'';
     const sub=g.comp?`${esc(g.label)} · ${esc(leagueName(opp))}`:`${nx.r+1}. Spieltag · Platz ${tab.findIndex(r=>r.id===opp.id)+1}`;
-    next=`${wait}${more}<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div class="row" style="flex-wrap:nowrap">${badge(opp,40)}<div><b>${esc(opp.name)}</b><div class="small muted">${home?'Heimspiel':'Auswärtsspiel'} · ${sub}</div></div></div><div style="text-align:right"><div class="small muted">Ø-Stärke</div><b>${clubAvg(c)}</b> <span class="muted">vs</span> <b>${clubAvg(opp)}</b></div></div>
-    <div class="small" style="margin-top:10px">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b> – ${co.label}: <span class="muted">${co.desc}</span></div>`;
+    const hc=home?c:opp,ac=home?opp:c;
+    next=`${wait}${more}<div class="small muted" style="text-align:center">${sub}</div>
+    <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
+    <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
   }
   const offers=S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
-  return `<div class="grid g2">
-   <div class="card"><h3>Nächstes Spiel</h3>${next}${S.week<S.weeks?`<div class="row" style="margin-top:12px"><button class="btn" data-act="nav" data-v="tactic">Taktik prüfen</button><button class="btn pri" data-act="advance">${ng.length&&ng[0].w===S.week?'Spiel starten ▶':'Woche simulieren ▶'}</button></div>`:''}</div>
+  return `<div class="grid home-grid">
+   <div class="card matchcard"><h3>Nächstes Spiel</h3>${next}${S.week<S.weeks?`<div class="row" style="margin-top:14px;justify-content:center"><button class="btn" data-act="nav" data-v="tactic">Taktik prüfen</button><button class="btn pri" data-act="advance">${ng.length&&ng[0].w===S.week?'Spiel starten ▶':'Woche simulieren ▶'}</button></div>`:''}</div>
    <div class="card"><h3>Saison · ${esc(L.name)}</h3>
-     <div class="row" style="gap:22px"><div><div class="small muted">Platz</div><div style="font-size:30px;font-weight:800">${rank}.</div></div><div><div class="small muted">Punkte</div><div style="font-size:30px;font-weight:800">${me.pts}</div></div><div><div class="small muted">Tore</div><div style="font-size:22px;font-weight:700">${me.tf}:${me.ta}</div></div></div>
+     <div class="row" style="gap:26px"><div><div class="small muted">Platz</div><div class="kpi">${rank}.</div></div><div><div class="small muted">Punkte</div><div class="kpi">${me.pts}</div></div><div><div class="small muted">Tore</div><div class="kpi">${me.tf}:${me.ta}</div></div></div>
      <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
      <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
      <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(wageBill(c))} / ${money(c.wBudget)} pro Woche</div>
