@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.12.2';
+const APP_VERSION='0.13.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -734,13 +734,13 @@ function aiTransfer(c){
   if(p.club===S.user){
     const bf=buyFee(p,c),u=userClub();
     if(bf.clause&&bf.fee<=max){if(startClauseTalk(p,c,bf.fee))return}
-    if(S.offers.some(o=>o.pid===p.id))return;if(!p.listed&&rnd()<.5)return;
+    if(S.offers.some(o=>o.pid===p.id)||activeTalk(p.id))return;if(!p.listed&&rnd()<.5)return;
     const fee=Math.round(p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5)/5000)*5000;if(fee>max)return;
     S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee,w:S.week});
     addNews('offer',`Angebot für ${fullname(p)}`,`${esc(c.name)} (${esc(league(c).name)}, Sportdirektor ${esc(c.staff.dir.name)}, ${DIR[dir].label}) bietet <b>${money(fee)}</b>.`);
     return;
   }
-  if(cl&&p.club!==null){startClauseTalk(p,c,price);return}
+  if(p.club!==null){startClauseTalk(p,c,price,cl?'clause':'deal');return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
   if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);

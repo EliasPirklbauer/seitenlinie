@@ -183,12 +183,13 @@ function renderHome(){
     <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
   }
   const talks=(S.talks||[]).filter(t=>t.st==='open'&&(t.seller===undefined||t.seller===S.user)).map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
-    return `<div class="news t-offer"><b>⚡ ${esc(fc.name)}</b> verhandelt über die Ausstiegsklausel (${money(t.fee)}) mit ${esc(fullname(p))} ${ovrTag(ovr(p))}
+    const deal=t.kind==='deal';
+    return `<div class="news t-offer">${deal?`<b>🤝 ${esc(fc.name)}</b>: Ablöse vereinbart (${money(t.fee)}) – ${esc(fullname(p))} ${ovrTag(ovr(p))} verhandelt über seinen Vertrag`:`<b>⚡ ${esc(fc.name)}</b> verhandelt über die Ausstiegsklausel (${money(t.fee)}) mit ${esc(fullname(p))} ${ovrTag(ovr(p))}`}
       <div class="small" style="margin-top:4px">Angebot an den Spieler: ca. <b>${money(mon(t.wage))}</b> brutto/Monat als ${ROLES[t.role].label} · bei dir: ${money(mon(p.wage))}</div>
       <div class="small" style="margin-top:2px">⏱️ Entscheidung bis <b>Woche ${t.dec+1}</b> (${fmtDate(gameDate(t.dec))})${t.deadline?' · <b class="gold">Deadline Day</b>':t.dur?` · Verhandlungsdauer ca. ${t.dur} ${t.dur===1?'Woche':'Wochen'}`:''}</div>
       ${t.why?`<div class="whys">${t.why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`:''}
-      <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>
-      <div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">Vertrag nachbessern</button><button class="btn sm" data-act="player" data-id="${p.id}">Spielerprofil</button></div></div>`}).join('');
+      <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${deal?'':ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>
+      <div class="row" style="margin-top:6px">${deal?'<span class="small muted">Du hast dem Verkauf zugestimmt – jetzt liegt es am Spieler.</span>':`<button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">Vertrag nachbessern</button>`}<button class="btn sm" data-act="player" data-id="${p.id}">Spielerprofil</button></div></div>`}).join('');
   const offers=talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
@@ -865,7 +866,9 @@ const ACT={
     save();render()},
   release:d=>{const p=S.players[d.id];if(UI.confirmRel!==d.id){UI.confirmRel=d.id;return toast('Zum Bestätigen nochmal tippen')}
     UI.confirmRel=null;const cost=release(p);addNews('transfer',`${fullname(p)} freigestellt`,`Abfindung: ${money(cost)}.`);UI.modal=null;save();toast('Spieler freigestellt')},
-  offerYes:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;const p=S.players[o.pid],fc=club(o.from);doTransfer(p,fc,o.fee);addNews('transfer',`${fullname(p)} verkauft`,`An ${esc(fc.name)} für ${money(o.fee)}.`);S.offers=S.offers.filter(x=>x.id!==o.id);save();toast('Verkauf abgeschlossen')},
+  offerYes:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;const p=S.players[o.pid],fc=club(o.from);S.offers=S.offers.filter(x=>x.pid!==o.pid);
+    if(!isWindow()){toast('Das Transferfenster ist geschlossen');render();return}
+    startClauseTalk(p,fc,o.fee,'deal');save();toast('Einigung mit dem Verein – jetzt entscheidet der Spieler');render()},
   offerNo:d=>{const o=S.offers.find(x=>x.id===d.id);if(o){const p=S.players[o.pid];p.mor=clamp(p.mor-3,15,100)}S.offers=S.offers.filter(x=>x.id!==d.id);save();render()},
   saveNow:()=>{save();toast('Gespeichert')},
   exportOpen:()=>{UI.modal=exportModal();render()},

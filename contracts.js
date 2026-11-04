@@ -237,17 +237,26 @@ function talkDuration(p,seller){
   if(w>=left){w=left;deadline=true;const k=why.indexOf('Fenster hat gerade erst geöffnet – genug Zeit');if(k>=0)why.splice(k,1);why.push(left<=0?'Deadline Day – Entscheidung noch heute':`Fensterschluss in ${left} ${left===1?'Woche':'Wochen'} – Entscheidung am letzten Tag`)}
   return {w,deadline,why,agent:A,sit};
 }
+function dealVisible(t){const u=userClub();return [t.from,t.seller].some(id=>{const x=club(id);return x&&x.league===u.league})}
 function talkVisible(t){const u=userClub();return t.seller===S.user||t.from===S.user||[t.from,t.seller].some(id=>{const x=club(id);return x&&(x.league===u.league||x.assoc===u.assoc)})}
-function startClauseTalk(p,c,fee){
+// kind: 'clause' = Ausstiegsklausel, 'deal' = Vereine haben sich auf eine Ablöse geeinigt
+function startClauseTalk(p,c,fee,kind){
+  kind=kind||'clause';
   S.talks=S.talks||[];
   if(S.talks.some(t=>t.pid===p.id&&(t.st==='open'||t.from===c.id)))return true; // läuft schon / Verein hat es diese Saison schon versucht
   if(S.talks.some(t=>t.from===c.id&&t.st==='open'))return true;
   const seller=club(p.club);
-  if(S.week>=windowEnd()&&seller.id===S.user)return false; // dir bleibt sonst keine Zeit zu reagieren
+  if(kind==='clause'&&S.week>=windowEnd()&&seller.id===S.user)return false; // dir bleibt sonst keine Zeit zu reagieren
   const role=suggestRole(p,c),wage=rw(Math.max(aiWageFor(p,c),p.wage*(1.08+rnd()*.35))),years=p.age>=31?ri(1,2):ri(3,5);
   const D=talkDuration(p,seller),dec=S.week+D.w;
-  const t={id:'t'+(S.nextId++),pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
+  const t={id:'t'+(S.nextId++),kind,pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
   S.talks.push(t);
+  const dl=`bis Woche ${dec+1} (${fmtDate(gameDate(dec))})`;
+  if(kind==='deal'){
+    if(seller.id===S.user)addNews('transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich über <b>${money(fee)}</b> Ablöse einig. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
+    else if(dealVisible(t))addNews('transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse ${money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
+    return true;
+  }
   if(seller.id===S.user){
     addNews('offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
   }else{
@@ -265,26 +274,32 @@ function talkChance(t){
   const p=S.players[t.pid],c=club(t.from),u=club(t.seller!==undefined?t.seller:S.user);if(!p||!c||!u)return 0;
   const ri_=ROLE_ORDER.indexOf(t.role)-ROLE_ORDER.indexOf(p.role);
   const pay=t.wage/Math.max(1,p.wage)-1,A=agentOf(p),sit=clubSituation(u);
-  return clamp(.3+pay*1.1*A.pay-A.stay-sit.v*.09+(t.deadline?.04:0)+(c.rep-u.rep)/30+(at(p,'amb')-10)/35-(p.mor-60)/120-(c.assoc!==u.assoc?(10-at(p,'ada'))/30:0)-ri_*.08-(inIntlComp(c)?0:inIntlComp(u)?.08:0),.03,.95);
+  const base=t.kind==='deal'?.42+(u.id===S.user&&p.listed?.2:0)+(p.listed&&u.id!==S.user?.15:0):.3;
+  return clamp(base+pay*1.1*A.pay-A.stay-sit.v*.09+(t.deadline?.04:0)+(c.rep-u.rep)/30+(at(p,'amb')-10)/35-(p.mor-60)/120-(c.assoc!==u.assoc?(10-at(p,'ada'))/30:0)-ri_*.08-(inIntlComp(c)?0:inIntlComp(u)?.08:0),.03,.95);
 }
 function clauseTalksWeekly(){
   for(const t of S.talks||[]){
     if(t.st!=='open'||S.week<t.dec)continue;
-    const p=S.players[t.pid],c=club(t.from),sid=t.seller!==undefined?t.seller:S.user,mine=sid===S.user,vis=talkVisible(t),sn=club(sid)?club(sid).name:'';
+    const p=S.players[t.pid],c=club(t.from),sid=t.seller!==undefined?t.seller:S.user,mine=sid===S.user;let vis=talkVisible(t);const sn=club(sid)?club(sid).name:'';
     if(!p||!c||p.club!==sid){t.st='void';continue}
-    const ct=contractOf(p);
-    if(!clauseApplies(p,c,ct)){t.st='void';if(vis)addNews('transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
-    const fee=Math.min(t.fee,ct.rc||t.fee);
-    if(c.budget<fee||!isWindow()){t.st='void';if(vis)addNews('transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
-    if(agentOf(p).type==='poker'&&!t.poked){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
+    const ct=contractOf(p),deal=t.kind==='deal';
+    if(deal)vis=dealVisible(t);
+    if(!deal&&!clauseApplies(p,c,ct)){t.st='void';if(vis)addNews('transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
+    const fee=deal?t.fee:Math.min(t.fee,ct.rc||t.fee);
+    if(c.budget<fee||!isWindow()){t.st='void';if(vis||mine)addNews('transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
+    if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
       doTransfer(p,c,fee,{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
-      if(mine)addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
+      if(deal){if(mine)addNews('transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel für <b>${money(fee)}</b> ist perfekt.`);
+        else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
+      else if(mine)addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
       else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);
     }else{
       t.st='no';p.mor=clamp(p.mor+4,15,100);
-      if(mine)addNews('transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
+      if(deal){if(mine)addNews('transfer',`${fullname(p)} lehnt Wechsel ab`,`Obwohl sich die Vereine einig waren, hat ${esc(pname(p))} sich nicht mit ${esc(c.name)} auf einen Vertrag geeinigt – er bleibt.`);
+        else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`Die Ablöse war vereinbart, aber ${esc(pname(p))} konnte sich mit ${esc(c.name)} nicht auf einen Vertrag einigen.`)}
+      else if(mine)addNews('transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
       else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen – die Klausel wird nicht gezogen.${t.counter?' Das verbesserte Vertragsangebot seines Vereins hat gewirkt.':''}`);
     }
   }
