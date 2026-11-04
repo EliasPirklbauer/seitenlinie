@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=3;
-const APP_VERSION='0.4.0';
+const VERSION=4;
+const APP_VERSION='0.5.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -228,7 +228,7 @@ function schedule(){
 }
 function newWorld(seed,activeCodes,sel,manager){
   RNG=seed>>>0;resetCache();
-  S={v:VERSION,seed,nextId:1,season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
+  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
   for(const code of activeCodes){
     const st=assocStructure(code,seed);const ids=[];
     st.forEach(lt=>{const L={id:S.leagues.length,assoc:code,tier:lt.tier,name:lt.name,clubs:[],up:0,down:0,champs:[]};S.leagues.push(L);ids.push(L);
@@ -238,6 +238,7 @@ function newWorld(seed,activeCodes,sel,manager){
   refillFreeAgents();
   schedule();
   S.clubs.forEach(c=>{autoLineup(c);c.target=boardTarget(c)});
+  S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;setupComps();
   return S;
 }
 function refillFreeAgents(){
@@ -247,17 +248,20 @@ function refillFreeAgents(){
 }
 function startCareer(manager){
   const c=userClub();
-  c.staff.coach={name:manager,trait:null};
+  c.staff.coach={name:manager,trait:null};c.autoXI=true;
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,log:[]};
   addNews('board',`Willkommen beim ${c.name}!`,`Der Vorstand um Präsident ${esc(c.staff.pres.name)} (${PRES[c.staff.pres.trait].label}) erwartet in dieser Saison: <b>${c.target.t}</b> in der ${esc(league(c).name)}. Transferbudget: <b>${money(c.tBudget)}</b>, Gehaltsbudget: <b>${money(c.wBudget)}/Woche</b>.`);
   addNews('info','Transferfenster geöffnet',`Bis Woche 4 kannst du Spieler kaufen. Das Winterfenster öffnet in Woche ${winterStart()+1}. Simuliert werden ${S.active.length} Länder mit ${S.leagues.length} Ligen.`);
+  S.fin.cups=userComps().reduce((t,C)=>t+COMP[C.key].prize.base,0);
+  const uc=userComps();if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein ist dabei: ${uc.map(C=>COMP[C.key].name).join(', ')}. Unter der Woche kommen zusätzliche Spiele dazu – plane Rotation ein.`);
   save();
 }
 
 /* ---------- Helfer ---------- */
 const club=id=>S.clubs[id];
 const userClub=()=>S.clubs[S.user];
-const league=c=>S.leagues[c.league];
+const league=c=>c.league===null?null:S.leagues[c.league];
+function leagueName(c){return c.guest?natName(c.assoc)+' · Gastverein':league(c).name}
 function money(v){const s=v<0?'-':'';v=Math.abs(v);if(v>=1e6)return s+(v/1e6).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mio. €';if(v>=1e3)return s+Math.round(v/1e3).toLocaleString('de-DE')+' Tsd. €';return s+Math.round(v)+' €'}
 function winterStart(){return Math.floor(S.weeks*.47)}
 function isWindow(){return S.week<4||(S.week>=winterStart()&&S.week<winterStart()+3)}
@@ -379,9 +383,9 @@ function pickScorer(c){
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
-function simMatch(hc,ac,detail){
+function simMatch(hc,ac,detail,neutral){
   prepareAI(hc,ac);prepareAI(ac,hc);
-  const H=teamStrength(hc),A=teamStrength(ac);H.M*=1.04;H.A*=1.03;
+  const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
   const pH=Math.pow(H.M,2.2)/(Math.pow(H.M,2.2)+Math.pow(A.M,2.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
   let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
@@ -420,7 +424,7 @@ function tableOf(L){
   }
   return CACHE.tables[key]=Object.values(t).sort((x,y)=>y.pts-x.pts||(y.tf-y.ta)-(x.tf-x.ta)||y.tf-x.tf||club(x.id).name.localeCompare(club(y.id).name));
 }
-function rankOf(id){const c=club(id);return tableOf(league(c)).findIndex(r=>r.id===id)+1}
+function rankOf(id){const c=club(id);if(c.guest)return 0;return tableOf(league(c)).findIndex(r=>r.id===id)+1}
 
 /* ---------- Transfers ---------- */
 function askPrice(p){
@@ -468,7 +472,7 @@ function aiTransfer(c){
     if(p.club===c.id||p.inj>0)continue;
     if(dir==='jugend'&&(p.age>23||p.pot<need.level+4))continue;
     if(dir==='erfahrung'&&p.age<26)continue;
-    if(p.club!==null){const sc=S.clubs[p.club];if(sc.players.length<=19||sc.rep-c.rep>22)continue}
+    if(p.club!==null){const sc=S.clubs[p.club];if(sc.guest||sc.players.length<=19||sc.rep-c.rep>22)continue}
     const price=askPrice(p),wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max)continue;
     if(bill+wage>c.wBudget)continue;
     const o=ovr(p);
@@ -493,7 +497,7 @@ function aiTransfer(c){
 }
 function aiSell(c){
   const p=squadOf(c).sort((a,b)=>b.val-a.val)[0];if(!p)return;
-  const buyer=S.clubs.filter(b=>b.id!==c.id&&b.id!==S.user&&(b.tBudget||0)>p.val&&b.budget>p.val&&b.players.length<28&&b.rep>=c.rep-10&&wageBill(b)+aiWageFor(p,b)<=b.wBudget).sort((a,b)=>b.budget-a.budget)[0];
+  const buyer=S.clubs.filter(b=>!b.guest&&b.id!==c.id&&b.id!==S.user&&(b.tBudget||0)>p.val&&b.budget>p.val&&b.players.length<28&&b.rep>=c.rep-10&&wageBill(b)+aiWageFor(p,b)<=b.wBudget).sort((a,b)=>b.budget-a.budget)[0];
   if(!buyer)return;doTransfer(p,buyer,p.val);trimSquad(buyer);autoLineup(buyer);
 }
 function trimSquad(c){
@@ -515,7 +519,7 @@ function fireCoach(c,reason){
 function aiWeekly(){
   const win=isWindow();
   for(const c of S.clubs){
-    if(c.id===S.user)continue;
+    if(c.id===S.user||c.guest)continue;
     if(win&&rnd()<.4)aiTransfer(c);
     if(win&&c.budget<-3e6*c.econ)aiSell(c);
     trimSquad(c);
@@ -530,6 +534,7 @@ function aiWeekly(){
 /* ---------- Woche spielen ---------- */
 function weeklyFinances(homeSet){
   for(const c of S.clubs){
+    if(c.guest)continue;
     const wages=wageBill(c),tv=tvIncome(c);let tickets=0;
     if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp(.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14,.35,1));tickets=att*ticketPrice(c);c.lastAtt=att}
     c.budget+=tv+tickets-wages;c.tBudget=Math.min(c.tBudget||0,Math.max(0,c.budget));
@@ -545,7 +550,7 @@ function playWeek(){
   RNG=S.rng||RNG;resetCache();
   for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+12+p.a.aus/20,0,100)}
   aiWeekly();
-  const u=userClub(),changed=fixLineup(u);
+  const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
   for(const L of S.leagues){
     const r=L.wr[S.week];if(r===undefined)continue;played.push({L,r});
@@ -556,10 +561,12 @@ function playWeek(){
       if(isU)userRes={m,r:res,round:r,L};
     }
   }
+  const userList=userRes?[userRes]:[];
+  playCompWeek(userList);
   CACHE.tables={};
   weeklyFinances(homes);
   for(const p of Object.values(S.players)){
-    if(p.club===null)continue;const c=club(p.club);
+    if(p.club===null)continue;const c=club(p.club);if(c.guest)continue;
     if(p.inj===0&&league(c).wr[S.week]!==undefined){if(c.lineup.includes(p.id))p.mor+=1.5;else p.mor-=ROLES[p.role].exp*3}
     p.mor=clamp(p.mor+(70-p.mor)*.03,15,100);
     if(c.id===S.user){
@@ -575,7 +582,7 @@ function playWeek(){
   if(S.week===ws+3)addNews('info','Wintertransferfenster geschlossen','Ab jetzt zählt nur noch der Kader, den du hast.');
   if(S.week===Math.floor(S.weeks*.35)||S.week===Math.floor(S.weeks*.7)){const exp=squadOf(u).filter(p=>p.until<=S.season);if(exp.length)addNews('board','Auslaufende Verträge',`Am Saisonende ablösefrei weg, wenn du nicht verlängerst: ${exp.map(p=>esc(pname(p))+' ('+p.pos+', '+ovr(p)+')').join(', ')}.`)}
   S.rng=RNG;save();
-  return {userRes,played};
+  return {userRes,userList,played};
 }
 
 /* ---------- Saisonende ---------- */
@@ -595,6 +602,8 @@ function bgSeason(){
 }
 function seasonEnd(){
   RNG=S.rng||RNG;resetCache();
+  closeComps();
+  S.qualOrder={};for(const L of S.leagues)if(L.tier===1)S.qualOrder[L.assoc]=tableOf(L).map(r=>r.id);
   const u=userClub(),uL=league(u),uTab=tableOf(uL),uRank=uTab.findIndex(r=>r.id===S.user)+1;
   // Prämien, Ruf, Meister
   for(const L of S.leagues){
@@ -607,7 +616,7 @@ function seasonEnd(){
   addNews('board',`Saisonbilanz ${S.season}/${(S.season+1)%100}`,`Platz ${uRank} in der ${esc(uL.name)}. Ziel war: ${u.target.t}. ${uRank<=u.target.r?'Der Vorstand ist sehr zufrieden!':uRank<=u.target.r+3?'Der Vorstand ist einigermaßen zufrieden.':'Der Vorstand ist enttäuscht – nächste Saison muss es besser laufen.'}`);
   addNews('info',`${club(uTab[0].id).name} ist Meister der ${uL.name}!`,`Torschützenkönig: ${topScorer?esc(fullname(topScorer))+' mit '+topScorer.goals+' Toren':'-'}.`);
   // KI-Trainer
-  for(const c of S.clubs){if(c.id===S.user)continue;const gap=c.lastRank-c.expRank;if(gap>=6/PRES[c.staff.pres.trait].patience&&c.firedSeason!==S.season)fireCoach(c,`Saison auf Platz ${c.lastRank} beendet`)}
+  for(const c of S.clubs){if(c.id===S.user||c.guest)continue;const gap=c.lastRank-c.expRank;if(gap>=6/PRES[c.staff.pres.trait].patience&&c.firedSeason!==S.season)fireCoach(c,`Saison auf Platz ${c.lastRank} beendet`)}
   // Auf- und Abstieg
   const moves=[];
   for(const code of S.active){
@@ -630,7 +639,7 @@ function seasonEnd(){
   // Vertragsenden
   const leaving=[];
   for(const p of Object.values(S.players)){
-    if(p.club===null||p.until>S.season)continue;const c=club(p.club);
+    if(p.club===null||p.until>S.season)continue;const c=club(p.club);if(c.guest)continue;
     if(c.id===S.user){leaving.push(fullname(p));freeAgent(p);continue}
     if(aiKeeps(p,c)){const r=suggestRole(p,c);p.until=S.season+(p.age<=24?ri(2,4):p.age>=31?1:ri(1,3));p.wage=rw(calcWage(p)*c.econ*ROLES[r].wage);p.role=r}
     else freeAgent(p);
@@ -650,6 +659,7 @@ function seasonEnd(){
   if(retired.length)addNews('info','Karriereende',`Aus deinem Kader beenden ihre Karriere: ${retired.map(esc).join(', ')}.`);
   // Jugend
   for(const c of S.clubs){
+    if(c.guest)continue;
     const yj=c.staff.dir.trait==='jugend',n=yj?3:2,names=[];
     for(let i=0;i<n;i++){const q=36+c.rep*.3+(yj?5:0);const p=genPlayer(pick(POS_LIST),q,ri(16,18),c.assoc);p.pot=clamp(p.pot+(yj?6:0),0,96);p.club=c.id;p.until=S.season+3;p.role='perspektive';p.wage=rw(calcWage(p)*.8*c.econ);S.players[p.id]=p;c.players.push(p.id);names.push(`${fullname(p)} (${p.pos}, Pot. ${p.pot})`)}
     if(c.id===S.user)addNews('transfer','Neue Jugendspieler',`Aus der Akademie rücken auf: ${names.map(esc).join(', ')}.`);
@@ -662,9 +672,11 @@ function seasonEnd(){
   S.season++;S.week=0;S.offers=[];resetCache();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
-  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,log:[]};
-  for(const c of S.clubs){if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
+  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,log:[]};
+  for(const c of S.clubs){if(c.guest)continue;if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
   fixLineup(u);
+  setupComps();
+  const uc=userComps();if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein spielt in dieser Saison: ${uc.map(C=>COMP[C.key].name).join(', ')}. Denk an Rotation – unter der Woche kommen zusätzliche Spiele dazu.`);
   addNews('board',`Saison ${S.season}/${(S.season+1)%100}: Neue Ziele`,`Liga: ${esc(league(u).name)}. Der Vorstand erwartet: <b>${u.target.t}</b>. Transferbudget: ${money(u.tBudget)}, Gehaltsbudget: ${money(u.wBudget)}/Woche.`);
   S.rng=RNG;save();
 }
@@ -695,6 +707,8 @@ function hasOldSave(){try{return OLD_KEYS.some(k=>localStorage.getItem(k))}catch
 function applySave(obj){
   if(!obj||!obj.clubs||!obj.players)throw new Error('Ungültiger Spielstand');
   if((obj.v||1)<3)throw new Error('alt');
-  S=obj;RNG=S.rng||1;resetCache();save();
+  S=obj;RNG=S.rng||1;resetCache();
+  if(S.v<4){S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;S.v=4;addNews('info','Neu: Internationale Wettbewerbe','Champions League, Copa Libertadores & Co. starten ab der nächsten Saison. Die Startplätze kommen aus den Abschlusstabellen dieser Saison.')}
+  save();
 }
 function exportText(){S.rng=RNG;return JSON.stringify(S)}

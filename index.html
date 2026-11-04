@@ -111,6 +111,7 @@ tr.z-ab td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .assoc-list{max-height:62vh;overflow:auto;gap:8px;padding-right:4px}
 @media (max-width:900px){.setup-grid{grid-template-columns:1fr}.assoc-list{max-height:34vh}}
 optgroup{color:#000}
+@media (max-width:900px){#cupgrid{grid-template-columns:1fr!important}}
 .toast{position:fixed;left:50%;bottom:calc(90px + var(--sab));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--accent-d);padding:10px 16px;border-radius:10px;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{background:var(--panel2);border:0;padding:7px 12px;border-right:1px solid var(--line)}
@@ -124,6 +125,7 @@ label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
 <noscript>Seitenlinie benötigt JavaScript.</noscript>
 <script src="world.js"></script>
 <script src="engine.js"></script>
+<script src="comps.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>
