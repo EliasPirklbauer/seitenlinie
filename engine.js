@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.14.1';
+const APP_VERSION='0.14.2';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -708,7 +708,7 @@ function posIndex(){
   for(const k in idx)idx[k].sort((a,b)=>ovr(b)-ovr(a));return CACHE.posIdx=idx;
 }
 function aiTransfer(c){
-  const dir=c.staff.dir.trait;
+  const dir=c.staff.dir.trait;if(aiBusy(c)>=2)return;
   const max=Math.min(c.tBudget||0,Math.max(0,c.budget))*(dir==='star'?.9:.6);if(max<50000*Math.max(c.econ,.2))return;
   const bill=wageBill(c),need=weakestPos(c),cands=[];
   const minO=dir==='jugend'?0:need.level+2;
@@ -743,9 +743,7 @@ function aiTransfer(c){
   }
   if(p.club!==null){
     if(cl){startClauseTalk(p,c,price,'clause');return}
-    const bid=aiNegotiate(p,c),sc=club(p.club);
-    if(!bid){if(rnd()<.5&&(sc.league===userClub().league||c.league===userClub().league))addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(sc.name)} konnten sich nicht auf eine Ablöse einigen.`);return}
-    startClauseTalk(p,c,bid.fee,'deal',bid);return}
+    aiStartNeg(p,c);return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
   if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
@@ -833,7 +831,7 @@ function playWeek(){
   }
   S.offers=S.offers.filter(o=>(o.wait||S.week-o.w<2)&&S.players[o.pid]&&S.players[o.pid].club===S.user);
   S.week++;
-  processBids();
+  processBids();processAiNegs();
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
   if(S.week===ws)addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');
@@ -950,7 +948,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};resetCache();
+  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};
