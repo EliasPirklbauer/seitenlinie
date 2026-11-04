@@ -161,12 +161,13 @@ function playNatCupWeek(userList){
       for(const m of r.matches){
         for(const id of [m.h,m.a]){if(id===S.user){if(u.autoXI)autoLineup(u);fixLineup(u)}else autoLineup(club(id))}
         const isU=m.h===S.user||m.a===S.user;
-        const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
+        BIGMATCH=stage.si>=cup.spec.length-3;const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
         if(stage.legs===1||r.leg===1){
           const agg={h:0,a:0};if(r.leg===1){const pm=cup.rounds[stage.rounds[0]].matches[m.tie];agg.h=pm.ag;agg.a=pm.hg}
           resolveKO(m,res,isU,r.neutral,agg,true);
           const t=stage.ties[m.tie];t.winner=m.win;const lose=m.win===t.a?t.b:t.a;cup.out[lose]=stage.name;natPrize(club(m.win),stage.si,false);
         }
+        BIGMATCH=false;
         if(isU)userList.push({m,r:res,round:r,cup,label:`${cup.name} · ${r.label}`});
       }
       r.done=true;
@@ -276,8 +277,8 @@ function playSupercupWeek(userList){
       if(r.done||r.w!==S.week||!r.matches.length)return;
       for(const m of r.matches){
         for(const id of [m.h,m.a]){if(id===S.user){if(u.autoXI)autoLineup(u);fixLineup(u)}else autoLineup(club(id))}
-        const isU=m.h===S.user||m.a===S.user;const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
-        resolveKO(m,res,isU,r.neutral,{h:0,a:0},sc.rule.et);
+        const isU=m.h===S.user||m.a===S.user;BIGMATCH=true;const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
+        resolveKO(m,res,isU,r.neutral,{h:0,a:0},sc.rule.et);BIGMATCH=false;
         if(isU)userList.push({m,r:res,round:r,sc,label:`${sc.name} · ${r.label}`});
       }
       r.done=true;

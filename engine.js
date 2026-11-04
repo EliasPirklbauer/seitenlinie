@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=6;
-const APP_VERSION='0.8.1';
+const VERSION=7;
+const APP_VERSION='0.9.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -28,16 +28,47 @@ function poolArr(k){if(!POOLS[k]){const p=NAME_POOLS[k]||NAME_POOLS.en;POOLS[k]=
 const NAT_WEIGHTS=ASSOCS.map(a=>({code:a.code,w:Math.pow(a.str,2.4)}));
 
 /* ---------- Stammdaten Spiel ---------- */
-const ATTRS=['tem','tec','pas','abs','zwk','kop','aus','tor'];
-const ATTR_LABEL={tem:'Tempo',tec:'Technik',pas:'Passen',abs:'Abschluss',zwk:'Zweikampf',kop:'Kopfball',aus:'Ausdauer',tor:'Torwart'};
+/* ---------- Attribute im Stil des Football Manager (1–20) ----------
+   Gespeichert als kompakter Text: ein Zeichen pro Attribut (A=1 … T=20). */
+const ATTR_DEF=[
+ // Technik
+ ['cor','Ecken','tech'],['cro','Flanken','tech'],['dri','Dribbling','tech'],['fin','Abschluss','tech'],['fir','Ballannahme','tech'],['fre','Freistöße','tech'],['hea','Kopfball','tech'],
+ ['lon','Weitschüsse','tech'],['lth','Weite Einwürfe','tech'],['mar','Manndeckung','tech'],['pas','Passen','tech'],['pen','Elfmeter','tech'],['tck','Tackling','tech'],['tec','Technik','tech'],
+ // Mental
+ ['agg','Aggressivität','ment'],['ant','Antizipation','ment'],['bra','Mut','ment'],['cmp','Nervenstärke','ment'],['cnt','Konzentration','ment'],['dec','Entscheidungen','ment'],['det','Entschlossenheit','ment'],
+ ['fla','Flair','ment'],['ldr','Führungsqualität','ment'],['otb','Spiel ohne Ball','ment'],['pos','Stellungsspiel','ment'],['tea','Teamwork','ment'],['vis','Übersicht','ment'],['wor','Laufbereitschaft','ment'],
+ // Physis
+ ['acc','Antritt','phys'],['agi','Beweglichkeit','phys'],['bal','Balance','phys'],['jum','Sprungkraft','phys'],['nat','Grundfitness','phys'],['pac','Schnelligkeit','phys'],['sta','Ausdauer','phys'],['str','Kraft','phys'],
+ // Torwart
+ ['aer','Reichweite','gk'],['cmd','Strafraumbeherrsch.','gk'],['com','Kommunikation','gk'],['ecc','Exzentrik','gk'],['han','Fangsicherheit','gk'],['kic','Abschlag','gk'],['ovo','Eins-gegen-eins','gk'],
+ ['ref','Reflexe','gk'],['rus','Herauslaufen','gk'],['pun','Fausten','gk'],['thr','Abwurf','gk'],
+ // Versteckt
+ ['con','Beständigkeit','hid'],['imp','Große Spiele','hid'],['inp','Verletzungsanfälligkeit','hid'],['ver','Vielseitigkeit','hid'],['prf','Professionalität','hid'],['amb','Ehrgeiz','hid'],['tmp','Temperament','hid'],['ada','Anpassungsfähigkeit','hid']];
+const ATTR_KEYS=ATTR_DEF.map(d=>d[0]);
+const AIDX=Object.fromEntries(ATTR_KEYS.map((k,i)=>[k,i]));
+const ATTR_LABEL=Object.fromEntries(ATTR_DEF.map(d=>[d[0],d[1]]));
+const ATTR_GROUP=Object.fromEntries(ATTR_DEF.map(d=>[d[0],d[2]]));
+function at(p,k){return p.at.charCodeAt(AIDX[k])-64}
+function decodeAt(p){const a=new Array(ATTR_KEYS.length);for(let i=0;i<a.length;i++)a[i]=p.at.charCodeAt(i)-64;return a}
+function encodeAt(arr){return String.fromCharCode(...arr.map(v=>64+clamp(Math.round(v),1,20)))}
 const POS_LIST=['TW','IV','AV','DM','ZM','OM','FL','ST'];
 const POS_LABEL={TW:'Torwart',IV:'Innenverteidiger',AV:'Außenverteidiger',DM:'Defensives Mittelfeld',ZM:'Zentrales Mittelfeld',OM:'Offensives Mittelfeld',FL:'Flügel',ST:'Stürmer'};
 const GROUP={TW:'TW',IV:'ABW',AV:'ABW',DM:'MIT',ZM:'MIT',OM:'MIT',FL:'ANG',ST:'ANG'};
 const GROUP_COLOR={TW:'#f0bf4c',ABW:'#5aa9f0',MIT:'#38d47c',ANG:'#ef5d5d'};
+/* Gewichtung der Attribute je Position (Schlüsselattribute wie im FM) */
 const WEIGHTS={
- TW:{tor:.85,pas:.07,kop:.08},IV:{zwk:.4,kop:.28,tem:.15,pas:.12,aus:.05},AV:{zwk:.3,tem:.28,aus:.2,pas:.15,tec:.07},
- DM:{zwk:.35,pas:.3,aus:.2,tec:.15},ZM:{pas:.35,tec:.25,aus:.2,zwk:.1,abs:.1},OM:{tec:.35,pas:.3,abs:.25,tem:.1},
- FL:{tem:.35,tec:.3,pas:.2,abs:.15},ST:{abs:.45,tem:.2,kop:.15,tec:.2}};
+ TW:{ref:6,ovo:4,han:4,aer:3,cmd:3,com:2,pos:3,cnt:2,dec:2,agi:3,kic:1,thr:1,fir:1,pas:1,cmp:1,ant:1},
+ IV:{mar:4,tck:4,hea:4,pos:4,jum:3,str:3,ant:2,cnt:2,dec:2,bra:2,pac:2,cmp:1,acc:1,pas:1,fir:1,agg:1,tea:1},
+ AV:{tck:3,mar:3,pos:3,pac:3,sta:3,acc:2,wor:2,cro:2,pas:2,ant:2,cnt:2,dec:2,tea:2,agi:1,dri:1,fir:1,tec:1,otb:1},
+ DM:{tck:4,pos:4,ant:3,pas:3,dec:3,cnt:2,tea:2,wor:2,sta:2,str:2,mar:2,fir:2,cmp:2,agg:1,bra:1,vis:1,tec:1},
+ ZM:{pas:4,dec:3,fir:3,tec:3,vis:3,tea:3,wor:2,sta:2,ant:2,cmp:2,otb:2,tck:2,dri:1,lon:1,cnt:1,pos:1,acc:1,agi:1},
+ OM:{vis:4,tec:4,pas:3,fir:3,dec:3,dri:3,otb:3,fla:2,cmp:2,ant:2,lon:2,fin:2,agi:2,acc:1,tea:1},
+ FL:{pac:4,acc:4,dri:4,cro:3,tec:3,agi:3,fir:2,otb:2,wor:2,sta:2,fla:2,pas:2,dec:1,fin:1,bal:1},
+ ST:{fin:5,otb:4,cmp:3,fir:3,ant:3,pac:3,acc:3,hea:2,tec:2,dri:2,str:2,dec:2,jum:1,agi:1,bal:1,lon:1}};
+const WSUM=Object.fromEntries(Object.entries(WEIGHTS).map(([k,w])=>[k,Object.values(w).reduce((a,b)=>a+b,0)]));
+const WIDX=Object.fromEntries(Object.entries(WEIGHTS).map(([k,w])=>[k,Object.entries(w).map(([a,v])=>[AIDX[a],v])]));
+const POS_IDX=Object.fromEntries(['TW','IV','AV','DM','ZM','OM','FL','ST'].map((p,i)=>[p,i]));
+const FAM_LABEL=f=>f>=19?'Natürlich':f>=15?'Routiniert':f>=11?'Solide':f>=7?'Unsicher':'Ungeeignet';
 const FAM={'AV-FL':.85,'FL-AV':.82,'OM-ST':.88,'ST-OM':.85,'DM-IV':.88,'IV-DM':.85,'OM-FL':.9,'FL-OM':.88,'DM-ZM':.95,'ZM-DM':.93,'ZM-OM':.93,'OM-ZM':.92,'IV-AV':.85,'AV-IV':.85,'FL-ST':.88,'ST-FL':.86};
 const ADJ={'ABW-MIT':1,'MIT-ABW':1,'MIT-ANG':1,'ANG-MIT':1};
 const FORMATIONS={
@@ -81,8 +112,8 @@ const COLOR_PAIRS=[['#c8102e','#ffffff'],['#f5d000','#111111'],['#1d4ed8','#ffff
 
 /* ---------- Spielzustand ---------- */
 let S=null;
-let CACHE={tables:{},posIdx:null,ovr:new Map()};
-function resetCache(){CACHE={tables:{},posIdx:null,ovr:new Map()}}
+let CACHE={tables:{},posIdx:null,ovr:new Map(),rate:new Map()};
+function resetCache(){CACHE={tables:{},posIdx:null,ovr:new Map(),rate:new Map()}}
 
 /* ---------- Verbände: Ligenstruktur (deterministisch, auch für Vorschau) ---------- */
 function defaultSize(a){return a.str>=60?16:a.str>=50?14:a.str>=40?12:a.str>=28?10:8}
@@ -152,8 +183,34 @@ function estStadium(rep,econ){return Math.round((4000+Math.pow(rep/100,2)*72000*
 
 /* ---------- Spieler ---------- */
 function fam(n,s){if(n===s)return 1;const k=n+'-'+s;if(FAM[k])return FAM[k];if(n==='TW'||s==='TW')return .3;if(GROUP[n]===GROUP[s])return .85;if(ADJ[GROUP[n]+'-'+GROUP[s]])return .72;return .6}
-function rateAt(p,pos){const w=WEIGHTS[pos];let s=0;for(const k in w)s+=p.a[k]*w[k];return s*fam(p.pos,pos)}
+/* Vertrautheit (1–20) → Faktor auf die Stärke */
+function famFactor(f){return .45+.55*Math.pow((f-1)/19,.8)}
+function familiarity(p,pos){return p.pp.charCodeAt(POS_IDX[pos])-64}
+/* Stärke je Position (1–100): gewichteter Schnitt der Schlüsselattribute × 5 × Vertrautheit */
+function posRatings(p){
+  let r=CACHE.rate.get(p);if(r)return r;
+  r=new Array(8);const pl=POS_LIST;
+  for(let i=0;i<8;i++){const pos=pl[i];let s=0;for(const [ix,w] of WIDX[pos])s+=(p.at.charCodeAt(ix)-64)*w;r[i]=s/WSUM[pos]*5*famFactor(p.pp.charCodeAt(i)-64)}
+  CACHE.rate.set(p,r);return r;
+}
+function rateAt(p,pos){return posRatings(p)[POS_IDX[pos]]}
+function rawRateAt(p,pos){let s=0;for(const [ix,w] of WIDX[pos])s+=(p.at.charCodeAt(ix)-64)*w;return s/WSUM[pos]*5}
 function ovr(p){let v=CACHE.ovr.get(p);if(v===undefined){v=Math.round(rateAt(p,p.pos));CACHE.ovr.set(p,v)}return v}
+/* Persönlichkeit aus versteckten Werten (angelehnt an den FM) */
+function personality(p){
+  const det=at(p,'det'),prf=at(p,'prf'),amb=at(p,'amb'),tmp=at(p,'tmp'),con=at(p,'con'),ldr=at(p,'ldr');
+  if(prf>=18&&det>=16)return 'Musterprofi';
+  if(ldr>=16&&det>=15)return 'Leitwolf';
+  if(amb>=17&&det>=14)return 'Sehr ehrgeizig';
+  if(prf>=15)return 'Profi';
+  if(det>=16)return 'Entschlossen';
+  if(tmp<=6)return 'Hitzkopf';
+  if(con<=6)return 'Unbeständig';
+  if(prf<=6)return 'Unprofessionell';
+  if(amb<=6)return 'Genügsam';
+  if(tmp>=16)return 'Gelassen';
+  return 'Ausgeglichen';
+}
 function pname(p){return p.fn.charAt(0)+'. '+p.ln}
 function fullname(p){return p.fn+' '+p.ln}
 function calcValue(p){
@@ -168,21 +225,53 @@ function pickNat(code){
   if(code&&rnd()<.78)return code;
   return wpick(NAT_WEIGHTS,x=>x.w).code;
 }
+/* Attribute für eine Zielstärke q (1–100) auf Position pos erzeugen */
+function genAttributes(pos,q,age){
+  const base=q/5,w=WEIGHTS[pos],gk=pos==='TW';
+  const v=new Array(ATTR_KEYS.length);
+  ATTR_KEYS.forEach((k,i)=>{
+    const g=ATTR_GROUP[k];let x;
+    if(g==='hid')x=11+gauss()*3.6;
+    else if(g==='gk')x=gk?(w[k]?base+gauss()*1.5:base-1.5+gauss()*2.5):1.5+rnd()*3.5;
+    else if(gk)x=(g==='ment'||g==='phys')?(w[k]?base+gauss()*1.5:base-2.5+gauss()*2.2):(w[k]?base-1+gauss()*1.8:base-7+gauss()*2.5);
+    else if(w[k])x=base+(w[k]>=3?.4:0)+gauss()*1.6;
+    else x=base-(g==='tech'?3.2:2.2)+gauss()*2.4;
+    // Alter: Junge sind schneller, Ältere klüger
+    if(g==='phys'&&['pac','acc','agi'].includes(k))x+=(age<23?.8:age>30?-(age-30)*.45:0);
+    if(['dec','ant','cmp','pos','ldr'].includes(k))x+=(age<21?-1.2:age>27?Math.min(1.5,(age-27)*.3):0);
+    if(k==='lth'||k==='pen'||k==='cor'||k==='fre')x=base-4+gauss()*3.5+(k==='fre'&&w.tec?1:0);
+    v[i]=clamp(x,1,20);
+  });
+  // auf Zielstärke kalibrieren (Schlüsselattribute verschieben)
+  for(let it=0;it<4;it++){
+    let s=0;for(const [ix,ww] of WIDX[pos])s+=clamp(Math.round(v[ix]),1,20)*ww;const r=s/WSUM[pos]*5;
+    const d=(q-r)/5;if(Math.abs(d)<.12)break;
+    for(const [ix] of WIDX[pos])v[ix]=clamp(v[ix]+d,1,20);
+  }
+  return encodeAt(v);
+}
+function genFamiliarity(pos,ver){
+  const pp=[];
+  for(const q of POS_LIST){
+    if(q===pos){pp.push(20);continue}
+    let f=Math.round(fam(pos,q)*20-4+(ver-10)*.35+gauss()*1.5);
+    if(pos==='TW'||q==='TW')f=1+Math.floor(rnd()*2);
+    pp.push(clamp(f,1,18));
+  }
+  // manche Spieler können eine zweite Position richtig gut
+  if(pos!=='TW'&&rnd()<.35){const cands=POS_LIST.filter(q=>q!==pos&&q!=='TW'&&fam(pos,q)>=.85);if(cands.length){const q=pick(cands);pp[POS_IDX[q]]=ri(15,18)}}
+  return String.fromCharCode(...pp.map(f=>64+f));
+}
 function genPlayer(pos,q,age,natCode){
   const nat=pickNat(natCode),pool=poolArr(ASSOC[nat].pool);
   if(age<21)q-=(21-age)*2.2;
-  const a={},w=WEIGHTS[pos];
-  for(const k of ATTRS){
-    let b;
-    if(k==='tor')b=pos==='TW'?q+gauss()*3:6+rnd()*10;
-    else if(pos==='TW')b=w[k]?q-12+gauss()*6:30+gauss()*8;
-    else b=w[k]?q+gauss()*5:q-14+gauss()*8;
-    a[k]=clamp(Math.round(b),5,99);
-  }
-  const p={id:'p'+(S.nextId++),fn:pick(pool.f),ln:pick(pool.l),nat,age,pos,a,pot:0,fit:100,mor:70,inj:0,goals:0,apps:0,club:null,val:0,wage:0,
+  const atStr=genAttributes(pos,clamp(q,15,97),age);
+  const p={id:'p'+(S.nextId++),fn:pick(pool.f),ln:pick(pool.l),nat,age,pos,at:atStr,pp:'',pot:0,fit:100,mor:70,inj:0,goals:0,apps:0,club:null,val:0,wage:0,
     until:S.season+(age<=23?ri(1,4):age>=31?ri(0,1):ri(0,3)),role:'rotation',negTries:0,listed:false};
+  p.pp=genFamiliarity(pos,at(p,'ver'));
   const o=ovr(p);
-  p.pot=age<24?clamp(Math.round(o+(24-age)*(1+rnd()*2.4)+rnd()*5),o,96):o;
+  const drive=(at(p,'det')+at(p,'prf')+at(p,'amb'))/30; // 0.1 … 2
+  p.pot=age<24?clamp(Math.round(o+(24-age)*(.8+rnd()*2.2)*(.7+drive*.4)+rnd()*5),o,96):o;
   p.val=calcValue(p);p.wage=rw(calcWage(p));
   return p;
 }
@@ -312,7 +401,7 @@ function contractEnd(p){return p.club===null?'–':'06/'+String((p.until+1)%100)
 function weeksLeft(p){return Math.max(0,(p.until-S.season)*52+Math.round((S.weeks-S.week)*52/Math.max(S.weeks,1)*.75))}
 function releaseCost(p){return Math.round(p.wage*weeksLeft(p)*.5/1000)*1000}
 function wageDemand(p,c,role,years){
-  let d=calcWage(p)*c.econ*ROLES[role].wage*(1.15-c.rep/400);
+  let d=calcWage(p)*c.econ*ROLES[role].wage*(1.15-c.rep/400)*(.92+at(p,'amb')/120);
   if(p.age>=30)d*=years>=3?.95:years===1?1.08:1;else if(p.age<=23&&years>=4)d*=1.05;
   if(p.mor<40)d*=1.12;
   if(p.club===c.id)d=Math.max(d,p.wage*1.03);else if(p.club!==null)d=Math.max(d,p.wage*1.15);
@@ -357,11 +446,13 @@ function fixLineup(c){
 
 /* ---------- Teamstärke & Match-Engine ---------- */
 const CONTRIB={TW:{d:2},IV:{d:1},AV:{d:1,a:.2},DM:{d:.5,m:1},ZM:{m:1,a:.2},OM:{m:.7,a:.7},FL:{m:.5,a:1},ST:{a:1}};
+let BIGMATCH=false;
 function teamStrength(c){
   const slots=FORMATIONS[c.tactic.f].s;const acc={d:[0,0],m:[0,0],a:[0,0]};
   slots.forEach((pos,i)=>{
     const p=c.lineup[i]&&S.players[c.lineup[i]];
-    const r=p?rateAt(p,pos)*(.72+.28*p.fit/100)*(.96+.08*p.mor/100):18;
+    let r=p?rateAt(p,pos)*(.72+.28*p.fit/100)*(.96+.08*p.mor/100):18;
+    if(p){r*=1+(rnd()-.5)*.16*(21-at(p,'con'))/20;if(BIGMATCH)r*=1+(at(p,'imp')-10.5)*.006}
     for(const k in CONTRIB[pos]){acc[k][0]+=r*CONTRIB[pos][k];acc[k][1]+=CONTRIB[pos][k]}
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
@@ -379,18 +470,18 @@ function prepareAI(c,opp){
 function pickScorer(c){
   const slots=FORMATIONS[c.tactic.f].s;const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
   const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p);
-  const x=wpick(cand,x=>W[x.pos]*Math.pow(x.p.a.abs/60,2));return x?x.p:null;
+  const x=wpick(cand,x=>W[x.pos]*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
 function matchRates(hc,ac,neutral){
   const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
-  const pH=Math.pow(H.M,2.2)/(Math.pow(H.M,2.2)+Math.pow(A.M,2.2));
+  const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
   let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
   if(hc.tactic.style==='ballbesitz')rH*=.95;if(ac.tactic.style==='ballbesitz')rA*=.95;
-  let cH=clamp(.1*Math.pow(H.A/A.D,2),.03,.3),cA=clamp(.1*Math.pow(A.A/H.D,2),.03,.3);
+  let cH=clamp(.1*Math.pow(H.A/A.D,2.8),.03,.32),cA=clamp(.1*Math.pow(A.A/H.D,2.8),.03,.32);
   if(hc.tactic.style==='konter'&&pH<.5)cH*=1.15;if(ac.tactic.style==='konter'&&pH>.5)cA*=1.15;
   return {pH,rH,rA,cH,cA};
 }
@@ -412,13 +503,15 @@ function simMatch(hc,ac,detail,neutral){
   const res={hg:0,ag:0,ev:[],poss:Math.round(R.pH*100),sh:0,sa:0,et:false,pen:null};
   simPeriod(hc,ac,R,1,90+ri(1,4),detail,res,90);
   for(const [side,c] of [['h',hc],['a',ac]]){
-    if(detail){const nc=ri(0,3);for(let i=0;i<nc;i++){const p=pickAny(c);if(p)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}
-    if(rnd()<.11){const p=pickAny(c);if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
+    const xi=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(Boolean);
+    if(detail&&xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot);for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}
+    const inj=xi.length?xi.reduce((t,p)=>t+at(p,'inp'),0)/xi.length:10;
+    if(xi.length&&rnd()<.11*(.6+inj/25)){const p=wpick(xi,p=>Math.pow(at(p,'inp'),1.5)*(1.3-at(p,'nat')/40));if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
   }
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
     const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
-    for(const id of c.lineup){if(!id)continue;const p=S.players[id];if(!p)continue;p.apps++;p.fit=clamp(p.fit-loss*(1.25-p.a.aus/200)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100)}
+    for(const id of c.lineup){if(!id)continue;const p=S.players[id];if(!p)continue;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100)}
   }
   res.end=95;
   return res;
@@ -433,10 +526,10 @@ function extraTime(hc,ac,res,detail,neutral){
 }
 /* Elfmeterschießen: 5 Schützen je Team, danach K.-o.-Modus */
 function shootout(hc,ac,res,detail){
-  const kickers=c=>{const ids=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(p=>p&&p.pos!=='TW');ids.sort((a,b)=>(b.a.abs+b.a.tec)-(a.a.abs+a.a.tec));return ids.length?ids:[null]};
-  const keeper=c=>{const id=c.lineup[0];const p=id&&S.players[id];return p?p.a.tor:50};
+  const kickers=c=>{const ids=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(p=>p&&p.pos!=='TW');ids.sort((a,b)=>(at(b,'pen')*2+at(b,'cmp'))-(at(a,'pen')*2+at(a,'cmp')));return ids.length?ids:[null]};
+  const keeper=c=>{const id=c.lineup[0];const p=id&&S.players[id];return p?(at(p,'ref')+at(p,'ovo'))*2.5:50};
   const kh=kickers(hc),ka=kickers(ac),gh=keeper(hc),ga=keeper(ac);
-  const prob=(p,gk)=>clamp(.76+((p?(p.a.abs*.6+p.a.tec*.4):55)-62)/200-(gk-62)/260,.55,.93);
+  const prob=(p,gk)=>clamp(.76+((p?(at(p,'pen')*.6+at(p,'cmp')*.4)*5:55)-62)/190-(gk-62)/260,.55,.94);
   let ph=0,pa=0,k=0,min=121,done=false;
   if(detail)res.ev.push({m:min,side:'h',type:'info',t:'Elfmeterschießen!'});
   const kick=(side,r)=>{const ks=side==='h'?kh:ka,gk=side==='h'?ga:gh,p=ks[r%ks.length],ok=rnd()<prob(p,gk);if(ok){side==='h'?ph++:pa++}
@@ -596,7 +689,7 @@ function nextUserMatch(){
 }
 function playWeek(){
   RNG=S.rng||RNG;resetCache();
-  for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+12+p.a.aus/20,0,100)}
+  for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+10+at(p,'nat')/4,0,100)}
   aiWeekly();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
@@ -637,11 +730,29 @@ function playWeek(){
 
 /* ---------- Saisonende ---------- */
 function develop(p){
-  const o=ovr(p);let d;
-  if(p.age<=21)d=(p.pot-o)*(.22+rnd()*.25);else if(p.age<=24)d=(p.pot-o)*(.18+rnd()*.2);else if(p.age<=29)d=gauss()*1.2;else if(p.age<=31)d=-(1+rnd()*2);else d=-(2+rnd()*3.5);
-  const w=WEIGHTS[p.pos];
-  for(const k of ATTRS){if(k==='tor'&&p.pos!=='TW')continue;const f=w[k]?1.1:.6;let dd=d*f+gauss()*.8;if(k==='tem'&&p.age>29)dd-=1;p.a[k]=clamp(Math.round(p.a[k]+dd),5,99)}
-  const no=ovr(p);if(p.pot<no)p.pot=no;if(p.age>=24)p.pot=Math.max(no,Math.min(p.pot,no+2));
+  const o=Math.round(rawRateAt(p,p.pos));
+  const drive=.55+(at(p,'det')+at(p,'prf'))/40;   // 0.6 … 1.55
+  let d;
+  if(p.age<=21)d=(p.pot-o)*(.18+rnd()*.25)*drive;
+  else if(p.age<=24)d=(p.pot-o)*(.14+rnd()*.2)*drive;
+  else if(p.age<=29)d=gauss()*1.1+(drive-1)*.8;
+  else if(p.age<=31)d=-(.8+rnd()*1.8)/Math.max(.7,drive);
+  else d=-(1.8+rnd()*3.2)/Math.max(.7,drive);
+  const v=decodeAt(p),w=WEIGHTS[p.pos];
+  ATTR_KEYS.forEach((k,i)=>{
+    const g=ATTR_GROUP[k];if(g==='hid')return;
+    if(g==='gk'&&p.pos!=='TW')return;
+    let dd=d/5*(w[k]?1.15:.55)+gauss()*.35;
+    if(g==='phys'&&['pac','acc','agi','sta'].includes(k)&&p.age>=29)dd-=.25+(p.age-29)*.08;   // Tempo baut zuerst ab
+    if(['dec','ant','cmp','pos','ldr','vis','tea'].includes(k)&&p.age>=24&&p.age<=33)dd+=.18;  // Erfahrung
+    v[i]=clamp(v[i]+dd,1,20);
+  });
+  p.at=encodeAt(v);CACHE.rate.delete(p);CACHE.ovr.delete(p);
+  const no=Math.round(rawRateAt(p,p.pos));
+  if(no>p.pot){const fix=(p.pot-no)/5;for(const [ix] of WIDX[p.pos])v[ix]=clamp(v[ix]+fix,1,20);p.at=encodeAt(v);CACHE.rate.delete(p);CACHE.ovr.delete(p)}
+  const nn=ovr(p);if(p.pot<nn)p.pot=nn;if(p.age>=24)p.pot=Math.max(nn,Math.min(p.pot,nn+2));
+  // mit Spielpraxis lernen junge Spieler neue Positionen
+  if(p.age<=26&&rnd()<.15){const pp=p.pp.split('').map(c=>c.charCodeAt(0)-64);const q=pick(POS_LIST.filter(x=>x!==p.pos&&x!=='TW'&&p.pos!=='TW'));if(q){const i=POS_IDX[q];pp[i]=Math.min(18,pp[i]+ri(1,3));p.pp=String.fromCharCode(...pp.map(f=>64+f));CACHE.rate.delete(p)}}
 }
 function bgSeason(){
   for(const a of ASSOCS){
@@ -706,7 +817,7 @@ function seasonEnd(){
     }
     p.val=calcValue(p);if(p.club===null)p.wage=rw(calcWage(p)*.5);
   }
-  CACHE.ovr=new Map();CACHE.posIdx=null;
+  CACHE.ovr=new Map();CACHE.rate=new Map();CACHE.posIdx=null;
   if(retired.length)addNews('info','Karriereende',`Aus deinem Kader beenden ihre Karriere: ${retired.map(esc).join(', ')}.`);
   // Jugend
   for(const c of S.clubs){
@@ -773,6 +884,23 @@ function applySave(obj){
     if((S.ncups||[]).some(c=>!c.spec)){S.ncups=[];addNews('info','Neu: Pokale mit Amateuren, Verlängerung & Supercups','Die Pokale starten im neuen Format (mit Amateurvereinen und echten Länderregeln) ab der nächsten Saison. Supercups folgen, sobald Meister und Pokalsieger einer Saison feststehen.')}
     else addNews('info','Neu: Amateure im Pokal, Verlängerung & Supercups','Ab sofort gibt es in allen K.-o.-Spielen Verlängerung vor dem Elfmeterschießen. Supercups starten, sobald Meister und Pokalsieger feststehen.');
     S.v=6;
+  }
+  if(S.v<7){
+    // alte 8 Attribute → FM-Attributsystem
+    const OW={TW:{tor:.85,pas:.07,kop:.08},IV:{zwk:.4,kop:.28,tem:.15,pas:.12,aus:.05},AV:{zwk:.3,tem:.28,aus:.2,pas:.15,tec:.07},DM:{zwk:.35,pas:.3,aus:.2,tec:.15},ZM:{pas:.35,tec:.25,aus:.2,zwk:.1,abs:.1},OM:{tec:.35,pas:.3,abs:.25,tem:.1},FL:{tem:.35,tec:.3,pas:.2,abs:.15},ST:{abs:.45,tem:.2,kop:.15,tec:.2}};
+    const MAP={tem:['pac','acc'],tec:['tec','dri','fir'],pas:['pas','vis'],abs:['fin','lon','cmp'],zwk:['tck','mar','str'],kop:['hea','jum'],aus:['sta','nat','wor'],tor:['ref','han','ovo','aer']};
+    for(const pl of Object.values(S.players)){
+      if(!pl.a||pl.at)continue;
+      let q=0;for(const k in OW[pl.pos])q+=pl.a[k]*OW[pl.pos][k];
+      pl.at=genAttributes(pl.pos,clamp(q,15,97),pl.age);
+      const v=decodeAt(pl),keys=Object.keys(MAP).filter(k=>k!=='tor'||pl.pos==='TW'),mean=keys.reduce((t,k)=>t+pl.a[k],0)/keys.length;
+      for(const k of keys)for(const t of MAP[k])v[AIDX[t]]=clamp(v[AIDX[t]]+(pl.a[k]-mean)/5*.6,1,20);
+      pl.at=encodeAt(v);pl.pp=genFamiliarity(pl.pos,at(pl,'ver'));delete pl.a;
+    }
+    resetCache();
+    for(const pl of Object.values(S.players)){if(pl.pot<ovr(pl))pl.pot=ovr(pl)}
+    addNews('info','Neu: Spielerprofile wie im Football Manager','Jeder Spieler hat jetzt rund 50 Eigenschaften auf einer Skala von 1–20, Positionsvertrautheiten und eine Persönlichkeit. Die Stärkewerte wurden neu berechnet.');
+    S.v=7;
   }
   save();
 }

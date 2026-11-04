@@ -191,10 +191,11 @@ function playCompWeek(userList){
       for(const id of involved){const c=club(id);if(id===S.user){if(u.autoXI)autoLineup(u);const ch=fixLineup(u);if(ch.length)addNews('info','Aufstellung angepasst',`Für ${def.short}: ${ch.map(esc).join(', ')} rücken nach.`)}else autoLineup(c)}
       for(const m of r.matches){
         const isU=m.h===S.user||m.a===S.user;
-        const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
+        BIGMATCH=r.stage==='ko';const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
         if(r.stage==='ko'){const st=C.ko[r.ko];if(st.legs===1||r.leg===st.legs-1){
           const agg={h:0,a:0};for(const ri of st.rounds){const pr=C.rounds[ri];if(pr===r)continue;const pm=pr.matches[m.tie];if(pm.hg===null)continue;if(pm.h===m.h){agg.h+=pm.hg;agg.a+=pm.ag}else{agg.h+=pm.ag;agg.a+=pm.hg}}
           resolveKO(m,res,isU,r.neutral,agg,true)}}
+        BIGMATCH=false;
         for(const [id,gf,ga] of [[m.h,m.hg,m.ag],[m.a,m.ag,m.hg]]){if(r.stage!=='ko')payPrize(club(id),gf>ga?def.prize.win:gf===ga?def.prize.draw:0,C);coefAdd(club(id).assoc,gf>ga?2:gf===ga?1:0)}
         if(isU)userList.push({m,r:res,round:r,comp:C,label:`${def.name} · ${r.label}`});
       }

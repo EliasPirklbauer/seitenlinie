@@ -219,14 +219,24 @@ function playerModal(pid){
   return ()=>{
     const p=S.players[pid];if(!p)return '<p>Spieler nicht gefunden.</p>';
     const c=p.club!==null?club(p.club):null,mine=p.club===S.user;
-    const attrs=ATTRS.filter(k=>p.pos==='TW'||k!=='tor').map(k=>`<div class="attr"><span>${ATTR_LABEL[k]}${WEIGHTS[p.pos][k]?' <b class="gold">•</b>':''}</span><div class="bar"><i style="width:${p.a[k]}%;background:${ovrColor(p.a[k])}"></i></div><b>${p.a[k]}</b></div>`).join('');
-    const posFit=POS_LIST.map(pos=>`<span class="pill" style="margin:2px">${pos} ${Math.round(rateAt(p,pos))}</span>`).join('');
+    const key=WEIGHTS[p.pos];
+    const col=(title,keys)=>`<div class="acol"><h3>${title}</h3>${keys.map(k=>{const v=at(p,k);return `<div class="arow${key[k]?' key':''}"><span>${ATTR_LABEL[k]}</span><b class="av v${v>=16?4:v>=11?3:v>=6?2:1}">${v}</b></div>`}).join('')}</div>`;
+    const T=ATTR_DEF.filter(d=>d[2]==='tech').map(d=>d[0]),Mn=ATTR_DEF.filter(d=>d[2]==='ment').map(d=>d[0]),Ph=ATTR_DEF.filter(d=>d[2]==='phys').map(d=>d[0]),G=ATTR_DEF.filter(d=>d[2]==='gk').map(d=>d[0]);
+    const cols=p.pos==='TW'?col('Torwart',[...G,'fir','pas'])+col('Mental',Mn)+col('Physis',Ph):col('Technik',T)+col('Mental',Mn)+col('Physis',Ph);
+    const PM={TW:[50,90],IV:[50,74],AV:[[14,70],[86,70]],DM:[50,60],ZM:[50,46],OM:[50,32],FL:[[14,30],[86,30]],ST:[50,13]};
+    const dots=POS_LIST.flatMap(pos=>{const f=familiarity(p,pos),xy=Array.isArray(PM[pos][0])?PM[pos]:[PM[pos]];const cls=f>=19?'f4':f>=15?'f3':f>=11?'f2':f>=7?'f1':'f0';
+      return xy.map(([x,y])=>`<div class="pdot ${cls}" style="left:${x}%;top:${y}%" title="${POS_LABEL[pos]}: ${FAM_LABEL(f)} · Stärke ${Math.round(rateAt(p,pos))}">${pos}<small>${Math.round(rateAt(p,pos))}</small></div>`)}).join('');
+    const posList=POS_LIST.map(pos=>({pos,f:familiarity(p,pos)})).filter(x=>x.f>=11).sort((a,b)=>b.f-a.f).map(x=>`${x.pos} <span class="muted">${FAM_LABEL(x.f)}</span>`).join(' · ');
     let actions='';
     if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen (${money(releaseCost(p))})</button></div>`;
     else{const price=askPrice(p);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>Verhandeln: ${price?money(price)+' Ablöse':'ablösefrei'}</button>${isWindow()?'':'<div class="small muted">Transferfenster geschlossen.</div>'}</div>`}
-    return `<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><h2 style="margin:0">${esc(fullname(p))}</h2><div class="muted small">${POS_LABEL[p.pos]} · ${p.age} Jahre · ${esc(natName(p.nat))} · ${c?esc(c.name)+' ('+esc(leagueName(c))+')':'vereinslos'}</div></div><div style="text-align:center">${ovrTag(ovr(p))}<div class="small muted">Pot. ${p.pot}</div></div></div>
-    <div class="grid g2" style="margin-top:14px"><div>${attrs}<div class="small muted" style="margin-top:4px"><b class="gold">•</b> = wichtig für ${p.pos}</div></div>
-    <div class="small"><div>Marktwert: <b>${money(p.val)}</b></div><div>Gehalt: <b>${money(p.wage)}</b>/Woche</div>${c?`<div>Vertrag bis: <b class="${p.until<=S.season?'gold':''}">${contractEnd(p)}</b> · Rolle: <b>${ROLES[p.role].label}</b></div>`:'<div class="gold">Vereinslos – nur Handgeld nötig</div>'}<div>Fitness: <b>${Math.round(p.fit)}%</b> · Moral: <b>${Math.round(p.mor)}</b></div><div>Saison: ${p.apps} Spiele, ${p.goals} Tore</div>${p.inj?`<div class="bad">Verletzt: noch ${p.inj} Woche(n)</div>`:''}<h3 style="margin-top:12px">Stärke je Position</h3>${posFit}</div></div>
+    return `<div class="phead"><div><h2 style="margin:0">${esc(fullname(p))}</h2><div class="muted small">${POS_LABEL[p.pos]} · ${p.age} Jahre · ${esc(natName(p.nat))} · ${c?esc(c.name)+' ('+esc(leagueName(c))+')':'vereinslos'}</div><div class="small" style="margin-top:4px">Persönlichkeit: <b>${personality(p)}</b></div></div>
+      <div class="pscore"><div><span>Stärke</span>${ovrTag(ovr(p))}</div><div><span>Potenzial</span>${ovrTag(p.pot)}</div></div></div>
+    <div class="attrgrid">${cols}</div>
+    <p class="small muted" style="margin:6px 0 0">Werte von 1 bis 20. <b class="keymark">Hervorgehoben</b> sind die Schlüsselattribute für ${POS_LABEL[p.pos]}.</p>
+    <div class="grid g2" style="margin-top:14px">
+     <div><h3>Positionen</h3><div class="minipitch">${dots}</div><div class="small" style="margin-top:6px">${posList}</div></div>
+     <div class="small"><h3>Vertrag & Form</h3><div>Marktwert: <b>${money(p.val)}</b></div><div>Gehalt: <b>${money(p.wage)}</b>/Woche</div>${c?`<div>Vertrag bis: <b class="${p.until<=S.season?'gold':''}">${contractEnd(p)}</b> · Rolle: <b>${ROLES[p.role].label}</b></div>`:'<div class="gold">Vereinslos – nur Handgeld nötig</div>'}<div>Fitness: <b>${Math.round(p.fit)}%</b> · Moral: <b>${Math.round(p.mor)}</b></div><div>Saison: ${p.apps} Spiele, ${p.goals} Tore</div>${p.inj?`<div class="bad">Verletzt: noch ${p.inj} Woche(n)</div>`:''}</div></div>
     <div class="row" style="margin-top:16px;justify-content:space-between">${actions}<button class="btn" data-act="closeModal">Schließen</button></div>`;
   };
 }
@@ -307,7 +317,7 @@ function renderTactic(){
 function slotPicker(){return ()=>{const c=userClub(),F=FORMATIONS[c.tactic.f];if(UI.selSlot===null)return '';
   const pos=F.s[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));
   return `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Spieler für ${pos} (${POS_LABEL[pos]})</h3><button class="btn sm" data-act="slotCancel">Abbrechen</button></div>
-   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}</td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+F.s[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+F.s[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
 
 /* ---------- Liga-Auswahl ---------- */
 function leagueSelect(cur,chg){
