@@ -253,19 +253,19 @@ function startClauseTalk(p,c,fee,kind,bid){
   S.talks.push(t);
   const dl=`bis Woche ${dec+1} (${fmtDate(gameDate(dec))})`;
   if(kind==='deal'){
-    if(seller.id===S.user)addNews('transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
-    else if(dealVisible(t))addNews('transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
+    if(seller.id===S.user)tn(true,[c.id,seller.id],'transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
+    else tn(dealVisible(t),[c.id,seller.id],'transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
     return true;
   }
   if(seller.id===S.user){
-    addNews('offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
+    tn(true,[c.id,seller.id],'offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
   }else{
     // Der abgebende KI-Verein reagiert: wichtige Spieler sollen mit einem besseren Vertrag gehalten werden
     const key=seller.lineup.includes(p.id)||ROLE_ORDER.indexOf(p.role)<=1,trait=seller.staff.pres.trait;
     const keen=key?(trait==='sparsam'?.35:.65):.15,room=seller.wBudget-wageBill(seller);
     if(rnd()<keen){const nw=rw(Math.min(p.wage+Math.max(0,room),t.wage*(.9+rnd()*.2)));
       if(nw>p.wage){t.counter={old:p.wage,nw};p.wage=nw;p.mor=clamp(p.mor+8,15,100)}}
-    if(talkVisible(t))addNews('transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}${D.deadline?' (Deadline Day)':''}.`);
+    tn(talkVisible(t),[c.id,seller.id],'transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}${D.deadline?' (Deadline Day)':''}.`);
   }
   return true;
 }
@@ -284,23 +284,23 @@ function clauseTalksWeekly(){
     if(!p||!c||p.club!==sid){t.st='void';continue}
     const ct=contractOf(p),deal=t.kind==='deal';
     if(deal)vis=dealVisible(t);
-    if(!deal&&!clauseApplies(p,c,ct)){t.st='void';if(vis)addNews('transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
+    if(!deal&&!clauseApplies(p,c,ct)){t.st='void';tn(vis,[t.from,sid],'transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
     const fee=deal?t.fee:Math.min(t.fee,ct.rc||t.fee);
-    if(c.budget<fee||!isWindow()){t.st='void';if(vis||mine)addNews('transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
-    if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
+    if(c.budget<fee||!isWindow()){t.st='void';tn(vis||mine,[t.from,sid],'transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
+    if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;tn(mine||vis,[t.from,sid],'transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
       executeDeal(p,c,{...(t.bid||{}),fee},{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
-      if(deal){if(mine)addNews('transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel ist perfekt: <b>${t.bid?bidText({...t.bid,fee}):money(fee)}</b>.`);
-        else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
-      else if(mine)addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
-      else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);
+      if(deal){if(mine)tn(true,[t.from,sid],'transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel ist perfekt: <b>${t.bid?bidText({...t.bid,fee}):money(fee)}</b>.`);
+        else tn(vis,[t.from,sid],'transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
+      else if(mine)tn(true,[t.from,sid],'offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
+      else tn(vis,[t.from,sid],'transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);
     }else{
       t.st='no';p.mor=clamp(p.mor+4,15,100);
-      if(deal){if(mine)addNews('transfer',`${fullname(p)} lehnt Wechsel ab`,`Obwohl sich die Vereine einig waren, hat ${esc(pname(p))} sich nicht mit ${esc(c.name)} auf einen Vertrag geeinigt – er bleibt.`);
-        else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`Die Ablöse war vereinbart, aber ${esc(pname(p))} konnte sich mit ${esc(c.name)} nicht auf einen Vertrag einigen.`)}
-      else if(mine)addNews('transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
-      else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen – die Klausel wird nicht gezogen.${t.counter?' Das verbesserte Vertragsangebot seines Vereins hat gewirkt.':''}`);
+      if(deal){if(mine)tn(true,[t.from,sid],'transfer',`${fullname(p)} lehnt Wechsel ab`,`Obwohl sich die Vereine einig waren, hat ${esc(pname(p))} sich nicht mit ${esc(c.name)} auf einen Vertrag geeinigt – er bleibt.`);
+        else tn(vis,[t.from,sid],'transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`Die Ablöse war vereinbart, aber ${esc(pname(p))} konnte sich mit ${esc(c.name)} nicht auf einen Vertrag einigen.`)}
+      else if(mine)tn(true,[t.from,sid],'transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
+      else tn(vis,[t.from,sid],'transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen – die Klausel wird nicht gezogen.${t.counter?' Das verbesserte Vertragsangebot seines Vereins hat gewirkt.':''}`);
     }
   }
 }

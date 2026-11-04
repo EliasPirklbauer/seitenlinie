@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.14.2';
+const APP_VERSION='0.15.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -691,8 +691,8 @@ function doTransfer(p,to,fee,contract){
   p.club=to.id;p.mor=78;p.wage=ct.wage;p.until=ct.until;p.role=ct.role;p.listed=false;p.negTries=0;
   if(from&&from.id===S.user)S.fin.tOut+=fee;
   if(to.id===S.user)S.fin.tIn+=fee+sign;
-  S.transfers.unshift({season:S.season,w:S.week,pid:p.id,name:fullname(p),pos:p.pos,age:p.age,o:ovr(p),from:from?from.name:'vereinslos',to:to.name,fee,nat:p.nat});
-  if(S.transfers.length>200)S.transfers.length=200;
+  S.transfers.unshift({season:S.season,w:S.week,fid:from?from.id:-1,tid:to.id,pid:p.id,name:fullname(p),pos:p.pos,age:p.age,o:ovr(p),from:from?from.name:'vereinslos',to:to.name,fee,nat:p.nat});
+  if(S.transfers.length>800)S.transfers.length=800;
   if(from&&from.id!==S.user&&from.lineup.includes(null))autoLineup(from);
 }
 function release(p){const c=club(p.club);const cost=releaseCost(p);freeAgent(p);c.budget-=cost;if(c.id===S.user)S.fin.wages+=cost;return cost}
@@ -746,7 +746,7 @@ function aiTransfer(c){
     aiStartNeg(p,c);return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
-  if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
+  tn(c.league===userClub().league,[c.id],'transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
 }
 function aiSell(c){
   const p=squadOf(c).sort((a,b)=>b.val-a.val)[0];if(!p)return;

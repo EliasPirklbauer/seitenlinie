@@ -265,6 +265,7 @@ optgroup{color:#000}
 .drow{display:flex;align-items:center;gap:10px;margin-top:8px}.drow>span{font-size:13px;color:var(--muted);min-width:70px}
 .dinp input{width:auto;text-align:left;font-family:inherit;font-size:15px;color-scheme:dark}
 .whys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.whys span{font-size:11.5px;background:var(--night2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
+.tickfeed .news{padding:9px 13px}.tickfeed .news.mine{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -676,7 +677,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.14.2';
+const APP_VERSION='0.15.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -1361,8 +1362,8 @@ function doTransfer(p,to,fee,contract){
   p.club=to.id;p.mor=78;p.wage=ct.wage;p.until=ct.until;p.role=ct.role;p.listed=false;p.negTries=0;
   if(from&&from.id===S.user)S.fin.tOut+=fee;
   if(to.id===S.user)S.fin.tIn+=fee+sign;
-  S.transfers.unshift({season:S.season,w:S.week,pid:p.id,name:fullname(p),pos:p.pos,age:p.age,o:ovr(p),from:from?from.name:'vereinslos',to:to.name,fee,nat:p.nat});
-  if(S.transfers.length>200)S.transfers.length=200;
+  S.transfers.unshift({season:S.season,w:S.week,fid:from?from.id:-1,tid:to.id,pid:p.id,name:fullname(p),pos:p.pos,age:p.age,o:ovr(p),from:from?from.name:'vereinslos',to:to.name,fee,nat:p.nat});
+  if(S.transfers.length>800)S.transfers.length=800;
   if(from&&from.id!==S.user&&from.lineup.includes(null))autoLineup(from);
 }
 function release(p){const c=club(p.club);const cost=releaseCost(p);freeAgent(p);c.budget-=cost;if(c.id===S.user)S.fin.wages+=cost;return cost}
@@ -1416,7 +1417,7 @@ function aiTransfer(c){
     aiStartNeg(p,c);return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
-  if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
+  tn(c.league===userClub().league,[c.id],'transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
 }
 function aiSell(c){
   const p=squadOf(c).sort((a,b)=>b.val-a.val)[0];if(!p)return;
@@ -2575,19 +2576,19 @@ function startClauseTalk(p,c,fee,kind,bid){
   S.talks.push(t);
   const dl=`bis Woche ${dec+1} (${fmtDate(gameDate(dec))})`;
   if(kind==='deal'){
-    if(seller.id===S.user)addNews('transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
-    else if(dealVisible(t))addNews('transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
+    if(seller.id===S.user)tn(true,[c.id,seller.id],'transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
+    else tn(dealVisible(t),[c.id,seller.id],'transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
     return true;
   }
   if(seller.id===S.user){
-    addNews('offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
+    tn(true,[c.id,seller.id],'offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
   }else{
     // Der abgebende KI-Verein reagiert: wichtige Spieler sollen mit einem besseren Vertrag gehalten werden
     const key=seller.lineup.includes(p.id)||ROLE_ORDER.indexOf(p.role)<=1,trait=seller.staff.pres.trait;
     const keen=key?(trait==='sparsam'?.35:.65):.15,room=seller.wBudget-wageBill(seller);
     if(rnd()<keen){const nw=rw(Math.min(p.wage+Math.max(0,room),t.wage*(.9+rnd()*.2)));
       if(nw>p.wage){t.counter={old:p.wage,nw};p.wage=nw;p.mor=clamp(p.mor+8,15,100)}}
-    if(talkVisible(t))addNews('transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}${D.deadline?' (Deadline Day)':''}.`);
+    tn(talkVisible(t),[c.id,seller.id],'transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}${D.deadline?' (Deadline Day)':''}.`);
   }
   return true;
 }
@@ -2606,23 +2607,23 @@ function clauseTalksWeekly(){
     if(!p||!c||p.club!==sid){t.st='void';continue}
     const ct=contractOf(p),deal=t.kind==='deal';
     if(deal)vis=dealVisible(t);
-    if(!deal&&!clauseApplies(p,c,ct)){t.st='void';if(vis)addNews('transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
+    if(!deal&&!clauseApplies(p,c,ct)){t.st='void';tn(vis,[t.from,sid],'transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
     const fee=deal?t.fee:Math.min(t.fee,ct.rc||t.fee);
-    if(c.budget<fee||!isWindow()){t.st='void';if(vis||mine)addNews('transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
-    if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
+    if(c.budget<fee||!isWindow()){t.st='void';tn(vis||mine,[t.from,sid],'transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
+    if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;tn(mine||vis,[t.from,sid],'transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
       executeDeal(p,c,{...(t.bid||{}),fee},{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
-      if(deal){if(mine)addNews('transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel ist perfekt: <b>${t.bid?bidText({...t.bid,fee}):money(fee)}</b>.`);
-        else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
-      else if(mine)addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
-      else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);
+      if(deal){if(mine)tn(true,[t.from,sid],'transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel ist perfekt: <b>${t.bid?bidText({...t.bid,fee}):money(fee)}</b>.`);
+        else tn(vis,[t.from,sid],'transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
+      else if(mine)tn(true,[t.from,sid],'offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
+      else tn(vis,[t.from,sid],'transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);
     }else{
       t.st='no';p.mor=clamp(p.mor+4,15,100);
-      if(deal){if(mine)addNews('transfer',`${fullname(p)} lehnt Wechsel ab`,`Obwohl sich die Vereine einig waren, hat ${esc(pname(p))} sich nicht mit ${esc(c.name)} auf einen Vertrag geeinigt – er bleibt.`);
-        else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`Die Ablöse war vereinbart, aber ${esc(pname(p))} konnte sich mit ${esc(c.name)} nicht auf einen Vertrag einigen.`)}
-      else if(mine)addNews('transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
-      else if(vis)addNews('transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen – die Klausel wird nicht gezogen.${t.counter?' Das verbesserte Vertragsangebot seines Vereins hat gewirkt.':''}`);
+      if(deal){if(mine)tn(true,[t.from,sid],'transfer',`${fullname(p)} lehnt Wechsel ab`,`Obwohl sich die Vereine einig waren, hat ${esc(pname(p))} sich nicht mit ${esc(c.name)} auf einen Vertrag geeinigt – er bleibt.`);
+        else tn(vis,[t.from,sid],'transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`Die Ablöse war vereinbart, aber ${esc(pname(p))} konnte sich mit ${esc(c.name)} nicht auf einen Vertrag einigen.`)}
+      else if(mine)tn(true,[t.from,sid],'transfer',`${fullname(p)} bleibt!`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen und lehnt den Wechsel ab. Die Klausel wurde nicht gezogen.`);
+      else tn(vis,[t.from,sid],'transfer',`${fullname(p)} bleibt bei ${esc(sn)}`,`${esc(pname(p))} hat die Gespräche mit ${esc(c.name)} abgebrochen – die Klausel wird nicht gezogen.${t.counter?' Das verbesserte Vertragsangebot seines Vereins hat gewirkt.':''}`);
     }
   }
 }
@@ -2808,7 +2809,7 @@ function aiStartNeg(p,c){
   S.aineg=S.aineg||[];if(S.aineg.some(n=>n.pid===p.id)||activeTalk(p.id)||aiBusy(c)>=2)return;
   const b=aiMakeBid(p,c,sellerTarget(p));if(!b)return;const s=club(p.club),R=replyDelay(s,p);
   const n={id:'n'+(S.nextId++),pid:p.id,buyer:c.id,seller:s.id,b,round:1,step:'seller',dec:R.dec,when:R.when};S.aineg.push(n);
-  if(aiNegVisible(n))addNews('transfer',`${esc(c.short)} bietet für ${fullname(p)}`,`${esc(c.name)} hat bei ${esc(s.name)} ein Angebot abgegeben: ${bidText(b)}. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`${esc(s.name)} prüft es, Antwort bis ${fmtDate(R.when)}.`}`);
+  tn(aiNegVisible(n),[c.id,s.id],'transfer',`${esc(c.short)} bietet für ${fullname(p)}`,`${esc(c.name)} hat bei ${esc(s.name)} ein Angebot abgegeben: ${bidText(b)}. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`${esc(s.name)} prüft es, Antwort bis ${fmtDate(R.when)}.`}`);
   if(R.now)aiNegStep(n);
 }
 function aiNegDrop(n){S.aineg=(S.aineg||[]).filter(x=>x!==n)}
@@ -2816,28 +2817,36 @@ function aiNegStep(n){
   for(let guard=0;guard<6&&S.week>=n.dec;guard++){
     const p=S.players[n.pid],c=club(n.buyer),s=club(n.seller),vis=aiNegVisible(n);
     if(!p||p.club!==n.seller||!c||!s)return aiNegDrop(n);
-    if(!isWindow()){if(vis)addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(s.name)} sind bis zum Fensterschluss nicht zusammengekommen.`);return aiNegDrop(n)}
+    if(!isWindow()){tn(vis,[c.id,s.id],'transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(s.name)} sind bis zum Fensterschluss nicht zusammengekommen.`);return aiNegDrop(n)}
     if(n.step==='seller'){
       const j=sellerJudge(p,n.b);
       if(j.res==='yes'){aiNegDrop(n);startClauseTalk(p,c,n.b.fee,'deal',n.b);return}
-      if(j.res==='no'){if(vis)addNews('transfer',`${esc(s.short)} lehnt ab: ${fullname(p)}`,`${esc(s.name)} weist das Angebot von ${esc(c.name)} (${bidText(n.b)}) zurück.`);return aiNegDrop(n)}
+      if(j.res==='no'){tn(vis,[c.id,s.id],'transfer',`${esc(s.short)} lehnt ab: ${fullname(p)}`,`${esc(s.name)} weist das Angebot von ${esc(c.name)} (${bidText(n.b)}) zurück.`);return aiNegDrop(n)}
       n.b=j.bid;n.step='buyer';const R=replyDelay(c,null);n.dec=R.dec;n.when=R.when;
-      if(vis)addNews('transfer',`Gegenangebot: ${fullname(p)}`,`${esc(s.name)} fordert von ${esc(c.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`${esc(c.name)} prüft – Antwort bis ${fmtDate(R.when)}.`}`);
+      tn(vis,[c.id,s.id],'transfer',`Gegenangebot: ${fullname(p)}`,`${esc(s.name)} fordert von ${esc(c.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`${esc(c.name)} prüft – Antwort bis ${fmtDate(R.when)}.`}`);
       if(!R.now)return;
     }else{
       const F=aiFinance(c),nb={...n.b};
       if(nb.fee<=F.now){if(rnd()<.8){aiNegDrop(n);startClauseTalk(p,c,nb.fee,'deal',nb);return}
-        if(vis)addNews('transfer',`${esc(c.short)} steigt aus: ${fullname(p)}`,`${esc(c.name)} ist die Forderung von ${esc(s.name)} zu hoch.`);return aiNegDrop(n)}
+        tn(vis,[c.id,s.id],'transfer',`${esc(c.short)} steigt aus: ${fullname(p)}`,`${esc(c.name)} ist die Forderung von ${esc(s.name)} zu hoch.`);return aiNegDrop(n)}
       n.round++;
       const extra=nb.fee-F.now*.95;nb.fee=nice(F.now*.95);nb.instY=Math.max(nb.instY||0,2);nb.inst=nice((nb.inst||0)+extra/Math.pow(.94,nb.instY));
-      if(nb.inst>F.inst||n.round>3){if(vis)addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} kann die Forderung von ${esc(s.name)} nicht finanzieren – die Gespräche sind beendet.`);return aiNegDrop(n)}
+      if(nb.inst>F.inst||n.round>3){tn(vis,[c.id,s.id],'transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} kann die Forderung von ${esc(s.name)} nicht finanzieren – die Gespräche sind beendet.`);return aiNegDrop(n)}
       n.b=normBid(nb);n.step='seller';const R=replyDelay(s,p);n.dec=R.dec;n.when=R.when;
-      if(vis)addNews('transfer',`${esc(c.short)} bessert nach: ${fullname(p)}`,`Neues Angebot an ${esc(s.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`Antwort bis ${fmtDate(R.when)}.`}`);
+      tn(vis,[c.id,s.id],'transfer',`${esc(c.short)} bessert nach: ${fullname(p)}`,`Neues Angebot an ${esc(s.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`Antwort bis ${fmtDate(R.when)}.`}`);
       if(!R.now)return;
     }
   }
 }
 function processAiNegs(){for(const n of (S.aineg||[]).slice())if(S.week>=n.dec)aiNegStep(n)}
+
+/* ---------- Transfer-Ticker: alle Transfer-Meldungen aus allen Ligen ---------- */
+function tn(vis,ids,type,title,body){
+  const cl=ids.map(id=>club(id)).filter(Boolean);
+  S.tnews=S.tnews||[];S.tnews.unshift({season:S.season,w:S.week,d:gameDate(),type,title,body,lg:cl.map(x=>x.league===null?-1:x.league),as:[...new Set(cl.map(x=>x.assoc))],u:ids.includes(S.user)?1:0});
+  if(S.tnews.length>600)S.tnews.length=600;
+  if(vis)addNews(type,title,body);
+}
 
 </script>
 <script>
@@ -3478,12 +3487,30 @@ function renderTable(){
 /* ---------- Transfers ---------- */
 function renderTransfers(){
   const f=UI.tf,c=userClub();
-  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='ticker'?'on':''}" data-act="tfTab" data-v="ticker">Transfer-Ticker</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  // Filter für Ticker & Wechsel: Land (tk.code) und Liga (tk.lg)
+  const tk=UI.tk=UI.tk||{code:'',lg:'',q:'',type:''};
+  const clubOk=id=>{const x=club(id);if(!x)return false;if(tk.lg!=='')return x.league===+tk.lg;if(tk.code)return x.assoc===tk.code;return true};
+  const pairOk=ids=>ids.some(clubOk);
+  const filt=`<div class="row" style="gap:8px;margin-bottom:12px">
+      <select data-chg="tkCode"><option value="">Alle Länder</option>${S.active.map(code=>`<option value="${code}" ${tk.code===code?'selected':''}>${esc(natName(code))}</option>`).join('')}</select>
+      <select data-chg="tkLg"><option value="">Alle Ligen${tk.code?' in '+esc(natName(tk.code)):''}</option>${S.leagues.filter(L=>!tk.code||L.assoc===tk.code).sort((a,b)=>a.assoc.localeCompare(b.assoc)||a.tier-b.tier).map(L=>`<option value="${L.id}" ${String(L.id)===String(tk.lg)?'selected':''}>${esc(L.name)}${tk.code?'':' ('+L.assoc+')'}</option>`).join('')}</select>
+      <button class="btn sm" data-act="tkMine">Meine Liga</button>
+      <input type="search" placeholder="Spieler oder Verein…" data-chg="tkQ" value="${esc(tk.q)}" style="min-width:180px">
+    </div>`;
+  const q=tk.q.toLowerCase(),qOk=txt=>!q||txt.toLowerCase().includes(q);
+  if(f.tab==='ticker'){
+    const run=[...(S.aineg||[]).filter(n=>pairOk([n.buyer,n.seller])).map(n=>({p:S.players[n.pid],a:club(n.buyer),b:club(n.seller),st:n.step==='seller'?'Verkäufer prüft das Angebot':'Käufer prüft das Gegenangebot',bid:n.b,when:n.when})),
+      ...(S.talks||[]).filter(t=>t.st==='open'&&pairOk([t.from,t.seller])).map(t=>({p:S.players[t.pid],a:club(t.from),b:club(t.seller),st:t.kind==='clause'?'Spieler verhandelt (Ausstiegsklausel)':'Ablöse steht – Spieler verhandelt',bid:t.bid||{fee:t.fee},when:gameDate(t.dec)}))]
+      .filter(x=>x.p&&x.a&&x.b&&qOk(fullname(x.p)+' '+x.a.name+' '+x.b.name));
+    const runT=`<h3 style="margin-top:4px">Laufende Verhandlungen <span class="small muted">${run.length}</span></h3>${run.length?`<div class="tw" style="margin-bottom:14px;max-height:46vh;overflow:auto"><table><thead><tr><th>Spieler</th><th>Käufer</th><th>Verkäufer</th><th>Stand</th><th>Angebot</th><th>bis</th></tr></thead><tbody>${run.slice(0,150).map(x=>`<tr class="click" data-act="player" data-id="${x.p.id}"><td><b>${esc(fullname(x.p))}</b> ${ovrTag(ovr(x.p))}</td><td class="small">${esc(x.a.name)}<div class="muted">${esc(leagueName(x.a))}</div></td><td class="small">${esc(x.b.name)}<div class="muted">${esc(leagueName(x.b))}</div></td><td class="small">${x.st}</td><td class="small" style="white-space:normal;min-width:220px">${bidText(normBid(x.bid))}</td><td class="small muted">${fmtDate(x.when)}</td></tr>`).join('')}</tbody></table></div>`:`<p class="small muted">${isWindow()?'Gerade keine laufenden Verhandlungen mit diesem Filter.':'Das Transferfenster ist geschlossen.'}</p>`}`;
+    const news=(S.tnews||[]).filter(n=>(tk.lg!==''?n.lg.includes(+tk.lg):tk.code?n.as.includes(tk.code):true)&&qOk(n.title+' '+n.body.replace(/<[^>]+>/g,'')));
+    const feed=news.slice(0,200).map(n=>`<div class="news t-${n.type} tick ${n.u?'mine':''}"><b>${n.title}</b> <span class="small muted">· ${fmtDate(n.d)} · ${n.season%100}/W${n.w+1} · ${n.as.map(a=>esc(natName(a))).join(' / ')}</span><div class="small">${n.body}</div></div>`).join('')||'<p class="muted">Noch keine Meldungen mit diesem Filter.</p>';
+    return `<h2>Transfers</h2>${tabs}${filt}${runT}<h3 style="margin-top:8px">Transfer-Ticker <span class="small muted">${news.length} Meldungen</span></h3><div class="tickfeed">${feed}</div>`;
+  }
   if(f.tab==='log'){
-    const uL=c.league,run=[...(S.aineg||[]).filter(n=>[n.buyer,n.seller].some(id=>club(id).league===uL)).map(n=>({p:S.players[n.pid],a:club(n.buyer),b:club(n.seller),st:n.step==='seller'?'Verkäufer prüft das Angebot':'Käufer prüft das Gegenangebot',bid:n.b,when:n.when})),
-      ...(S.talks||[]).filter(t=>t.st==='open'&&[t.from,t.seller].some(id=>club(id)&&club(id).league===uL)).map(t=>({p:S.players[t.pid],a:club(t.from),b:club(t.seller),st:t.kind==='clause'?'Spieler verhandelt (Ausstiegsklausel)':'Ablöse steht – Spieler verhandelt',bid:t.bid||{fee:t.fee},when:gameDate(t.dec)}))].filter(x=>x.p);
-    const runT=run.length?`<h3 style="margin-top:4px">Laufende Verhandlungen in deiner Liga</h3><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Spieler</th><th>Käufer</th><th>Verkäufer</th><th>Stand</th><th>Angebot</th><th>bis</th></tr></thead><tbody>${run.map(x=>`<tr class="click" data-act="player" data-id="${x.p.id}"><td><b>${esc(fullname(x.p))}</b> ${ovrTag(ovr(x.p))}</td><td class="small">${esc(x.a.name)}</td><td class="small">${esc(x.b.name)}</td><td class="small">${x.st}</td><td class="small" style="white-space:normal;min-width:220px">${bidText(normBid(x.bid))}</td><td class="small muted">${fmtDate(x.when)}</td></tr>`).join('')}</tbody></table></div><h3>Abgeschlossene Wechsel</h3>`:'';
-    return `<h2>Transfers</h2>${tabs}${runT}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${S.transfers.slice(0,100).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.fee?money(t.fee):'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Transfers.</td></tr>'}</tbody></table></div>`;
+    const list=S.transfers.filter(t=>(t.fid===undefined?(!tk.code&&tk.lg===''):pairOk([t.fid,t.tid]))&&qOk(t.name+' '+t.from+' '+t.to));
+    return `<h2>Transfers</h2>${tabs}${filt}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${list.slice(0,200).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.fee?money(t.fee):'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Wechsel mit diesem Filter.</td></tr>'}</tbody></table></div><p class="small muted">* mit Raten, Erfolgsbonus oder Weiterverkaufsbeteiligung – Details beim Antippen bzw. Überfahren.</p>`;
   }
   let ps=Object.values(S.players).filter(p=>p.club!==S.user&&(p.club===null||!club(p.club).guest));
   if(f.pos)ps=ps.filter(p=>p.pos===f.pos);
@@ -3781,6 +3808,7 @@ const ACT={
   worldAssoc:d=>{UI.world.assoc=d.v;window.scrollTo(0,0);render()},
   worldBack:()=>{UI.world.assoc=null;render()},
   tfTab:d=>{UI.tf.tab=d.v;render()},
+  tkMine:()=>{const u=userClub();UI.tk=UI.tk||{};UI.tk.code=u.assoc;UI.tk.lg=String(u.league);render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
   negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years'){N.years=+d.v;negDateFix(N)}else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else if(d.k==='rw'){N.rw=d.v;if((d.v==='from'||d.v==='range')&&!N.rf)N.rf=`${S.season+1}-07-01`;if((d.v==='until'||d.v==='range')&&!N.ru)N.ru=`${S.season+1}-06-30`;negDateFix(N)}else N[d.k]=d.v;N.msg=null;render()},
   bidOpen:d=>{const p=S.players[d.id],R=(S.bidRes||{})[p.id];UI.bid={pid:p.id,mode:'buy',b:normBid(R&&R.bid?R.bid:{fee:nice(scoutEst(p)*.9)}),res:null,msg:null};
@@ -3827,6 +3855,9 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  tkCode:el=>{UI.tk.code=el.value;UI.tk.lg='';render()},
+  tkLg:el=>{UI.tk.lg=el.value;render()},
+  tkQ:el=>{UI.tk.q=el.value.trim();render()},
   bidAmt:el=>{const B=UI.bid;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.b[el.dataset.k]=Math.round(v);if(el.dataset.k==='inst'&&v&&!B.b.instY)B.b.instY=2;if(B.res!=='counter'){B.res=null;B.msg=null}render()},
   negDate:el=>{const N=UI.neg;if(!N)return;if(/^\d{4}-\d{2}-\d{2}$/.test(el.value)){N[el.dataset.k]=el.value;negDateFix(N)}N.msg=null;render()},
   negAmt:el=>{const N=UI.neg;if(!N)return;const v=parseMoney(el.value),k=el.dataset.k;

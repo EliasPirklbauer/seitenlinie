@@ -177,7 +177,7 @@ function aiStartNeg(p,c){
   S.aineg=S.aineg||[];if(S.aineg.some(n=>n.pid===p.id)||activeTalk(p.id)||aiBusy(c)>=2)return;
   const b=aiMakeBid(p,c,sellerTarget(p));if(!b)return;const s=club(p.club),R=replyDelay(s,p);
   const n={id:'n'+(S.nextId++),pid:p.id,buyer:c.id,seller:s.id,b,round:1,step:'seller',dec:R.dec,when:R.when};S.aineg.push(n);
-  if(aiNegVisible(n))addNews('transfer',`${esc(c.short)} bietet für ${fullname(p)}`,`${esc(c.name)} hat bei ${esc(s.name)} ein Angebot abgegeben: ${bidText(b)}. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`${esc(s.name)} prüft es, Antwort bis ${fmtDate(R.when)}.`}`);
+  tn(aiNegVisible(n),[c.id,s.id],'transfer',`${esc(c.short)} bietet für ${fullname(p)}`,`${esc(c.name)} hat bei ${esc(s.name)} ein Angebot abgegeben: ${bidText(b)}. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`${esc(s.name)} prüft es, Antwort bis ${fmtDate(R.when)}.`}`);
   if(R.now)aiNegStep(n);
 }
 function aiNegDrop(n){S.aineg=(S.aineg||[]).filter(x=>x!==n)}
@@ -185,25 +185,33 @@ function aiNegStep(n){
   for(let guard=0;guard<6&&S.week>=n.dec;guard++){
     const p=S.players[n.pid],c=club(n.buyer),s=club(n.seller),vis=aiNegVisible(n);
     if(!p||p.club!==n.seller||!c||!s)return aiNegDrop(n);
-    if(!isWindow()){if(vis)addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(s.name)} sind bis zum Fensterschluss nicht zusammengekommen.`);return aiNegDrop(n)}
+    if(!isWindow()){tn(vis,[c.id,s.id],'transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(s.name)} sind bis zum Fensterschluss nicht zusammengekommen.`);return aiNegDrop(n)}
     if(n.step==='seller'){
       const j=sellerJudge(p,n.b);
       if(j.res==='yes'){aiNegDrop(n);startClauseTalk(p,c,n.b.fee,'deal',n.b);return}
-      if(j.res==='no'){if(vis)addNews('transfer',`${esc(s.short)} lehnt ab: ${fullname(p)}`,`${esc(s.name)} weist das Angebot von ${esc(c.name)} (${bidText(n.b)}) zurück.`);return aiNegDrop(n)}
+      if(j.res==='no'){tn(vis,[c.id,s.id],'transfer',`${esc(s.short)} lehnt ab: ${fullname(p)}`,`${esc(s.name)} weist das Angebot von ${esc(c.name)} (${bidText(n.b)}) zurück.`);return aiNegDrop(n)}
       n.b=j.bid;n.step='buyer';const R=replyDelay(c,null);n.dec=R.dec;n.when=R.when;
-      if(vis)addNews('transfer',`Gegenangebot: ${fullname(p)}`,`${esc(s.name)} fordert von ${esc(c.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`${esc(c.name)} prüft – Antwort bis ${fmtDate(R.when)}.`}`);
+      tn(vis,[c.id,s.id],'transfer',`Gegenangebot: ${fullname(p)}`,`${esc(s.name)} fordert von ${esc(c.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`${esc(c.name)} prüft – Antwort bis ${fmtDate(R.when)}.`}`);
       if(!R.now)return;
     }else{
       const F=aiFinance(c),nb={...n.b};
       if(nb.fee<=F.now){if(rnd()<.8){aiNegDrop(n);startClauseTalk(p,c,nb.fee,'deal',nb);return}
-        if(vis)addNews('transfer',`${esc(c.short)} steigt aus: ${fullname(p)}`,`${esc(c.name)} ist die Forderung von ${esc(s.name)} zu hoch.`);return aiNegDrop(n)}
+        tn(vis,[c.id,s.id],'transfer',`${esc(c.short)} steigt aus: ${fullname(p)}`,`${esc(c.name)} ist die Forderung von ${esc(s.name)} zu hoch.`);return aiNegDrop(n)}
       n.round++;
       const extra=nb.fee-F.now*.95;nb.fee=nice(F.now*.95);nb.instY=Math.max(nb.instY||0,2);nb.inst=nice((nb.inst||0)+extra/Math.pow(.94,nb.instY));
-      if(nb.inst>F.inst||n.round>3){if(vis)addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} kann die Forderung von ${esc(s.name)} nicht finanzieren – die Gespräche sind beendet.`);return aiNegDrop(n)}
+      if(nb.inst>F.inst||n.round>3){tn(vis,[c.id,s.id],'transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} kann die Forderung von ${esc(s.name)} nicht finanzieren – die Gespräche sind beendet.`);return aiNegDrop(n)}
       n.b=normBid(nb);n.step='seller';const R=replyDelay(s,p);n.dec=R.dec;n.when=R.when;
-      if(vis)addNews('transfer',`${esc(c.short)} bessert nach: ${fullname(p)}`,`Neues Angebot an ${esc(s.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`Antwort bis ${fmtDate(R.when)}.`}`);
+      tn(vis,[c.id,s.id],'transfer',`${esc(c.short)} bessert nach: ${fullname(p)}`,`Neues Angebot an ${esc(s.name)}: ${bidText(n.b)}. ${R.now?'Die Antwort kommt noch heute.':`Antwort bis ${fmtDate(R.when)}.`}`);
       if(!R.now)return;
     }
   }
 }
 function processAiNegs(){for(const n of (S.aineg||[]).slice())if(S.week>=n.dec)aiNegStep(n)}
+
+/* ---------- Transfer-Ticker: alle Transfer-Meldungen aus allen Ligen ---------- */
+function tn(vis,ids,type,title,body){
+  const cl=ids.map(id=>club(id)).filter(Boolean);
+  S.tnews=S.tnews||[];S.tnews.unshift({season:S.season,w:S.week,d:gameDate(),type,title,body,lg:cl.map(x=>x.league===null?-1:x.league),as:[...new Set(cl.map(x=>x.assoc))],u:ids.includes(S.user)?1:0});
+  if(S.tnews.length>600)S.tnews.length=600;
+  if(vis)addNews(type,title,body);
+}

@@ -635,12 +635,30 @@ function renderTable(){
 /* ---------- Transfers ---------- */
 function renderTransfers(){
   const f=UI.tf,c=userClub();
-  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='ticker'?'on':''}" data-act="tfTab" data-v="ticker">Transfer-Ticker</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  // Filter für Ticker & Wechsel: Land (tk.code) und Liga (tk.lg)
+  const tk=UI.tk=UI.tk||{code:'',lg:'',q:'',type:''};
+  const clubOk=id=>{const x=club(id);if(!x)return false;if(tk.lg!=='')return x.league===+tk.lg;if(tk.code)return x.assoc===tk.code;return true};
+  const pairOk=ids=>ids.some(clubOk);
+  const filt=`<div class="row" style="gap:8px;margin-bottom:12px">
+      <select data-chg="tkCode"><option value="">Alle Länder</option>${S.active.map(code=>`<option value="${code}" ${tk.code===code?'selected':''}>${esc(natName(code))}</option>`).join('')}</select>
+      <select data-chg="tkLg"><option value="">Alle Ligen${tk.code?' in '+esc(natName(tk.code)):''}</option>${S.leagues.filter(L=>!tk.code||L.assoc===tk.code).sort((a,b)=>a.assoc.localeCompare(b.assoc)||a.tier-b.tier).map(L=>`<option value="${L.id}" ${String(L.id)===String(tk.lg)?'selected':''}>${esc(L.name)}${tk.code?'':' ('+L.assoc+')'}</option>`).join('')}</select>
+      <button class="btn sm" data-act="tkMine">Meine Liga</button>
+      <input type="search" placeholder="Spieler oder Verein…" data-chg="tkQ" value="${esc(tk.q)}" style="min-width:180px">
+    </div>`;
+  const q=tk.q.toLowerCase(),qOk=txt=>!q||txt.toLowerCase().includes(q);
+  if(f.tab==='ticker'){
+    const run=[...(S.aineg||[]).filter(n=>pairOk([n.buyer,n.seller])).map(n=>({p:S.players[n.pid],a:club(n.buyer),b:club(n.seller),st:n.step==='seller'?'Verkäufer prüft das Angebot':'Käufer prüft das Gegenangebot',bid:n.b,when:n.when})),
+      ...(S.talks||[]).filter(t=>t.st==='open'&&pairOk([t.from,t.seller])).map(t=>({p:S.players[t.pid],a:club(t.from),b:club(t.seller),st:t.kind==='clause'?'Spieler verhandelt (Ausstiegsklausel)':'Ablöse steht – Spieler verhandelt',bid:t.bid||{fee:t.fee},when:gameDate(t.dec)}))]
+      .filter(x=>x.p&&x.a&&x.b&&qOk(fullname(x.p)+' '+x.a.name+' '+x.b.name));
+    const runT=`<h3 style="margin-top:4px">Laufende Verhandlungen <span class="small muted">${run.length}</span></h3>${run.length?`<div class="tw" style="margin-bottom:14px;max-height:46vh;overflow:auto"><table><thead><tr><th>Spieler</th><th>Käufer</th><th>Verkäufer</th><th>Stand</th><th>Angebot</th><th>bis</th></tr></thead><tbody>${run.slice(0,150).map(x=>`<tr class="click" data-act="player" data-id="${x.p.id}"><td><b>${esc(fullname(x.p))}</b> ${ovrTag(ovr(x.p))}</td><td class="small">${esc(x.a.name)}<div class="muted">${esc(leagueName(x.a))}</div></td><td class="small">${esc(x.b.name)}<div class="muted">${esc(leagueName(x.b))}</div></td><td class="small">${x.st}</td><td class="small" style="white-space:normal;min-width:220px">${bidText(normBid(x.bid))}</td><td class="small muted">${fmtDate(x.when)}</td></tr>`).join('')}</tbody></table></div>`:`<p class="small muted">${isWindow()?'Gerade keine laufenden Verhandlungen mit diesem Filter.':'Das Transferfenster ist geschlossen.'}</p>`}`;
+    const news=(S.tnews||[]).filter(n=>(tk.lg!==''?n.lg.includes(+tk.lg):tk.code?n.as.includes(tk.code):true)&&qOk(n.title+' '+n.body.replace(/<[^>]+>/g,'')));
+    const feed=news.slice(0,200).map(n=>`<div class="news t-${n.type} tick ${n.u?'mine':''}"><b>${n.title}</b> <span class="small muted">· ${fmtDate(n.d)} · ${n.season%100}/W${n.w+1} · ${n.as.map(a=>esc(natName(a))).join(' / ')}</span><div class="small">${n.body}</div></div>`).join('')||'<p class="muted">Noch keine Meldungen mit diesem Filter.</p>';
+    return `<h2>Transfers</h2>${tabs}${filt}${runT}<h3 style="margin-top:8px">Transfer-Ticker <span class="small muted">${news.length} Meldungen</span></h3><div class="tickfeed">${feed}</div>`;
+  }
   if(f.tab==='log'){
-    const uL=c.league,run=[...(S.aineg||[]).filter(n=>[n.buyer,n.seller].some(id=>club(id).league===uL)).map(n=>({p:S.players[n.pid],a:club(n.buyer),b:club(n.seller),st:n.step==='seller'?'Verkäufer prüft das Angebot':'Käufer prüft das Gegenangebot',bid:n.b,when:n.when})),
-      ...(S.talks||[]).filter(t=>t.st==='open'&&[t.from,t.seller].some(id=>club(id)&&club(id).league===uL)).map(t=>({p:S.players[t.pid],a:club(t.from),b:club(t.seller),st:t.kind==='clause'?'Spieler verhandelt (Ausstiegsklausel)':'Ablöse steht – Spieler verhandelt',bid:t.bid||{fee:t.fee},when:gameDate(t.dec)}))].filter(x=>x.p);
-    const runT=run.length?`<h3 style="margin-top:4px">Laufende Verhandlungen in deiner Liga</h3><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Spieler</th><th>Käufer</th><th>Verkäufer</th><th>Stand</th><th>Angebot</th><th>bis</th></tr></thead><tbody>${run.map(x=>`<tr class="click" data-act="player" data-id="${x.p.id}"><td><b>${esc(fullname(x.p))}</b> ${ovrTag(ovr(x.p))}</td><td class="small">${esc(x.a.name)}</td><td class="small">${esc(x.b.name)}</td><td class="small">${x.st}</td><td class="small" style="white-space:normal;min-width:220px">${bidText(normBid(x.bid))}</td><td class="small muted">${fmtDate(x.when)}</td></tr>`).join('')}</tbody></table></div><h3>Abgeschlossene Wechsel</h3>`:'';
-    return `<h2>Transfers</h2>${tabs}${runT}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${S.transfers.slice(0,100).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.fee?money(t.fee):'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Transfers.</td></tr>'}</tbody></table></div>`;
+    const list=S.transfers.filter(t=>(t.fid===undefined?(!tk.code&&tk.lg===''):pairOk([t.fid,t.tid]))&&qOk(t.name+' '+t.from+' '+t.to));
+    return `<h2>Transfers</h2>${tabs}${filt}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${list.slice(0,200).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.fee?money(t.fee):'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Wechsel mit diesem Filter.</td></tr>'}</tbody></table></div><p class="small muted">* mit Raten, Erfolgsbonus oder Weiterverkaufsbeteiligung – Details beim Antippen bzw. Überfahren.</p>`;
   }
   let ps=Object.values(S.players).filter(p=>p.club!==S.user&&(p.club===null||!club(p.club).guest));
   if(f.pos)ps=ps.filter(p=>p.pos===f.pos);
@@ -938,6 +956,7 @@ const ACT={
   worldAssoc:d=>{UI.world.assoc=d.v;window.scrollTo(0,0);render()},
   worldBack:()=>{UI.world.assoc=null;render()},
   tfTab:d=>{UI.tf.tab=d.v;render()},
+  tkMine:()=>{const u=userClub();UI.tk=UI.tk||{};UI.tk.code=u.assoc;UI.tk.lg=String(u.league);render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
   negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years'){N.years=+d.v;negDateFix(N)}else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else if(d.k==='rw'){N.rw=d.v;if((d.v==='from'||d.v==='range')&&!N.rf)N.rf=`${S.season+1}-07-01`;if((d.v==='until'||d.v==='range')&&!N.ru)N.ru=`${S.season+1}-06-30`;negDateFix(N)}else N[d.k]=d.v;N.msg=null;render()},
   bidOpen:d=>{const p=S.players[d.id],R=(S.bidRes||{})[p.id];UI.bid={pid:p.id,mode:'buy',b:normBid(R&&R.bid?R.bid:{fee:nice(scoutEst(p)*.9)}),res:null,msg:null};
@@ -984,6 +1003,9 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  tkCode:el=>{UI.tk.code=el.value;UI.tk.lg='';render()},
+  tkLg:el=>{UI.tk.lg=el.value;render()},
+  tkQ:el=>{UI.tk.q=el.value.trim();render()},
   bidAmt:el=>{const B=UI.bid;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.b[el.dataset.k]=Math.round(v);if(el.dataset.k==='inst'&&v&&!B.b.instY)B.b.instY=2;if(B.res!=='counter'){B.res=null;B.msg=null}render()},
   negDate:el=>{const N=UI.neg;if(!N)return;if(/^\d{4}-\d{2}-\d{2}$/.test(el.value)){N[el.dataset.k]=el.value;negDateFix(N)}N.msg=null;render()},
   negAmt:el=>{const N=UI.neg;if(!N)return;const v=parseMoney(el.value),k=el.dataset.k;
