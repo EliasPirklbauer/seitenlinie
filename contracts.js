@@ -156,7 +156,7 @@ function payBonus(amt,why){
   if(why){S.fin.bon=S.fin.bon||{};S.fin.bon[why]=(S.fin.bon[why]||0)+amt}
 }
 function matchBonuses(c,res,ga){
-  if(c.id!==S.user||!S.fin)return;const slots=FORMATIONS[c.tactic.f].s;
+  if(c.id!==S.user||!S.fin)return;const slots=slotsOf(c);
   c.lineup.forEach((id,i)=>{
     const p=id&&S.players[id];if(!p||!p.ct)return;const ct=p.ct,x=(res.st&&res.st[id])||{g:0,a:0};
     let amt=0;

@@ -180,7 +180,7 @@ function renderHome(){
     const hc=home?c:opp,ac=home?opp:c;
     next=`${wait}${more}<div class="small muted" style="text-align:center">${sub}</div>
     <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
-    <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
+    <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${(()=>{ensureTactic(opp);const m=shapeMetrics(opp);return `Gegen den Ball ${m.oopShape}, mit Ball ${m.ipShape} · ${MENTALITY[opp.tactic.men]}, ${PRESSING[opp.tactic.press]}`})()}</span></div>`;
   }
   const talks=(S.talks||[]).filter(t=>t.st==='open'&&(t.seller===undefined||t.seller===S.user)).map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
     const deal=t.kind==='deal';
@@ -640,29 +640,80 @@ function uinqModal(){
 }
 
 /* ---------- Taktik ---------- */
+function roleSelect(i,phase,cur,pos,p){
+  const ks=rolesFor(pos,phase);
+  return `<select data-chg="roleSel" data-i="${i}" data-ph="${phase}" style="width:100%">${ks.map(k=>{const R=roleDef(k),st=p?roleStars(roleScore(p,k)):0;return `<option value="${k}" ${k===cur?'selected':''}>${R.lbl}${p?' '+'★'.repeat(st)+'☆'.repeat(5-st):''}</option>`}).join('')}</select>`;
+}
 function renderTactic(){
-  const c=userClub(),t=c.tactic,F=FORMATIONS[t.f],str=teamStrength(c);
-  const slots=F.s.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];const col=GROUP_COLOR[GROUP[pos]];const r=p?Math.round(rateAt(p,pos)):'-';
-    return `<div class="slot ${UI.selSlot===i?'sel':''}" style="left:${F.xy[i][0]}%;top:${F.xy[i][1]}%" data-act="slot" data-i="${i}"><div class="dot" style="background:${col};color:#08130d">${r}</div><div class="nm">${p?esc(p.ln):'<i>leer</i>'}${p&&p.inj?' 🩹':''}</div></div>`}).join('');
+  const c=userClub(),t=c.tactic;ensureTactic(c);const str=teamStrength(c),slots=slotsOf(c),ph=UI.tph||'oop',P=tacticProfile(c),m=P.m;
+  const cur=ph==='ip'?t.ip:t.oop,other=ph==='ip'?t.oop:t.ip;
+  const dots=cur.map((xy,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]],pos=slots[i],col=GROUP_COLOR[GROUP[pos]],rk=ph==='ip'?t.roles[i]:t.droles[i],R=roleDef(rk);
+    const r=p?Math.round(rateAt(p,pos)):'-',fit=p?roleStars(roleScore(p,rk)):0;
+    return `<div class="slot drag ${UI.selSlot===i?'sel':''}" data-drag="${i}" style="left:${xy[0]}%;top:${xy[1]}%"><div class="dot" style="background:${col};color:#08130d">${r}</div><div class="nm">${p?esc(p.ln):'<i>leer</i>'}${p&&p.inj?' 🩹':''}</div><div class="rl" title="${R?esc(R.lbl):''}">${R?esc(R.sh):''}<span>${'★'.repeat(fit)}</span></div></div>`}).join('');
+  const ghosts=ph==='both'?'':other.map((xy,i)=>`<div class="ghost" style="left:${xy[0]}%;top:${xy[1]}%"></div>`).join('');
+  const lines=`<svg class="tlines" viewBox="0 0 100 100" preserveAspectRatio="none">${t.oop.map((a,i)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${t.ip[i][0]}" y2="${t.ip[i][1]}"/>`).join('')}</svg>`;
+  const both=ph==='both'?t.oop.map((xy,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]],col=GROUP_COLOR[GROUP[slots[i]]];return `<div class="slot mini" style="left:${xy[0]}%;top:${xy[1]}%"><div class="dot" style="background:${col}">${slots[i]}</div></div><div class="slot mini ipd" style="left:${t.ip[i][0]}%;top:${t.ip[i][1]}%"><div class="dot">${p?esc(p.ln.slice(0,3)):''}</div></div>`}).join(''):'';
   const seg=(key,obj)=>`<div class="seg">${Object.entries(obj).map(([k,l])=>`<button class="${t[key]===k?'on':''}" data-act="tac" data-k="${key}" data-v="${k}">${l}</button>`).join('')}</div>`;
   const bar=(l,v)=>`<div class="attr"><span>${l}</span><div class="bar"><i style="width:${clamp(v,0,100)}%"></i></div><b>${Math.round(v)}</b></div>`;
-  return `<h2>Taktik</h2><div class="grid g2">
-   <div><div class="pitch"><div class="mid"></div><div class="circ"></div>${slots}</div><p class="small muted" style="text-align:center">Tippe auf eine Position, um den Spieler zu wechseln.</p></div>
+  const kv=(l,v,s)=>`<div class="crow"><span>${l}${s?`<small>${s}</small>`:''}</span><b>${v}</b></div>`;
+  const pct=f=>`<b class="${f>1.005?'good':f<.995?'bad':''}">${f>=1?'+':''}${Math.round((f-1)*100)} %</b>`;
+  const rows=slots.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];
+    return `<tr><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[pos]]}88">${pos}</span></td><td><a data-act="slot" data-i="${i}" style="cursor:pointer"><b>${p?esc(fullname(p)):'<i>leer</i>'}</b></a>${p?`<div class="small muted">${FAM_LABEL(familiarity(p,pos))} · Stärke ${Math.round(rateAt(p,pos))}</div>`:''}</td><td>${roleSelect(i,'ip',t.roles[i],pos,p)}</td><td>${roleSelect(i,'oop',t.droles[i],pos,p)}</td></tr>`}).join('');
+  const sel=UI.troleInfo!==undefined&&UI.troleInfo!==null?UI.troleInfo:null;
+  return `<h2>Taktik <span class="small muted">${t.cust?'eigene Formation':esc(t.f)}</span></h2><div class="grid g2">
+   <div>
+    <div class="seg ptabs" style="margin:0 0 10px">${[['oop','🛡️ Gegen den Ball'],['ip','⚽ Mit Ball'],['both','🔀 Beide']].map(([k,l])=>`<button class="${ph===k?'on':''}" data-act="tph" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="pitch tpitch ${ph}" id="tpitch"><div class="mid"></div><div class="circ"></div>${ph==='both'?lines+both:ghosts+dots}</div>
+    <div class="row" style="justify-content:center;gap:14px;margin-top:8px"><span class="small">Gegen den Ball: <b>${m.oopShape}</b></span><span class="small">Mit Ball: <b>${m.ipShape}</b></span></div>
+    <p class="small muted" style="text-align:center">${ph==='both'?'Linien zeigen die Laufwege vom Defensiv- ins Offensivsystem. Zum Verschieben eine Phase wählen.':'Ziehe Spieler frei über das Feld. Tippe auf einen Spieler, um ihn auszutauschen. Die Position (z. B. IV, ZM) ergibt sich aus der Stellung gegen den Ball.'}</p>
+    <div class="row" style="justify-content:center">${ph!=='oop'?'<button class="btn sm" data-act="ipDerive">↻ Form mit Ball aus den Rollen ableiten</button>':''}<button class="btn sm" data-act="tMirror">⇆ Spiegeln</button></div>
+   </div>
    <div class="grid" style="align-content:start">
-    <div class="card"><label class="f">Formation</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
+    <div class="card"><label class="f">Grundformation (setzt beide Phasen neu)</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f&&!t.cust?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
      <label class="f" style="margin-top:12px">Mentalität</label>${seg('men',MENTALITY)}
      <label class="f" style="margin-top:12px">Pressing</label>${seg('press',PRESSING)}
      <label class="f" style="margin-top:12px">Spielstil</label>${seg('style',STYLE)}
-     <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button></div>
-     <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" data-chg="autoXIToggle" ${c.autoXI?'checked':''}><span><b>Co-Trainer stellt vor jedem Spiel auf</b><br><span class="muted">Wählt automatisch die beste fitte Elf und rotiert bei englischen Wochen. Ausschalten, wenn du selbst aufstellen willst.</span></span></label></div>
-    <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}
-     <div class="small muted" style="margin-top:8px">Offensiv: mehr Angriff, weniger Abwehr. Gegenpressing: mehr Mittelfeldkontrolle, kostet mehr Fitness. Konter: stärkere Chancenverwertung, wenn du weniger Ballbesitz hast.</div></div>
-   </div></div>`;
+     <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button><button class="btn" data-act="bestRolesBtn">🎯 Passende Rollen wählen</button></div>
+     <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" data-chg="autoXIToggle" ${c.autoXI?'checked':''}><span><b>Co-Trainer stellt vor jedem Spiel auf</b><br><span class="muted">Wählt die beste fitte Elf für deine Formation. Rollen und Formen bleiben wie von dir eingestellt.</span></span></label></div>
+    <div class="card"><h3>Analyse</h3>
+      ${kv('Restverteidigung',m.rest+' Spieler','bleiben mit Ball in der eigenen Hälfte')}
+      ${kv('Letzte Linie',m.front+' Spieler','mit Ball im letzten Drittel')}
+      ${kv('Breite',m.wide+' Spieler','mit Ball an den Seitenlinien')}
+      ${kv('Zentrum',m.central+' Spieler','mit Ball zwischen den Linien / in den Halbräumen')}
+      ${kv('Kompaktheit',Math.round(m.depth)+' %','Abstand erste–letzte Linie gegen den Ball')}
+      ${kv('Abwehrlinie',m.line<68?'hoch':m.line<76?'mittel':'tief','gegen den Ball')}
+      <div class="row" style="gap:14px;margin-top:8px"><span class="small">Abwehr ${pct(P.D)}</span><span class="small">Mittelfeld ${pct(P.M)}</span><span class="small">Angriff ${pct(P.A)}</span><span class="small muted">durch Formen & Rollen</span></div>
+      <div style="margin-top:8px">${tacticHints(c).map(([cl,tx])=>`<div class="small ${cl}" style="margin-top:4px">• ${tx}</div>`).join('')}</div></div>
+    <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}</div>
+   </div></div>
+   <div class="card" style="margin-top:14px"><h3>Rollen</h3>
+    <div class="tw"><table class="roles"><thead><tr><th>Pos</th><th>Spieler</th><th>Rolle mit Ball</th><th>Rolle gegen den Ball</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="small muted" style="margin-top:8px">Sterne = Eignung des Spielers für die Rolle (aus seinen Attributen). Die Rolle mit Ball bestimmt auch seinen Laufweg, wenn du die Form mit Ball ableiten lässt.</p>
+    <div class="rolehelp">${(()=>{const seen=new Set();return slots.flatMap((pos,i)=>[t.roles[i],t.droles[i]]).filter(k=>!seen.has(k)&&seen.add(k)).map(k=>{const R=roleDef(k);return `<div><b>${esc(R.lbl)}</b> <span class="muted small">(${R.p})</span><div class="small">${esc(R.d)}</div><div class="small muted">Wichtig: ${Object.keys(R.a).map(a=>ATTR_LABEL[a]).join(', ')}</div></div>`}).join('')})()}</div>
+   </div>`;
 }
-function slotPicker(){return ()=>{const c=userClub(),F=FORMATIONS[c.tactic.f];if(UI.selSlot===null)return '';
-  const pos=F.s[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));
+function slotPicker(){return ()=>{const c=userClub(),slots=slotsOf(c);if(UI.selSlot===null)return '';
+  const pos=slots[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));const rk=c.tactic.roles[UI.selSlot],dk=c.tactic.droles[UI.selSlot];
   return `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Spieler für ${pos} (${POS_LABEL[pos]})</h3><button class="btn sm" data-act="slotCancel">Abbrechen</button></div>
-   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+F.s[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+   <div class="small muted" style="margin-top:4px">Rollen: ${esc(roleDef(rk).lbl)} (mit Ball) · ${esc(roleDef(dk).lbl)} (gegen den Ball)</div>
+   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Rolle</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n gold small">${'★'.repeat(roleStars(roleScore(p,rk)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+slots[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+
+/* Drag & Drop auf dem Taktikfeld (Maus und Touch) */
+(function(){
+  let D=null;
+  document.addEventListener('pointerdown',e=>{const el=e.target.closest('.slot[data-drag]');if(!el)return;const pitch=document.getElementById('tpitch');if(!pitch)return;
+    D={el,i:+el.dataset.drag,sx:e.clientX,sy:e.clientY,moved:false,rect:pitch.getBoundingClientRect()};el.setPointerCapture&&el.setPointerCapture(e.pointerId);e.preventDefault()});
+  document.addEventListener('pointermove',e=>{if(!D)return;const dx=e.clientX-D.sx,dy=e.clientY-D.sy;if(Math.abs(dx)+Math.abs(dy)>5)D.moved=true;if(!D.moved)return;
+    const x=clamp((e.clientX-D.rect.left)/D.rect.width*100,3,97),y=clamp((e.clientY-D.rect.top)/D.rect.height*100,D.i===0?78:6,96);
+    D.el.style.left=x+'%';D.el.style.top=y+'%';D.x=x;D.y=y;D.el.classList.add('dragging')});
+  const end=e=>{if(!D)return;const d=D;D=null;
+    if(!d.moved){ACT.slot({i:d.i});return}
+    const c=userClub(),t=c.tactic,ph=UI.tph||'oop',arr=ph==='ip'?t.ip:t.oop;arr[d.i]=[Math.round(d.x),Math.round(d.y)];t.cust=1;
+    if(ph==='oop'){const pos=posFromXY(d.x,d.y,d.i),ks=rolesFor(pos,'ip');if(!ks.includes(t.roles[d.i])){const p=S.players[c.lineup[d.i]];t.roles[d.i]=ks.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}
+      const kd=rolesFor(pos,'oop');if(!kd.includes(t.droles[d.i])){const p=S.players[c.lineup[d.i]];t.droles[d.i]=kd.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}}
+    save();render()};
+  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
 
 /* ---------- Liga-Auswahl ---------- */
 function leagueSelect(cur,chg){
@@ -1020,8 +1071,12 @@ const ACT={
   slot:d=>{UI.selSlot=+d.i;UI.modal=slotPicker();render()},
   slotCancel:()=>{UI.selSlot=null;UI.modal=null;render()},
   assign:d=>{const c=userClub(),i=UI.selSlot,j=c.lineup.indexOf(d.id);if(j>=0)c.lineup[j]=c.lineup[i];c.lineup[i]=d.id;UI.selSlot=null;UI.modal=null;const was=c.autoXI;c.autoXI=false;save();render();if(was)toast('Co-Trainer-Aufstellung ausgeschaltet – deine Elf gilt')},
-  formation:d=>{const c=userClub();c.tactic.f=d.v;autoLineup(c);save();render()},
-  tac:d=>{userClub().tactic[d.k]=d.v;save();render()},
+  formation:d=>{const c=userClub(),t=c.tactic;t.f=d.v;t.cust=0;t.oop=FORMATIONS[d.v].xy.map(a=>a.slice());t.roles=null;t.droles=null;t.ip=null;autoLineup(c);bestRoles(c,null);t.ip=deriveIP(t);save();render()},
+  tph:d=>{UI.tph=d.v;render()},
+  ipDerive:()=>{const t=userClub().tactic;t.ip=deriveIP(t);save();render();toast('Form mit Ball aus den Rollen abgeleitet')},
+  tMirror:()=>{const c=userClub(),t=c.tactic;t.oop=t.oop.map(([x,y])=>[100-x,y]);t.ip=t.ip.map(([x,y])=>[100-x,y]);t.cust=1;save();render()},
+  bestRolesBtn:()=>{const c=userClub(),t=c.tactic;t.roles=null;t.droles=null;bestRoles(c,null);save();render();toast('Rollen passend zu deinen Spielern gewählt')},
+  tac:d=>{const t=userClub().tactic;t[d.k]=d.v;save();render()},
   autoXI:()=>{autoLineup(userClub());save();toast('Beste Elf aufgestellt')},
   fxRound:d=>{UI.fxRound=+d.i;render()},
   openTable:d=>{UI.tableLeague=+d.id;UI.view='table';render()},
@@ -1097,6 +1152,7 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  roleSel:el=>{const t=userClub().tactic,i=+el.dataset.i;if(el.dataset.ph==='ip')t.roles[i]=el.value;else t.droles[i]=el.value;save();render()},
   loanPct:el=>{const B=UI.loan;if(!B)return;const v=parseFloat(String(el.value).replace('%','').replace(',','.').trim());if(isNaN(v)){toast('Bitte einen Prozentwert zwischen 0 und 100 eingeben');render();return}B.t.ws=Math.round(clamp(v,0,100)*10)/10;render()},
   tkInq:el=>{UI.tk.inq=el.checked;render()},
   loanAmt:el=>{const B=UI.loan;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.t[el.dataset.k]=Math.round(v);if(el.dataset.k==='opt'&&!v)B.t.obl=false;render()},

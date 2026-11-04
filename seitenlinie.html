@@ -267,6 +267,16 @@ optgroup{color:#000}
 .whys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.whys span{font-size:11.5px;background:var(--night2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
 .tickfeed .news{padding:9px 13px}.tickfeed .news.mine{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
 .split{height:8px;border-radius:9px;background:color-mix(in srgb,var(--info) 55%,var(--panel3));overflow:hidden;margin:4px 0}.split>div{height:100%;background:var(--accent);border-radius:9px 0 0 9px}
+.tpitch{touch-action:none;user-select:none;-webkit-user-select:none}
+.tpitch .slot.drag{cursor:grab}.tpitch .slot.dragging{cursor:grabbing;z-index:5;transform:translate(-50%,-50%) scale(1.12)}
+.tpitch .slot .rl{font-size:10px;font-weight:700;background:rgba(255,198,92,.92);color:#1a1405;border-radius:6px;padding:0 5px;margin-top:2px;display:inline-block;letter-spacing:.02em}
+.tpitch .slot .rl span{margin-left:3px;font-size:8px;letter-spacing:-1px}
+.tpitch .ghost{position:absolute;width:14px;height:14px;border-radius:50%;border:2px dashed rgba(255,255,255,.45);transform:translate(-50%,-50%);pointer-events:none}
+.tpitch .tlines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.tpitch .tlines line{stroke:rgba(255,198,92,.75);stroke-width:.6;stroke-dasharray:1.4 1}
+.tpitch .slot.mini{width:auto;pointer-events:none}.tpitch .slot.mini .dot{width:24px;height:24px;font-size:10px}.tpitch .slot.ipd .dot{background:var(--accent);color:#1a1405;border-color:#fff}
+.tpitch.ip{background:repeating-linear-gradient(0deg,#22704a 0 12.5%,#1f6644 12.5% 25%)}
+table.roles select{font-size:13px;padding:6px 8px;min-width:170px}
+.rolehelp{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}.rolehelp>div{background:var(--night2);border:1px solid var(--line);border-radius:12px;padding:8px 11px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -678,7 +688,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.16.2';
+const APP_VERSION='0.17.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -750,6 +760,10 @@ const FORMATIONS={
  '4-5-1':{s:['TW','AV','IV','IV','AV','FL','ZM','DM','ZM','FL','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[12,42],[31,46],[50,59],[69,46],[88,42],[50,15]]},
  '5-3-2':{s:['TW','AV','IV','IV','IV','AV','ZM','DM','ZM','ST','ST'],xy:[[50,92],[8,62],[28,77],[50,79],[72,77],[92,62],[27,45],[50,56],[73,45],[37,18],[63,18]]},
  '3-5-2':{s:['TW','IV','IV','IV','FL','ZM','DM','ZM','FL','ST','ST'],xy:[[50,92],[28,77],[50,79],[72,77],[8,45],[31,46],[50,59],[69,46],[92,45],[37,18],[63,18]]},
+ '4-1-4-1':{s:['TW','AV','IV','IV','AV','DM','FL','ZM','ZM','FL','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[50,60],[12,44],[36,47],[64,47],[88,44],[50,15]]},
+ '4-3-1-2':{s:['TW','AV','IV','IV','AV','ZM','DM','ZM','OM','ST','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[30,50],[50,60],[70,50],[50,34],[38,17],[62,17]]},
+ '3-4-3':{s:['TW','IV','IV','IV','AV','ZM','ZM','AV','FL','ST','FL'],xy:[[50,92],[28,77],[50,79],[72,77],[8,58],[38,50],[62,50],[92,58],[15,22],[50,14],[85,22]]},
+ '3-4-2-1':{s:['TW','IV','IV','IV','AV','ZM','ZM','AV','OM','OM','ST'],xy:[[50,92],[28,77],[50,79],[72,77],[8,58],[38,52],[62,52],[92,58],[34,32],[66,32],[50,14]]},
 };
 const MENTALITY={defensiv:'Defensiv',ausgewogen:'Ausgewogen',offensiv:'Offensiv'};
 const PRESSING={niedrig:'Tief stehen',mittel:'Mittelfeldpressing',hoch:'Gegenpressing'};
@@ -1183,7 +1197,7 @@ function aiKeeps(p,c){
 
 /* ---------- Aufstellung ---------- */
 function autoLineup(c){
-  const slots=FORMATIONS[c.tactic.f].s;
+  const slots=slotsOf(c);
   const co=c.staff.coach.trait&&COACH[c.staff.coach.trait];const fitW=co&&co.rotate?.8:.4;
   const avail=squadOf(c).filter(p=>p.inj===0);
   const used=new Set(),lu=new Array(11).fill(null);
@@ -1191,9 +1205,10 @@ function autoLineup(c){
   slots.forEach((pos,i)=>{let best=null,bv=-1;for(const p of avail){if(used.has(p.id)||p.pos!==pos)continue;const v=val(p,pos);if(v>bv){bv=v;best=p}}if(best&&best.fit>=55){used.add(best.id);lu[i]=best.id}});
   slots.forEach((pos,i)=>{if(lu[i])return;let best=null,bv=-1;for(const p of avail){if(used.has(p.id))continue;const v=val(p,pos);if(v>bv){bv=v;best=p}}if(best){used.add(best.id);lu[i]=best.id}});
   c.lineup=lu;
+  if(c.id!==S.user)aiTactic(c);else ensureTactic(c);
 }
 function fixLineup(c){
-  const slots=FORMATIONS[c.tactic.f].s;const changed=[];
+  const slots=slotsOf(c);const changed=[];
   if(c.lineup.length!==11)c.lineup=new Array(11).fill(null).map((_,i)=>c.lineup[i]||null);
   const used=new Set(c.lineup.filter(id=>id&&S.players[id]&&S.players[id].inj===0&&S.players[id].club===c.id));
   slots.forEach((pos,i)=>{
@@ -1208,7 +1223,7 @@ function fixLineup(c){
 const CONTRIB={TW:{d:2},IV:{d:1},AV:{d:1,a:.2},DM:{d:.5,m:1},ZM:{m:1,a:.2},OM:{m:.7,a:.7},FL:{m:.5,a:1},ST:{a:1}};
 let BIGMATCH=false;
 function teamStrength(c){
-  const slots=FORMATIONS[c.tactic.f].s;const acc={d:[0,0],m:[0,0],a:[0,0]};
+  const slots=slotsOf(c);const acc={d:[0,0],m:[0,0],a:[0,0]};
   slots.forEach((pos,i)=>{
     const p=c.lineup[i]&&S.players[c.lineup[i]];
     let r=p?rateAt(p,pos)*(.72+.28*p.fit/100)*(.96+.08*p.mor/100):18;
@@ -1217,7 +1232,7 @@ function teamStrength(c){
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
   let D=avg('d')*(1+.03*(acc.d[1]-6.5)),M=avg('m')*(1+.03*(acc.m[1]-3.5)),A=avg('a')*(1+.03*(acc.a[1]-3.8));
-  const t=c.tactic;
+  const t=c.tactic,TP=tacticProfile(c);D*=TP.D;M*=TP.M;A*=TP.A;
   if(t.men==='offensiv'){A*=1.08;D*=.94}else if(t.men==='defensiv'){A*=.92;D*=1.08}
   if(t.press==='hoch'){M*=1.06;D*=.97}else if(t.press==='niedrig'){M*=.95;D*=1.03}
   if(t.style==='ballbesitz')M*=1.05;
@@ -1228,14 +1243,16 @@ function prepareAI(c,opp){
   if(co&&co.adaptive){const diff=clubAvg(opp)-clubAvg(c);c.tactic.men=diff>3?'defensiv':diff<-3?'offensiv':'ausgewogen';c.tactic.style=diff>3?'konter':'normal'}
 }
 function pickScorer(c){
-  const slots=FORMATIONS[c.tactic.f].s;const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
-  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p);
-  const x=wpick(cand,x=>W[x.pos]*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
+  const slots=slotsOf(c);const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
+  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p);
+  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.g||1};
+  const x=wpick(cand,x=>W[x.pos]*roleG(x.i)*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
 function pickAssist(c,scorer){
-  const slots=FORMATIONS[c.tactic.f].s;const W={ST:1.1,FL:2.3,OM:2.6,ZM:1.7,DM:.7,IV:.35,AV:1.3,TW:.04};
-  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p&&x.p!==scorer);
-  const x=wpick(cand,x=>W[x.pos]*Math.pow((at(x.p,'pas')+at(x.p,'vis')+at(x.p,'cro')*.6+at(x.p,'tea')*.4)/36,2));return x?x.p:null;
+  const slots=slotsOf(c);const W={ST:1.1,FL:2.3,OM:2.6,ZM:1.7,DM:.7,IV:.35,AV:1.3,TW:.04};
+  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p&&x.p!==scorer);
+  const roleA=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.as||1};
+  const x=wpick(cand,x=>W[x.pos]*roleA(x.i)*Math.pow((at(x.p,'pas')+at(x.p,'vis')+at(x.p,'cro')*.6+at(x.p,'tea')*.4)/36,2));return x?x.p:null;
 }
 function mst(res,p){res.st=res.st||{};return res.st[p.id]||(res.st[p.id]={g:0,a:0,y:0})}
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
@@ -1243,6 +1260,7 @@ const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber 
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
 function matchRates(hc,ac,neutral){
   const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
+  H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
   let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
@@ -1277,7 +1295,7 @@ function simMatch(hc,ac,detail,neutral){
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
     const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
-    const slots=FORMATIONS[c.tactic.f].s,avg=clubAvg(c)||50;
+    const slots=slotsOf(c),avg=clubAvg(c)||50;
     c.lineup.forEach((id,i)=>{if(!id)return;const p=S.players[id];if(!p)return;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100);
       const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';
       if(pos==='TW'&&ga===0)p.cs=(p.cs||0)+1;
@@ -1370,7 +1388,7 @@ function doTransfer(p,to,fee,contract){
 function release(p){const c=club(p.club);const cost=releaseCost(p);freeAgent(p);c.budget-=cost;if(c.id===S.user)S.fin.wages+=cost;return cost}
 function bestAtPos(c,pos,n){const arr=squadOf(c).filter(p=>p.pos===pos).map(ovr).sort((a,b)=>b-a);let s=0;for(let i=0;i<n;i++)s+=arr[i]!==undefined?arr[i]:30;return s/n}
 function weakestPos(c){
-  const slots=FORMATIONS[c.tactic.f].s,cnt={};slots.forEach(p=>cnt[p]=(cnt[p]||0)+1);
+  const slots=slotsOf(c),cnt={};slots.forEach(p=>cnt[p]=(cnt[p]||0)+1);
   let worst=null,wv=1e9;for(const pos in cnt){const v=bestAtPos(c,pos,cnt[pos])+(squadOf(c).filter(p=>p.pos===pos).length<=cnt[pos]?-8:0);if(v<wv){wv=v;worst=pos}}
   return {pos:worst,level:wv};
 }
@@ -2487,7 +2505,7 @@ function payBonus(amt,why){
   if(why){S.fin.bon=S.fin.bon||{};S.fin.bon[why]=(S.fin.bon[why]||0)+amt}
 }
 function matchBonuses(c,res,ga){
-  if(c.id!==S.user||!S.fin)return;const slots=FORMATIONS[c.tactic.f].s;
+  if(c.id!==S.user||!S.fin)return;const slots=slotsOf(c);
   c.lineup.forEach((id,i)=>{
     const p=id&&S.players[id];if(!p||!p.ct)return;const ct=p.ct,x=(res.st&&res.st[id])||{g:0,a:0};
     let amt=0;
@@ -3124,6 +3142,178 @@ function aiLoanFor(p,c){
 
 </script>
 <script>
+/* =====================================================================
+   Seitenlinie – Taktik: zwei Formationen (gegen den Ball / mit Ball),
+   Rollen pro Phase, Formen-Analyse und Wirkung im Spiel.
+   Koordinaten: x 0–100 (links → rechts), y 0–100 (gegnerisches Tor oben → eigenes Tor unten).
+   ===================================================================== */
+
+/* ---------- Position aus Koordinate (gegen den Ball maßgeblich) ---------- */
+function posFromXY(x,y,i){
+  if(i===0)return 'TW';
+  const wide=t=>x<t||x>100-t;
+  if(y>=66)return wide(22)?'AV':'IV';
+  if(y>=56)return wide(20)?'AV':'DM';
+  if(y>=40)return wide(20)?'FL':'ZM';
+  if(y>=26)return wide(22)?'FL':'OM';
+  return wide(20)?'FL':'ST';
+}
+function ensureTactic(c){
+  const t=c.tactic;if(!t)return;
+  if(!t.oop||t.oop.length!==11){const F=FORMATIONS[t.f]||FORMATIONS['4-4-2'];t.oop=F.xy.map(a=>a.slice());t.ip=null;t.roles=null;t.droles=null}
+  if(!t.roles||!t.droles){bestRoles(c,null)}
+  if(!t.ip||t.ip.length!==11)t.ip=deriveIP(t);
+}
+function slotsOf(c){ensureTactic(c);return c.tactic.oop.map(([x,y],i)=>posFromXY(x,y,i))}
+
+/* ---------- Rollen mit Ball ----------
+   a = Schlüsselattribute, fx = Wirkung, mv = Laufweg mit Ball, g/as = Gewicht für Tore/Vorlagen */
+const IN=1,OUT=-1;
+const TROLES={
+ tw_klass:{p:'TW',lbl:'Klassischer Torwart',sh:'TW',d:'Bleibt auf der Linie, sicher im Strafraum.',a:{ref:3,han:3,ovo:2,cmd:2,pos:2},fx:{cover:.3}},
+ tw_mit:{p:'TW',lbl:'Mitspielender Torwart',sh:'MTW',d:'Spielt im Aufbau mit und sichert hinter einer hohen Linie ab (Sweeper-Keeper).',a:{ref:2,ovo:2,rus:3,acc:1,pas:2,fir:2,dec:2},fx:{build:.6,sweep:1},mv:{dy:-5}},
+ iv_klass:{p:'IV',lbl:'Klassischer Innenverteidiger',sh:'IV',d:'Verteidigt den Strafraum, gewinnt Kopfball- und Zweikampfduelle.',a:{tck:3,mar:3,hea:3,str:2,jum:2,pos:2},fx:{cover:.6,aerialD:1},mv:{dy:-3}},
+ iv_ball:{p:'IV',lbl:'Spieleröffnender IV',sh:'SIV',d:'Eröffnet das Spiel mit flachen und vertikalen Pässen.',a:{pas:3,fir:2,cmp:3,vis:2,tck:2,pos:2},fx:{build:.9,cover:.3},mv:{dy:-5}},
+ iv_halb:{p:'IV',lbl:'Halbverteidiger',sh:'HV',d:'Äußerer IV einer Dreierkette, schiebt mit Ball breit und hoch und hinterläuft.',a:{pas:2,sta:2,dri:2,tck:2,otb:2,pac:2},fx:{width:.4,build:.3,cover:-.2},mv:{dx:OUT*6,dy:-12}},
+ iv_lib:{p:'IV',lbl:'Libero',sh:'LIB',d:'Rückt mit Ball ins Mittelfeld auf und verteilt die Bälle, sichert ohne Ball ab.',a:{pas:3,vis:2,ant:2,cmp:2,dec:2,pos:2},fx:{build:1,cover:-.2},mv:{dy:-14}},
+ av_def:{p:'AV',lbl:'Defensiver Außenverteidiger',sh:'DAV',d:'Bleibt hinten, sichert die Restverteidigung ab.',a:{tck:3,mar:2,pos:3,pac:2,cnt:2},fx:{cover:.7},mv:{dy:-6}},
+ av_off:{p:'AV',lbl:'Offensiver Außenverteidiger',sh:'OAV',d:'Hinterläuft den Flügel und bringt Flanken.',a:{cro:3,sta:2,pac:2,otb:2,dri:2,wor:2},fx:{width:.9,cross:.8,cover:-.4},mv:{xTo:6,dy:-28},as:1.25},
+ av_inv3:{p:'AV',lbl:'Inverser AV (Dreierkette)',sh:'IAV',d:'Rückt mit Ball neben die Innenverteidiger und bildet eine Dreierkette.',a:{pos:3,tck:2,pas:2,cmp:2,dec:2},fx:{rest:1,build:.4,width:-.3},mv:{xTo:24,yTo:74}},
+ av_invm:{p:'AV',lbl:'Inverser AV (ins Mittelfeld)',sh:'IOAV',d:'Schiebt mit Ball ins Zentrum neben den Sechser – das „Box-Mittelfeld“.',a:{pas:3,fir:2,dec:2,tec:2,tea:2,pos:2},fx:{build:.8,rest:.5,width:-.4},mv:{xTo:38,yTo:56}},
+ av_fv:{p:'AV',lbl:'Flügelverteidiger',sh:'FV',d:'Gibt allein die Breite, läuft die ganze Seite (Wingback).',a:{sta:3,pac:2,cro:3,dri:2,wor:2,acc:2},fx:{width:1.2,cross:.9,cover:-.5},mv:{xTo:5,dy:-36},as:1.3},
+ dm_anker:{p:'DM',lbl:'Ankerspieler (Sechser)',sh:'ANK',d:'Hält die Position vor der Abwehr und schließt den Raum.',a:{pos:3,ant:2,mar:2,tck:2,cnt:2,tea:2},fx:{cover:.8,rest:.8},mv:{dy:-3}},
+ dm_spiel:{p:'DM',lbl:'Tiefer Spielmacher',sh:'TSP',d:'Taktgeber aus der Tiefe (Regista), verteilt die Bälle.',a:{pas:3,vis:3,fir:2,cmp:2,tec:2,dec:2},fx:{build:1.2,rest:.4},mv:{dy:-6},as:1.2},
+ dm_abr:{p:'DM',lbl:'Abräumer',sh:'ABR',d:'Jagt den Ball, gewinnt zweite Bälle und Zweikämpfe.',a:{tck:3,agg:2,sta:2,wor:3,ant:2},fx:{press:.8,cover:.4},mv:{dy:-8}},
+ dm_abk:{p:'DM',lbl:'Abkippender Sechser',sh:'ABK',d:'Lässt sich mit Ball zwischen die Innenverteidiger fallen (Halbverteidiger-Rolle).',a:{pos:2,pas:3,dec:2,cmp:2,mar:2},fx:{build:.7,rest:1},mv:{xTo:50,yTo:80}},
+ zm_b2b:{p:'ZM',lbl:'Box-to-Box',sh:'B2B',d:'Von Strafraum zu Strafraum, schaltet sich in Angriff und Abwehr ein.',a:{sta:3,wor:3,pas:2,otb:2,tck:2,nat:2},fx:{box:.5,press:.5},mv:{dy:-12},g:1.2},
+ zm_acht:{p:'ZM',lbl:'Halbraum-Achter',sh:'ACH',d:'Stößt in den Halbraum vor, sucht Pässe in die Tiefe (Mezzala).',a:{dri:2,pas:2,otb:3,tec:2,vis:2,fin:1},fx:{chance:.8,box:.5,cover:-.3},mv:{xTo:30,dy:-26},g:1.3,as:1.2},
+ zm_spiel:{p:'ZM',lbl:'Spielmacher',sh:'SPM',d:'Lenkt das Spiel im Zentrum, sucht den entscheidenden Pass.',a:{pas:3,vis:3,tec:2,fir:2,dec:2,cmp:2},fx:{build:.9,chance:.5},mv:{dy:-10},as:1.35},
+ zm_carr:{p:'ZM',lbl:'Absicherer (Carrilero)',sh:'ABS',d:'Arbeitet zur Seite, sichert den Halbraum und den Außenverteidiger ab.',a:{pos:2,tea:3,wor:2,pas:2,sta:2},fx:{cover:.6,rest:.4},mv:{dx:OUT*5,dy:-6}},
+ om_zehn:{p:'OM',lbl:'Klassischer Zehner',sh:'10',d:'Kreativzentrale zwischen den Linien.',a:{vis:3,pas:3,tec:2,fir:2,fla:2,dec:2},fx:{chance:1.1,press:-.3},mv:{dy:-6},as:1.45},
+ om_schat:{p:'OM',lbl:'Schattenstürmer',sh:'SST',d:'Startet aus dem Rückraum in die Spitze, kommt zum Abschluss.',a:{otb:3,fin:3,acc:2,cmp:2,ant:2},fx:{box:1,chance:.3},mv:{dy:-14},g:1.45},
+ om_frei:{p:'OM',lbl:'Freigeist (Trequartista)',sh:'TRQ',d:'Sucht sich seine Räume selbst, wenig Defensivarbeit.',a:{fla:3,tec:3,dri:2,vis:2,fin:2},fx:{chance:1,press:-.6},mv:{dy:-8},g:1.2,as:1.25},
+ fl_klass:{p:'FL',lbl:'Klassischer Flügelspieler',sh:'FLÜ',d:'Bleibt breit an der Linie und flankt.',a:{cro:3,pac:2,dri:2,acc:2,tec:2},fx:{width:1,cross:1},mv:{xTo:5,dy:-10},as:1.35},
+ fl_inv:{p:'FL',lbl:'Inverser Flügelstürmer',sh:'IFS',d:'Zieht von außen nach innen und schließt mit dem starken Fuß ab.',a:{dri:3,fin:2,acc:2,otb:2,tec:2,lon:1},fx:{box:.9,chance:.4,width:-.4},mv:{xTo:26,dy:-14},g:1.45},
+ fl_raum:{p:'FL',lbl:'Raumdeuter',sh:'RD',d:'Findet die Räume, die andere nicht sehen – Laufwege statt Dribblings.',a:{otb:3,ant:3,fin:2,cmp:2,dec:2},fx:{box:1.1,width:-.6},mv:{xTo:34,dy:-16},g:1.5},
+ fl_def:{p:'FL',lbl:'Defensiver Flügelspieler',sh:'DFL',d:'Arbeitet viel nach hinten, unterstützt den Außenverteidiger.',a:{wor:3,sta:2,tck:2,cro:2,pos:2},fx:{cover:.6,press:.4,width:.4},mv:{dy:-6}},
+ st_ziel:{p:'ST',lbl:'Zielspieler',sh:'ZS',d:'Wandspieler, macht Bälle fest und gewinnt Kopfballduelle.',a:{hea:3,str:3,jum:2,fir:2,bal:2},fx:{aerial:1.2,box:.4},mv:{dy:-2},g:1.15},
+ st_konter:{p:'ST',lbl:'Tiefenläufer',sh:'TL',d:'Läuft permanent hinter die Abwehr, ideal zum Kontern.',a:{pac:3,acc:3,otb:3,fin:2,dri:1},fx:{counter:1.2,box:.6},mv:{dy:-4},g:1.25},
+ st_f9:{p:'ST',lbl:'Falsche Neun',sh:'F9',d:'Lässt sich ins Mittelfeld fallen, schafft Überzahl und öffnet Räume für die Flügel.',a:{fir:3,pas:2,vis:2,tec:3,otb:2,dec:2},fx:{build:.6,chance:.8,box:-.8},mv:{dy:14},g:.75,as:1.35},
+ st_press:{p:'ST',lbl:'Pressingstürmer',sh:'PS',d:'Erster Verteidiger, läuft unermüdlich an.',a:{wor:3,sta:3,agg:2,ant:2,acc:2},fx:{press:1},mv:{dy:-2}},
+ st_abst:{p:'ST',lbl:'Strafraumstürmer',sh:'SRS',d:'Lauert im Strafraum, lebt vom Abschluss (Poacher).',a:{fin:3,otb:3,ant:2,cmp:2,acc:2},fx:{box:1,press:-.4},mv:{dy:-4},g:1.4},
+ st_komp:{p:'ST',lbl:'Kompletter Stürmer',sh:'KS',d:'Kann alles: Abschluss, Kopfball, Ablagen.',a:{fin:2,fir:2,str:2,hea:2,pas:2,tec:2},fx:{box:.6,chance:.3,aerial:.4},mv:{dy:-3},g:1.15}};
+/* ---------- Rollen gegen den Ball ---------- */
+const DROLES={
+ d_tw_line:{p:'TW',lbl:'Auf der Linie',sh:'Linie',d:'Bleibt im Tor – sicher bei tiefer Abwehr.',a:{ref:3,pos:2,cmd:2},fx:{}},
+ d_tw_sweep:{p:'TW',lbl:'Mitverteidigend',sh:'Mitvert.',d:'Läuft weit heraus und sichert den Raum hinter einer hohen Linie.',a:{rus:3,acc:2,ovo:2,dec:2},fx:{sweep:1}},
+ d_iv_hold:{p:'IV',lbl:'Raum halten',sh:'Halten',d:'Hält die Linie, verteidigt den Raum.',a:{pos:3,cnt:2,mar:2,ant:2},fx:{cover:.4}},
+ d_iv_stop:{p:'IV',lbl:'Herausrückend (Stopper)',sh:'Stopper',d:'Verfolgt den Gegenspieler bis ins Mittelfeld.',a:{agg:2,tck:3,ant:2,acc:2},fx:{press:.5,cover:-.3}},
+ d_av_hold:{p:'AV',lbl:'Abwartend',sh:'Abwart.',d:'Bleibt tief und schützt den Rücken.',a:{pos:3,mar:2,cnt:2},fx:{cover:.4}},
+ d_av_press:{p:'AV',lbl:'Pressend',sh:'Pressend',d:'Rückt auf den gegnerischen Flügelspieler heraus.',a:{agg:2,acc:2,wor:2,tck:2},fx:{press:.5,cover:-.2}},
+ d_dm_screen:{p:'DM',lbl:'Abschirmend',sh:'Abschirm.',d:'Stellt die Passwege ins Zentrum zu.',a:{pos:3,ant:2,tea:2},fx:{cover:.6}},
+ d_dm_hunt:{p:'DM',lbl:'Jagend',sh:'Jagend',d:'Attackiert jeden Ball im Zentrum.',a:{tck:3,agg:2,wor:2,sta:2},fx:{press:.7,cover:-.2}},
+ d_zm_close:{p:'ZM',lbl:'Halbräume schließen',sh:'Schließen',d:'Verschiebt kompakt und schließt die Halbräume.',a:{pos:2,tea:3,wor:2},fx:{cover:.5}},
+ d_zm_press:{p:'ZM',lbl:'Herausrückend',sh:'Herausr.',d:'Rückt ins Pressing auf die gegnerischen Sechser heraus.',a:{wor:3,agg:2,acc:2,sta:2},fx:{press:.6,cover:-.2}},
+ d_om_screen:{p:'OM',lbl:'Sechser zustellen',sh:'Zustellen',d:'Nimmt den gegnerischen Sechser in Deckungsschatten.',a:{tea:2,pos:2,wor:2},fx:{press:.3,cover:.3}},
+ d_om_free:{p:'OM',lbl:'Konterbereit',sh:'Konter',d:'Spart Kraft und ist Anspielstation für den Konter.',a:{otb:2,acc:2,dec:2},fx:{counter:.6,cover:-.3}},
+ d_fl_track:{p:'FL',lbl:'Zurückarbeitend',sh:'Zurück',d:'Läuft mit dem gegnerischen Außenverteidiger mit nach hinten.',a:{wor:3,sta:2,tck:2},fx:{cover:.5}},
+ d_fl_high:{p:'FL',lbl:'Hoch bleiben',sh:'Hoch',d:'Bleibt vorne als Konterstation.',a:{pac:2,acc:2,otb:2},fx:{counter:.8,cover:-.4}},
+ d_st_press:{p:'ST',lbl:'Anlaufen',sh:'Anlaufen',d:'Läuft die Innenverteidiger und den Torwart an.',a:{wor:3,agg:2,acc:2,sta:2},fx:{press:.8}},
+ d_st_screen:{p:'ST',lbl:'Passwege zustellen',sh:'Zustellen',d:'Lenkt den Aufbau des Gegners auf eine Seite.',a:{tea:2,pos:2,ant:2},fx:{cover:.3,press:.3}},
+ d_st_high:{p:'ST',lbl:'Konterposition halten',sh:'Lauern',d:'Bleibt vorne und wartet auf den langen Ball.',a:{pac:2,acc:2,otb:3},fx:{counter:.9,cover:-.2}}};
+const ROLE_PREFS={
+ offensiv:['av_off','zm_acht','fl_inv','st_konter','d_st_press','d_av_press','d_zm_press'],
+ defensiv:['av_def','dm_anker','zm_carr','fl_def','st_ziel','d_fl_track','d_iv_hold','d_st_screen','d_av_hold','d_tw_line'],
+ ballbesitz:['tw_mit','iv_ball','av_invm','av_inv3','dm_spiel','zm_spiel','om_zehn','fl_klass','st_f9','d_zm_close','d_tw_sweep'],
+ konter:['av_def','dm_abr','fl_klass','st_konter','d_fl_high','d_st_high','d_iv_hold','d_om_free'],
+ pressing:['tw_mit','iv_ball','av_off','dm_abr','zm_b2b','fl_inv','st_press','d_st_press','d_zm_press','d_av_press','d_iv_stop','d_dm_hunt','d_tw_sweep']};
+function rolesFor(pos,phase){const src=phase==='oop'?DROLES:TROLES;return Object.keys(src).filter(k=>src[k].p===pos)}
+function roleDef(k){return TROLES[k]||DROLES[k]||null}
+// Eignung eines Spielers für eine Rolle (5–100)
+function roleScore(p,k){const R=roleDef(k);if(!p||!R)return 0;let s=0,w=0;for(const a in R.a){s+=at(p,a)*R.a[a];w+=R.a[a]}return w?s/w*5:0}
+function roleStars(sc){return sc>=80?5:sc>=70?4:sc>=60?3:sc>=50?2:1}
+function bestRoles(c,prefs){
+  const t=c.tactic,slots=t.oop.map(([x,y],i)=>posFromXY(x,y,i)),pr=prefs||[];
+  const pick=(pos,phase,p,old)=>{const ks=rolesFor(pos,phase);if(old&&ks.includes(old)&&!prefs)return old;let best=ks[0],bv=-1;for(const k of ks){const v=(p?roleScore(p,k):50)+(pr.includes(k)?12:0)+(k===old?2:0);if(v>bv){bv=v;best=k}}return best};
+  const ids=c.lineup||[];
+  t.roles=slots.map((pos,i)=>pick(pos,'ip',S.players[ids[i]],t.roles&&t.roles[i]));
+  t.droles=slots.map((pos,i)=>pick(pos,'oop',S.players[ids[i]],t.droles&&t.droles[i]));
+  // Balance: nicht beide Außenverteidiger offensiv ohne Absicherung
+  const avs=slots.map((p,i)=>p==='AV'?i:-1).filter(i=>i>=0);
+  if(avs.length===2&&avs.every(i=>['av_off','av_fv'].includes(t.roles[i]))&&!t.roles.some(r=>r==='dm_anker'||r==='dm_abk')&&slots.filter(p=>p==='IV').length<3)t.roles[avs[1]]=pr.includes('av_invm')?'av_invm':'av_def';
+}
+// Form mit Ball aus der Form gegen den Ball + Laufwegen der Rollen ableiten
+function deriveIP(t){
+  const push=t.men==='offensiv'?9:t.men==='defensiv'?3:6;
+  return t.oop.map(([x,y],i)=>{
+    if(i===0){const R=TROLES[t.roles&&t.roles[0]];return [x,clamp(y+(R&&R.mv&&R.mv.dy||0),78,96)]}
+    const R=TROLES[t.roles&&t.roles[i]]||{},mv=R.mv||{},left=x<50;
+    let nx=x,ny=y-push*(y>66?.5:y<30?.3:1);
+    if(mv.xTo!==undefined)nx=left?mv.xTo:100-mv.xTo;
+    if(mv.dx)nx=x+(left?1:-1)*mv.dx; // dx<0 = nach außen, dx>0 = nach innen
+    if(mv.yTo!==undefined)ny=mv.yTo;
+    if(mv.dy)ny+=mv.dy;
+    return [Math.round(clamp(nx,3,97)),Math.round(clamp(ny,10,90))];
+  });
+}
+// KI: Rollen nach Trainertyp und Spielern, Form mit Ball daraus ableiten
+function aiTactic(c){
+  ensureTactic(c);const trait=c.staff&&c.staff.coach&&c.staff.coach.trait;
+  bestRoles(c,ROLE_PREFS[trait]||[]);c.tactic.ip=deriveIP(c.tactic);
+}
+
+/* ---------- Formen-Analyse ---------- */
+function detectShape(xy){
+  const pts=xy.slice(1).map(a=>a[1]).sort((a,b)=>b-a);const lines=[];
+  for(const y of pts){const L=lines[lines.length-1];if(L&&L.last-y<=10){L.n++;L.last=y}else lines.push({last:y,n:1})}
+  return lines.map(l=>l.n).join('-');
+}
+function shapeMetrics(c){
+  const t=c.tactic,o=t.oop.slice(1),ip=t.ip.slice(1);
+  const ys=o.map(a=>a[1]),defs=t.oop.map((a,i)=>({a,pos:posFromXY(a[0],a[1],i)})).filter(x=>x.pos==='IV'||x.pos==='AV');
+  return {
+    rest:ip.filter(a=>a[1]>=50).length,
+    front:ip.filter(a=>a[1]<=30).length,
+    wide:ip.filter(a=>a[1]<=50&&(a[0]<16||a[0]>84)).length,
+    central:ip.filter(a=>a[0]>=28&&a[0]<=72&&a[1]>=26&&a[1]<=62).length,
+    depth:Math.max(...ys)-Math.min(...ys),
+    line:defs.length?defs.reduce((s,x)=>s+x.a[1],0)/defs.length:75,
+    oopShape:detectShape(t.oop),ipShape:detectShape(t.ip)};
+}
+function tacticProfile(c){
+  ensureTactic(c);const t=c.tactic,fx={build:0,chance:0,box:0,width:0,cross:0,aerial:0,aerialD:0,counter:0,press:0,cover:0,rest:0,sweep:0};
+  const add=(k,i)=>{const R=roleDef(k);if(!R)return;const p=S.players[c.lineup[i]];const q=p?clamp(roleScore(p,k)/68,.6,1.3):.6;for(const f in R.fx)fx[f]+=R.fx[f]*q};
+  for(let i=0;i<11;i++){add(t.roles[i],i);add(t.droles[i],i)}
+  const m=shapeMetrics(c);
+  let Mf=1+.01*(fx.build-2.5)+.012*(m.central-3),Af=1+.01*(fx.chance-2.5)+.012*(fx.box+m.front*.6-4.5)+.012*Math.min(fx.cross,fx.aerial)+(m.wide>=2?.02:m.wide===1?0:-.04),Df=1+.012*(fx.cover-2.6)+(m.rest>=6?.04:m.rest===5?.025:m.rest===4?.01:m.rest===3?-.015:-.05)+(m.depth<=52?.03:m.depth>=68?-.03:0);
+  if(t.press==='hoch'){Mf+=.008*fx.press;if(m.line>74)Df-=.02}
+  if(t.press==='niedrig'&&m.line<70)Df-=.02;
+  if(t.style==='konter')Af+=.012*fx.counter;if(t.style==='ballbesitz')Mf+=.006*fx.build;
+  return {M:clamp(Mf,.86,1.14),A:clamp(Af,.86,1.14),D:clamp(Df,.86,1.14),fx,m};
+}
+// Hohe Linie gegen schnelle Stürmer: Anfälligkeit für Bälle in die Tiefe
+function lineRisk(c,opp){
+  const P=tacticProfile(c),high=clamp((74-P.m.line)/10,0,1.6);if(!high)return 1;
+  const os=slotsOf(opp),pace=[];opp.lineup.forEach((id,i)=>{const p=S.players[id];if(p&&(os[i]==='ST'||os[i]==='FL'))pace.push((at(p,'pac')+at(p,'acc'))/2)});
+  const pc=pace.length?pace.reduce((a,b)=>a+b,0)/pace.length:12;
+  return clamp(1-high*Math.max(0,pc-11)/45*(P.fx.sweep>0?.5:1),.88,1);
+}
+function tacticHints(c){
+  const P=tacticProfile(c),m=P.m,h=[];
+  if(m.rest<=3)h.push(['bad',`Nur ${m.rest} Spieler sichern mit Ball ab – sehr anfällig für Konter. Üblich sind 4–5 (z. B. 3+2).`]);
+  else if(m.rest>=7)h.push(['gold',`${m.rest} Spieler bleiben mit Ball hinten – sicher, aber wenig Durchschlagskraft.`]);
+  if(m.front<=2)h.push(['gold',`Nur ${m.front} Spieler besetzen mit Ball die letzte Linie – die gegnerische Abwehr wird kaum gebunden.`]);
+  if(m.wide===0)h.push(['bad','Niemand gibt mit Ball die Breite – das Spiel wird sehr eng und leicht zu verteidigen.']);
+  if(m.depth>=68)h.push(['gold',`Gegen den Ball ${Math.round(m.depth)} % Abstand zwischen erster und letzter Linie – nicht kompakt.`]);
+  if(c.tactic.press==='hoch'&&m.line>74)h.push(['gold','Hohes Pressing, aber tiefe Abwehrlinie: Die Mannschaft reißt auseinander.']);
+  if(m.line<64&&!P.fx.sweep)h.push(['gold','Sehr hohe Abwehrlinie ohne mitspielenden Torwart – Gefahr durch Bälle in die Tiefe.']);
+  if(P.fx.cross>1.4&&P.fx.aerial<.6)h.push(['gold','Viele Flanken, aber kein kopfballstarker Abnehmer im Zentrum.']);
+  if(!h.length)h.push(['good','Die Taktik ist in sich stimmig.']);
+  return h;
+}
+
+</script>
+<script>
 'use strict';
 /* =========================================================
    SEITENLINIE – Oberfläche
@@ -3306,7 +3496,7 @@ function renderHome(){
     const hc=home?c:opp,ac=home?opp:c;
     next=`${wait}${more}<div class="small muted" style="text-align:center">${sub}</div>
     <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
-    <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
+    <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${(()=>{ensureTactic(opp);const m=shapeMetrics(opp);return `Gegen den Ball ${m.oopShape}, mit Ball ${m.ipShape} · ${MENTALITY[opp.tactic.men]}, ${PRESSING[opp.tactic.press]}`})()}</span></div>`;
   }
   const talks=(S.talks||[]).filter(t=>t.st==='open'&&(t.seller===undefined||t.seller===S.user)).map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
     const deal=t.kind==='deal';
@@ -3766,29 +3956,80 @@ function uinqModal(){
 }
 
 /* ---------- Taktik ---------- */
+function roleSelect(i,phase,cur,pos,p){
+  const ks=rolesFor(pos,phase);
+  return `<select data-chg="roleSel" data-i="${i}" data-ph="${phase}" style="width:100%">${ks.map(k=>{const R=roleDef(k),st=p?roleStars(roleScore(p,k)):0;return `<option value="${k}" ${k===cur?'selected':''}>${R.lbl}${p?' '+'★'.repeat(st)+'☆'.repeat(5-st):''}</option>`}).join('')}</select>`;
+}
 function renderTactic(){
-  const c=userClub(),t=c.tactic,F=FORMATIONS[t.f],str=teamStrength(c);
-  const slots=F.s.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];const col=GROUP_COLOR[GROUP[pos]];const r=p?Math.round(rateAt(p,pos)):'-';
-    return `<div class="slot ${UI.selSlot===i?'sel':''}" style="left:${F.xy[i][0]}%;top:${F.xy[i][1]}%" data-act="slot" data-i="${i}"><div class="dot" style="background:${col};color:#08130d">${r}</div><div class="nm">${p?esc(p.ln):'<i>leer</i>'}${p&&p.inj?' 🩹':''}</div></div>`}).join('');
+  const c=userClub(),t=c.tactic;ensureTactic(c);const str=teamStrength(c),slots=slotsOf(c),ph=UI.tph||'oop',P=tacticProfile(c),m=P.m;
+  const cur=ph==='ip'?t.ip:t.oop,other=ph==='ip'?t.oop:t.ip;
+  const dots=cur.map((xy,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]],pos=slots[i],col=GROUP_COLOR[GROUP[pos]],rk=ph==='ip'?t.roles[i]:t.droles[i],R=roleDef(rk);
+    const r=p?Math.round(rateAt(p,pos)):'-',fit=p?roleStars(roleScore(p,rk)):0;
+    return `<div class="slot drag ${UI.selSlot===i?'sel':''}" data-drag="${i}" style="left:${xy[0]}%;top:${xy[1]}%"><div class="dot" style="background:${col};color:#08130d">${r}</div><div class="nm">${p?esc(p.ln):'<i>leer</i>'}${p&&p.inj?' 🩹':''}</div><div class="rl" title="${R?esc(R.lbl):''}">${R?esc(R.sh):''}<span>${'★'.repeat(fit)}</span></div></div>`}).join('');
+  const ghosts=ph==='both'?'':other.map((xy,i)=>`<div class="ghost" style="left:${xy[0]}%;top:${xy[1]}%"></div>`).join('');
+  const lines=`<svg class="tlines" viewBox="0 0 100 100" preserveAspectRatio="none">${t.oop.map((a,i)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${t.ip[i][0]}" y2="${t.ip[i][1]}"/>`).join('')}</svg>`;
+  const both=ph==='both'?t.oop.map((xy,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]],col=GROUP_COLOR[GROUP[slots[i]]];return `<div class="slot mini" style="left:${xy[0]}%;top:${xy[1]}%"><div class="dot" style="background:${col}">${slots[i]}</div></div><div class="slot mini ipd" style="left:${t.ip[i][0]}%;top:${t.ip[i][1]}%"><div class="dot">${p?esc(p.ln.slice(0,3)):''}</div></div>`}).join(''):'';
   const seg=(key,obj)=>`<div class="seg">${Object.entries(obj).map(([k,l])=>`<button class="${t[key]===k?'on':''}" data-act="tac" data-k="${key}" data-v="${k}">${l}</button>`).join('')}</div>`;
   const bar=(l,v)=>`<div class="attr"><span>${l}</span><div class="bar"><i style="width:${clamp(v,0,100)}%"></i></div><b>${Math.round(v)}</b></div>`;
-  return `<h2>Taktik</h2><div class="grid g2">
-   <div><div class="pitch"><div class="mid"></div><div class="circ"></div>${slots}</div><p class="small muted" style="text-align:center">Tippe auf eine Position, um den Spieler zu wechseln.</p></div>
+  const kv=(l,v,s)=>`<div class="crow"><span>${l}${s?`<small>${s}</small>`:''}</span><b>${v}</b></div>`;
+  const pct=f=>`<b class="${f>1.005?'good':f<.995?'bad':''}">${f>=1?'+':''}${Math.round((f-1)*100)} %</b>`;
+  const rows=slots.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];
+    return `<tr><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[pos]]}88">${pos}</span></td><td><a data-act="slot" data-i="${i}" style="cursor:pointer"><b>${p?esc(fullname(p)):'<i>leer</i>'}</b></a>${p?`<div class="small muted">${FAM_LABEL(familiarity(p,pos))} · Stärke ${Math.round(rateAt(p,pos))}</div>`:''}</td><td>${roleSelect(i,'ip',t.roles[i],pos,p)}</td><td>${roleSelect(i,'oop',t.droles[i],pos,p)}</td></tr>`}).join('');
+  const sel=UI.troleInfo!==undefined&&UI.troleInfo!==null?UI.troleInfo:null;
+  return `<h2>Taktik <span class="small muted">${t.cust?'eigene Formation':esc(t.f)}</span></h2><div class="grid g2">
+   <div>
+    <div class="seg ptabs" style="margin:0 0 10px">${[['oop','🛡️ Gegen den Ball'],['ip','⚽ Mit Ball'],['both','🔀 Beide']].map(([k,l])=>`<button class="${ph===k?'on':''}" data-act="tph" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="pitch tpitch ${ph}" id="tpitch"><div class="mid"></div><div class="circ"></div>${ph==='both'?lines+both:ghosts+dots}</div>
+    <div class="row" style="justify-content:center;gap:14px;margin-top:8px"><span class="small">Gegen den Ball: <b>${m.oopShape}</b></span><span class="small">Mit Ball: <b>${m.ipShape}</b></span></div>
+    <p class="small muted" style="text-align:center">${ph==='both'?'Linien zeigen die Laufwege vom Defensiv- ins Offensivsystem. Zum Verschieben eine Phase wählen.':'Ziehe Spieler frei über das Feld. Tippe auf einen Spieler, um ihn auszutauschen. Die Position (z. B. IV, ZM) ergibt sich aus der Stellung gegen den Ball.'}</p>
+    <div class="row" style="justify-content:center">${ph!=='oop'?'<button class="btn sm" data-act="ipDerive">↻ Form mit Ball aus den Rollen ableiten</button>':''}<button class="btn sm" data-act="tMirror">⇆ Spiegeln</button></div>
+   </div>
    <div class="grid" style="align-content:start">
-    <div class="card"><label class="f">Formation</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
+    <div class="card"><label class="f">Grundformation (setzt beide Phasen neu)</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f&&!t.cust?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
      <label class="f" style="margin-top:12px">Mentalität</label>${seg('men',MENTALITY)}
      <label class="f" style="margin-top:12px">Pressing</label>${seg('press',PRESSING)}
      <label class="f" style="margin-top:12px">Spielstil</label>${seg('style',STYLE)}
-     <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button></div>
-     <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" data-chg="autoXIToggle" ${c.autoXI?'checked':''}><span><b>Co-Trainer stellt vor jedem Spiel auf</b><br><span class="muted">Wählt automatisch die beste fitte Elf und rotiert bei englischen Wochen. Ausschalten, wenn du selbst aufstellen willst.</span></span></label></div>
-    <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}
-     <div class="small muted" style="margin-top:8px">Offensiv: mehr Angriff, weniger Abwehr. Gegenpressing: mehr Mittelfeldkontrolle, kostet mehr Fitness. Konter: stärkere Chancenverwertung, wenn du weniger Ballbesitz hast.</div></div>
-   </div></div>`;
+     <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button><button class="btn" data-act="bestRolesBtn">🎯 Passende Rollen wählen</button></div>
+     <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" data-chg="autoXIToggle" ${c.autoXI?'checked':''}><span><b>Co-Trainer stellt vor jedem Spiel auf</b><br><span class="muted">Wählt die beste fitte Elf für deine Formation. Rollen und Formen bleiben wie von dir eingestellt.</span></span></label></div>
+    <div class="card"><h3>Analyse</h3>
+      ${kv('Restverteidigung',m.rest+' Spieler','bleiben mit Ball in der eigenen Hälfte')}
+      ${kv('Letzte Linie',m.front+' Spieler','mit Ball im letzten Drittel')}
+      ${kv('Breite',m.wide+' Spieler','mit Ball an den Seitenlinien')}
+      ${kv('Zentrum',m.central+' Spieler','mit Ball zwischen den Linien / in den Halbräumen')}
+      ${kv('Kompaktheit',Math.round(m.depth)+' %','Abstand erste–letzte Linie gegen den Ball')}
+      ${kv('Abwehrlinie',m.line<68?'hoch':m.line<76?'mittel':'tief','gegen den Ball')}
+      <div class="row" style="gap:14px;margin-top:8px"><span class="small">Abwehr ${pct(P.D)}</span><span class="small">Mittelfeld ${pct(P.M)}</span><span class="small">Angriff ${pct(P.A)}</span><span class="small muted">durch Formen & Rollen</span></div>
+      <div style="margin-top:8px">${tacticHints(c).map(([cl,tx])=>`<div class="small ${cl}" style="margin-top:4px">• ${tx}</div>`).join('')}</div></div>
+    <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}</div>
+   </div></div>
+   <div class="card" style="margin-top:14px"><h3>Rollen</h3>
+    <div class="tw"><table class="roles"><thead><tr><th>Pos</th><th>Spieler</th><th>Rolle mit Ball</th><th>Rolle gegen den Ball</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="small muted" style="margin-top:8px">Sterne = Eignung des Spielers für die Rolle (aus seinen Attributen). Die Rolle mit Ball bestimmt auch seinen Laufweg, wenn du die Form mit Ball ableiten lässt.</p>
+    <div class="rolehelp">${(()=>{const seen=new Set();return slots.flatMap((pos,i)=>[t.roles[i],t.droles[i]]).filter(k=>!seen.has(k)&&seen.add(k)).map(k=>{const R=roleDef(k);return `<div><b>${esc(R.lbl)}</b> <span class="muted small">(${R.p})</span><div class="small">${esc(R.d)}</div><div class="small muted">Wichtig: ${Object.keys(R.a).map(a=>ATTR_LABEL[a]).join(', ')}</div></div>`}).join('')})()}</div>
+   </div>`;
 }
-function slotPicker(){return ()=>{const c=userClub(),F=FORMATIONS[c.tactic.f];if(UI.selSlot===null)return '';
-  const pos=F.s[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));
+function slotPicker(){return ()=>{const c=userClub(),slots=slotsOf(c);if(UI.selSlot===null)return '';
+  const pos=slots[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));const rk=c.tactic.roles[UI.selSlot],dk=c.tactic.droles[UI.selSlot];
   return `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Spieler für ${pos} (${POS_LABEL[pos]})</h3><button class="btn sm" data-act="slotCancel">Abbrechen</button></div>
-   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+F.s[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+   <div class="small muted" style="margin-top:4px">Rollen: ${esc(roleDef(rk).lbl)} (mit Ball) · ${esc(roleDef(dk).lbl)} (gegen den Ball)</div>
+   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Rolle</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n gold small">${'★'.repeat(roleStars(roleScore(p,rk)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+slots[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+
+/* Drag & Drop auf dem Taktikfeld (Maus und Touch) */
+(function(){
+  let D=null;
+  document.addEventListener('pointerdown',e=>{const el=e.target.closest('.slot[data-drag]');if(!el)return;const pitch=document.getElementById('tpitch');if(!pitch)return;
+    D={el,i:+el.dataset.drag,sx:e.clientX,sy:e.clientY,moved:false,rect:pitch.getBoundingClientRect()};el.setPointerCapture&&el.setPointerCapture(e.pointerId);e.preventDefault()});
+  document.addEventListener('pointermove',e=>{if(!D)return;const dx=e.clientX-D.sx,dy=e.clientY-D.sy;if(Math.abs(dx)+Math.abs(dy)>5)D.moved=true;if(!D.moved)return;
+    const x=clamp((e.clientX-D.rect.left)/D.rect.width*100,3,97),y=clamp((e.clientY-D.rect.top)/D.rect.height*100,D.i===0?78:6,96);
+    D.el.style.left=x+'%';D.el.style.top=y+'%';D.x=x;D.y=y;D.el.classList.add('dragging')});
+  const end=e=>{if(!D)return;const d=D;D=null;
+    if(!d.moved){ACT.slot({i:d.i});return}
+    const c=userClub(),t=c.tactic,ph=UI.tph||'oop',arr=ph==='ip'?t.ip:t.oop;arr[d.i]=[Math.round(d.x),Math.round(d.y)];t.cust=1;
+    if(ph==='oop'){const pos=posFromXY(d.x,d.y,d.i),ks=rolesFor(pos,'ip');if(!ks.includes(t.roles[d.i])){const p=S.players[c.lineup[d.i]];t.roles[d.i]=ks.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}
+      const kd=rolesFor(pos,'oop');if(!kd.includes(t.droles[d.i])){const p=S.players[c.lineup[d.i]];t.droles[d.i]=kd.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}}
+    save();render()};
+  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
 
 /* ---------- Liga-Auswahl ---------- */
 function leagueSelect(cur,chg){
@@ -4146,8 +4387,12 @@ const ACT={
   slot:d=>{UI.selSlot=+d.i;UI.modal=slotPicker();render()},
   slotCancel:()=>{UI.selSlot=null;UI.modal=null;render()},
   assign:d=>{const c=userClub(),i=UI.selSlot,j=c.lineup.indexOf(d.id);if(j>=0)c.lineup[j]=c.lineup[i];c.lineup[i]=d.id;UI.selSlot=null;UI.modal=null;const was=c.autoXI;c.autoXI=false;save();render();if(was)toast('Co-Trainer-Aufstellung ausgeschaltet – deine Elf gilt')},
-  formation:d=>{const c=userClub();c.tactic.f=d.v;autoLineup(c);save();render()},
-  tac:d=>{userClub().tactic[d.k]=d.v;save();render()},
+  formation:d=>{const c=userClub(),t=c.tactic;t.f=d.v;t.cust=0;t.oop=FORMATIONS[d.v].xy.map(a=>a.slice());t.roles=null;t.droles=null;t.ip=null;autoLineup(c);bestRoles(c,null);t.ip=deriveIP(t);save();render()},
+  tph:d=>{UI.tph=d.v;render()},
+  ipDerive:()=>{const t=userClub().tactic;t.ip=deriveIP(t);save();render();toast('Form mit Ball aus den Rollen abgeleitet')},
+  tMirror:()=>{const c=userClub(),t=c.tactic;t.oop=t.oop.map(([x,y])=>[100-x,y]);t.ip=t.ip.map(([x,y])=>[100-x,y]);t.cust=1;save();render()},
+  bestRolesBtn:()=>{const c=userClub(),t=c.tactic;t.roles=null;t.droles=null;bestRoles(c,null);save();render();toast('Rollen passend zu deinen Spielern gewählt')},
+  tac:d=>{const t=userClub().tactic;t[d.k]=d.v;save();render()},
   autoXI:()=>{autoLineup(userClub());save();toast('Beste Elf aufgestellt')},
   fxRound:d=>{UI.fxRound=+d.i;render()},
   openTable:d=>{UI.tableLeague=+d.id;UI.view='table';render()},
@@ -4223,6 +4468,7 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  roleSel:el=>{const t=userClub().tactic,i=+el.dataset.i;if(el.dataset.ph==='ip')t.roles[i]=el.value;else t.droles[i]=el.value;save();render()},
   loanPct:el=>{const B=UI.loan;if(!B)return;const v=parseFloat(String(el.value).replace('%','').replace(',','.').trim());if(isNaN(v)){toast('Bitte einen Prozentwert zwischen 0 und 100 eingeben');render();return}B.t.ws=Math.round(clamp(v,0,100)*10)/10;render()},
   tkInq:el=>{UI.tk.inq=el.checked;render()},
   loanAmt:el=>{const B=UI.loan;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.t[el.dataset.k]=Math.round(v);if(el.dataset.k==='opt'&&!v)B.t.obl=false;render()},

@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.16.2';
+const APP_VERSION='0.17.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -78,6 +78,10 @@ const FORMATIONS={
  '4-5-1':{s:['TW','AV','IV','IV','AV','FL','ZM','DM','ZM','FL','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[12,42],[31,46],[50,59],[69,46],[88,42],[50,15]]},
  '5-3-2':{s:['TW','AV','IV','IV','IV','AV','ZM','DM','ZM','ST','ST'],xy:[[50,92],[8,62],[28,77],[50,79],[72,77],[92,62],[27,45],[50,56],[73,45],[37,18],[63,18]]},
  '3-5-2':{s:['TW','IV','IV','IV','FL','ZM','DM','ZM','FL','ST','ST'],xy:[[50,92],[28,77],[50,79],[72,77],[8,45],[31,46],[50,59],[69,46],[92,45],[37,18],[63,18]]},
+ '4-1-4-1':{s:['TW','AV','IV','IV','AV','DM','FL','ZM','ZM','FL','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[50,60],[12,44],[36,47],[64,47],[88,44],[50,15]]},
+ '4-3-1-2':{s:['TW','AV','IV','IV','AV','ZM','DM','ZM','OM','ST','ST'],xy:[[50,92],[12,72],[37,77],[63,77],[88,72],[30,50],[50,60],[70,50],[50,34],[38,17],[62,17]]},
+ '3-4-3':{s:['TW','IV','IV','IV','AV','ZM','ZM','AV','FL','ST','FL'],xy:[[50,92],[28,77],[50,79],[72,77],[8,58],[38,50],[62,50],[92,58],[15,22],[50,14],[85,22]]},
+ '3-4-2-1':{s:['TW','IV','IV','IV','AV','ZM','ZM','AV','OM','OM','ST'],xy:[[50,92],[28,77],[50,79],[72,77],[8,58],[38,52],[62,52],[92,58],[34,32],[66,32],[50,14]]},
 };
 const MENTALITY={defensiv:'Defensiv',ausgewogen:'Ausgewogen',offensiv:'Offensiv'};
 const PRESSING={niedrig:'Tief stehen',mittel:'Mittelfeldpressing',hoch:'Gegenpressing'};
@@ -511,7 +515,7 @@ function aiKeeps(p,c){
 
 /* ---------- Aufstellung ---------- */
 function autoLineup(c){
-  const slots=FORMATIONS[c.tactic.f].s;
+  const slots=slotsOf(c);
   const co=c.staff.coach.trait&&COACH[c.staff.coach.trait];const fitW=co&&co.rotate?.8:.4;
   const avail=squadOf(c).filter(p=>p.inj===0);
   const used=new Set(),lu=new Array(11).fill(null);
@@ -519,9 +523,10 @@ function autoLineup(c){
   slots.forEach((pos,i)=>{let best=null,bv=-1;for(const p of avail){if(used.has(p.id)||p.pos!==pos)continue;const v=val(p,pos);if(v>bv){bv=v;best=p}}if(best&&best.fit>=55){used.add(best.id);lu[i]=best.id}});
   slots.forEach((pos,i)=>{if(lu[i])return;let best=null,bv=-1;for(const p of avail){if(used.has(p.id))continue;const v=val(p,pos);if(v>bv){bv=v;best=p}}if(best){used.add(best.id);lu[i]=best.id}});
   c.lineup=lu;
+  if(c.id!==S.user)aiTactic(c);else ensureTactic(c);
 }
 function fixLineup(c){
-  const slots=FORMATIONS[c.tactic.f].s;const changed=[];
+  const slots=slotsOf(c);const changed=[];
   if(c.lineup.length!==11)c.lineup=new Array(11).fill(null).map((_,i)=>c.lineup[i]||null);
   const used=new Set(c.lineup.filter(id=>id&&S.players[id]&&S.players[id].inj===0&&S.players[id].club===c.id));
   slots.forEach((pos,i)=>{
@@ -536,7 +541,7 @@ function fixLineup(c){
 const CONTRIB={TW:{d:2},IV:{d:1},AV:{d:1,a:.2},DM:{d:.5,m:1},ZM:{m:1,a:.2},OM:{m:.7,a:.7},FL:{m:.5,a:1},ST:{a:1}};
 let BIGMATCH=false;
 function teamStrength(c){
-  const slots=FORMATIONS[c.tactic.f].s;const acc={d:[0,0],m:[0,0],a:[0,0]};
+  const slots=slotsOf(c);const acc={d:[0,0],m:[0,0],a:[0,0]};
   slots.forEach((pos,i)=>{
     const p=c.lineup[i]&&S.players[c.lineup[i]];
     let r=p?rateAt(p,pos)*(.72+.28*p.fit/100)*(.96+.08*p.mor/100):18;
@@ -545,7 +550,7 @@ function teamStrength(c){
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
   let D=avg('d')*(1+.03*(acc.d[1]-6.5)),M=avg('m')*(1+.03*(acc.m[1]-3.5)),A=avg('a')*(1+.03*(acc.a[1]-3.8));
-  const t=c.tactic;
+  const t=c.tactic,TP=tacticProfile(c);D*=TP.D;M*=TP.M;A*=TP.A;
   if(t.men==='offensiv'){A*=1.08;D*=.94}else if(t.men==='defensiv'){A*=.92;D*=1.08}
   if(t.press==='hoch'){M*=1.06;D*=.97}else if(t.press==='niedrig'){M*=.95;D*=1.03}
   if(t.style==='ballbesitz')M*=1.05;
@@ -556,14 +561,16 @@ function prepareAI(c,opp){
   if(co&&co.adaptive){const diff=clubAvg(opp)-clubAvg(c);c.tactic.men=diff>3?'defensiv':diff<-3?'offensiv':'ausgewogen';c.tactic.style=diff>3?'konter':'normal'}
 }
 function pickScorer(c){
-  const slots=FORMATIONS[c.tactic.f].s;const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
-  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p);
-  const x=wpick(cand,x=>W[x.pos]*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
+  const slots=slotsOf(c);const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
+  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p);
+  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.g||1};
+  const x=wpick(cand,x=>W[x.pos]*roleG(x.i)*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
 function pickAssist(c,scorer){
-  const slots=FORMATIONS[c.tactic.f].s;const W={ST:1.1,FL:2.3,OM:2.6,ZM:1.7,DM:.7,IV:.35,AV:1.3,TW:.04};
-  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p&&x.p!==scorer);
-  const x=wpick(cand,x=>W[x.pos]*Math.pow((at(x.p,'pas')+at(x.p,'vis')+at(x.p,'cro')*.6+at(x.p,'tea')*.4)/36,2));return x?x.p:null;
+  const slots=slotsOf(c);const W={ST:1.1,FL:2.3,OM:2.6,ZM:1.7,DM:.7,IV:.35,AV:1.3,TW:.04};
+  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p&&x.p!==scorer);
+  const roleA=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.as||1};
+  const x=wpick(cand,x=>W[x.pos]*roleA(x.i)*Math.pow((at(x.p,'pas')+at(x.p,'vis')+at(x.p,'cro')*.6+at(x.p,'tea')*.4)/36,2));return x?x.p:null;
 }
 function mst(res,p){res.st=res.st||{};return res.st[p.id]||(res.st[p.id]={g:0,a:0,y:0})}
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
@@ -571,6 +578,7 @@ const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber 
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
 function matchRates(hc,ac,neutral){
   const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
+  H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
   let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
@@ -605,7 +613,7 @@ function simMatch(hc,ac,detail,neutral){
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
     const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
-    const slots=FORMATIONS[c.tactic.f].s,avg=clubAvg(c)||50;
+    const slots=slotsOf(c),avg=clubAvg(c)||50;
     c.lineup.forEach((id,i)=>{if(!id)return;const p=S.players[id];if(!p)return;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100);
       const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';
       if(pos==='TW'&&ga===0)p.cs=(p.cs||0)+1;
@@ -698,7 +706,7 @@ function doTransfer(p,to,fee,contract){
 function release(p){const c=club(p.club);const cost=releaseCost(p);freeAgent(p);c.budget-=cost;if(c.id===S.user)S.fin.wages+=cost;return cost}
 function bestAtPos(c,pos,n){const arr=squadOf(c).filter(p=>p.pos===pos).map(ovr).sort((a,b)=>b-a);let s=0;for(let i=0;i<n;i++)s+=arr[i]!==undefined?arr[i]:30;return s/n}
 function weakestPos(c){
-  const slots=FORMATIONS[c.tactic.f].s,cnt={};slots.forEach(p=>cnt[p]=(cnt[p]||0)+1);
+  const slots=slotsOf(c),cnt={};slots.forEach(p=>cnt[p]=(cnt[p]||0)+1);
   let worst=null,wv=1e9;for(const pos in cnt){const v=bestAtPos(c,pos,cnt[pos])+(squadOf(c).filter(p=>p.pos===pos).length<=cnt[pos]?-8:0);if(v<wv){wv=v;worst=pos}}
   return {pos:worst,level:wv};
 }
