@@ -182,7 +182,7 @@ function renderHome(){
     <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
     <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
   }
-  const talks=(S.talks||[]).filter(t=>t.st==='open').map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
+  const talks=(S.talks||[]).filter(t=>t.st==='open'&&(t.seller===undefined||t.seller===S.user)).map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
     return `<div class="news t-offer"><b>⚡ ${esc(fc.name)}</b> verhandelt über die Ausstiegsklausel (${money(t.fee)}) mit ${esc(fullname(p))} ${ovrTag(ovr(p))}
       <div class="small" style="margin-top:4px">Angebot an den Spieler: ca. <b>${money(mon(t.wage))}</b> brutto/Monat als ${ROLES[t.role].label} · bei dir: ${money(mon(p.wage))} · Entscheidung bis Woche ${t.dec+1}</div>
       <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>

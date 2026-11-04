@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.12.0';
+const APP_VERSION='0.12.1';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -716,7 +716,9 @@ function aiTransfer(c){
     if(p.club===c.id||p.inj>0)continue;
     if(dir==='jugend'&&(p.age>23||p.pot<need.level+4))continue;
     if(dir==='erfahrung'&&p.age<26)continue;
-    const bf=buyFee(p,c);
+    let bf=buyFee(p,c);
+    // Schlüsselspieler geben KI-Vereine nicht freiwillig ab – dann geht es nur über eine gültige Ausstiegsklausel
+    if(p.club!==null&&p.club!==S.user&&p.role==='schluessel'&&S.clubs[p.club].budget>0&&!bf.clause){if(bf.rc)bf={fee:bf.rc,clause:true};else continue}
     if(p.club!==null){const sc=S.clubs[p.club];if(sc.guest||sc.players.length<=19||(sc.rep-c.rep>22&&!bf.clause))continue}
     const price=bf.fee,wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max)continue;
     if(bill+wage>c.wBudget)continue;
@@ -724,11 +726,11 @@ function aiTransfer(c){
     if(dir==='jugend'){if(p.age>23||p.pot<need.level+4)continue}else if(o<need.level+2)continue;
     if(dir==='erfahrung'&&p.age<26)continue;
     const score=dir==='jugend'?p.pot*2-p.age:dir==='erfahrung'?o:dir==='schnaeppchen'?(o-need.level)/(total/1e6+1):o*3-total/1e7;
-    cands.push({p,price,score});
+    cands.push({p,price,score,cl:bf.clause});
   }
   if(!cands.length)return;
   cands.sort((x,y)=>y.score-x.score);
-  const {p,price}=cands[Math.min(cands.length-1,Math.floor(rnd()*Math.min(3,cands.length)))];
+  const {p,price,cl}=cands[Math.min(cands.length-1,Math.floor(rnd()*Math.min(3,cands.length)))];
   if(p.club===S.user){
     const bf=buyFee(p,c),u=userClub();
     if(bf.clause&&bf.fee<=max){if(startClauseTalk(p,c,bf.fee))return}
@@ -738,6 +740,7 @@ function aiTransfer(c){
     addNews('offer',`Angebot für ${fullname(p)}`,`${esc(c.name)} (${esc(league(c).name)}, Sportdirektor ${esc(c.staff.dir.name)}, ${DIR[dir].label}) bietet <b>${money(fee)}</b>.`);
     return;
   }
+  if(cl&&p.club!==null){startClauseTalk(p,c,price);return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
   if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
