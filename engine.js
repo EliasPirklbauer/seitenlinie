@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.15.0';
+const APP_VERSION='0.16.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -392,7 +392,7 @@ function baseWageAt(o){return 3500+Math.pow(Math.max(o-35,0),2.2)*33}
 function tvIncome(c){return 16*baseWageAt(25+c.rep*.56)*c.econ+15000*c.econ}
 function ticketPrice(c){return (8+c.rep*.22)*Math.sqrt(c.econ)}
 function estRevenue(c){return tvIncome(c)+c.stadium*clamp(.55+c.rep/220,.4,1)*ticketPrice(c)/2}
-function wageBill(c){let s=0;for(const id of c.players)s+=S.players[id].wage;return s}
+function wageBill(c){let s=0;for(const id of c.players){const p=S.players[id];s+=p.loan&&p.loan.to===c.id?p.wage*p.loan.ws:p.wage}if(c.lout)for(const id of c.lout){const p=S.players[id];if(p&&p.loan&&p.loan.from===c.id)s+=p.wage*(1-p.loan.ws)}return s}
 function initBudgets(c){
   const pr=PRES[c.staff.pres.trait];
   c.wBudget=rw(Math.max(wageBill(c)*1.06,estRevenue(c)*pr.wRatio));
@@ -709,12 +709,13 @@ function posIndex(){
 }
 function aiTransfer(c){
   const dir=c.staff.dir.trait;if(aiBusy(c)>=2)return;
+  if((dir==='jugend'||dir==='schnaeppchen'||aiMax(c)<2e6*Math.max(c.econ,.2))&&rnd()<.3&&aiLoanTry(c))return;
   const max=Math.min(c.tBudget||0,Math.max(0,c.budget))*(dir==='star'?.9:.6);if(max<50000*Math.max(c.econ,.2))return;
   const bill=wageBill(c),need=weakestPos(c),cands=[];
   const minO=dir==='jugend'?0:need.level+2;
   for(const p of posIndex()[need.pos]){
     const o0=ovr(p);if(o0<minO)break;if(cands.length>=25)break;
-    if(p.club===c.id||p.inj>0)continue;
+    if(p.club===c.id||p.inj>0||p.loan)continue;
     if(dir==='jugend'&&(p.age>23||p.pot<need.level+4))continue;
     if(dir==='erfahrung'&&p.age<26)continue;
     let bf=buyFee(p,c);const tgt=p.club!==null&&p.club!==S.user?sellerTarget(p):bf.fee;
@@ -732,11 +733,15 @@ function aiTransfer(c){
   if(!cands.length)return;
   cands.sort((x,y)=>y.score-x.score);
   const {p,price,cl}=cands[Math.min(cands.length-1,Math.floor(rnd()*Math.min(3,cands.length)))];
+  if(p.club!==null&&!cl&&aiNeedsInquiry(p,c,'buy'))return;
+  const verdict=p.club!==null&&!cl?aiInquiryVerdict(p,c,'buy'):{go:true};
+  if(!verdict.go)return;
+  if(verdict.loan){aiLoanFor(p,c);return}
   if(p.club===S.user){
     const bf=buyFee(p,c),u=userClub();
     if(bf.clause&&bf.fee<=max){if(startClauseTalk(p,c,bf.fee))return}
     if(S.offers.some(o=>o.pid===p.id)||activeTalk(p.id))return;if(!p.listed&&rnd()<.5)return;
-    const of=aiOfferFor(p,c);if(!of)return;
+    const of=aiOfferFor(p,c,verdict.price);if(!of)return;
     S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee:of.bid.fee,bid:of.bid,lim:of.lim,rounds:0,w:S.week});
     addNews('offer',`Angebot für ${fullname(p)}`,`${esc(c.name)} (${esc(league(c).name)}, Sportdirektor ${esc(c.staff.dir.name)}, ${DIR[dir].label}) bietet: <b>${bidText(of.bid)}</b>.`);
     return;
@@ -749,12 +754,12 @@ function aiTransfer(c){
   tn(c.league===userClub().league,[c.id],'transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
 }
 function aiSell(c){
-  const p=squadOf(c).sort((a,b)=>b.val-a.val)[0];if(!p)return;
+  const p=squadOf(c).filter(p=>!p.loan).sort((a,b)=>b.val-a.val)[0];if(!p)return;
   const buyer=S.clubs.filter(b=>!b.guest&&b.id!==c.id&&b.id!==S.user&&(b.tBudget||0)>p.val&&b.budget>p.val&&b.players.length<28&&b.rep>=c.rep-10&&wageBill(b)+aiWageFor(p,b)<=b.wBudget).sort((a,b)=>b.budget-a.budget)[0];
   if(!buyer)return;doTransfer(p,buyer,p.val);trimSquad(buyer);autoLineup(buyer);
 }
 function trimSquad(c){
-  while(c.players.length>28){const worst=squadOf(c).sort((a,b)=>(ovr(a)-a.age*.2)-(ovr(b)-b.age*.2))[0];release(worst)}
+  while(c.players.length>28){const worst=squadOf(c).filter(p=>!p.loan).sort((a,b)=>(ovr(a)-a.age*.2)-(ovr(b)-b.age*.2))[0];release(worst)}
   let guard=0;
   while(c.players.length<20&&guard++<10){
     const need=weakestPos(c);const free=posIndex()[need.pos].filter(p=>p.club===null);
@@ -773,7 +778,7 @@ function aiWeekly(){
   const win=isWindow();
   for(const c of S.clubs){
     if(c.id===S.user||c.guest)continue;
-    if(win&&rnd()<.4)aiTransfer(c);
+    if(win&&rnd()<.4)aiTransfer(c);else if(!win)aiPreWindow(c);
     if(win&&c.budget<-3e6*c.econ)aiSell(c);
     trimSquad(c);
     if(S.week>=S.weeks*.3&&c.firedSeason!==S.season){
@@ -831,7 +836,7 @@ function playWeek(){
   }
   S.offers=S.offers.filter(o=>(o.wait||S.week-o.w<2)&&S.players[o.pid]&&S.players[o.pid].club===S.user);
   S.week++;
-  processBids();processAiNegs();
+  processBids();processAiNegs();processInquiries();
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
   if(S.week===ws)addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');
@@ -915,6 +920,8 @@ function seasonEnd(){
   seasonContracts({champ:uRank===1,promo:moves.some(mv=>mv.prom.includes(S.user)),releg:moves.some(mv=>mv.down.includes(S.user))});
   // Karrierezeilen der Saison abschließen
   for(const p of Object.values(S.players))closeRow(p);
+  // Leihen enden, Kaufoptionen
+  processLoanEnds();
   // Vertragsenden
   const leaving=[];
   for(const p of Object.values(S.players)){

@@ -194,7 +194,14 @@ function renderHome(){
   const res=Object.entries(S.bidRes||{}).map(([pid,R])=>{const p=S.players[pid];if(!p||p.club===S.user||R.res==='no')return '';const sc=club(R.seller);
     if(R.res==='yes'){if(!userDeal(pid))return '';return `<div class="news t-transfer"><b>✅ Ablöse mit ${esc(sc.name)} vereinbart</b> für ${esc(fullname(p))}: ${bidText(R.bid)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="negOpen" data-id="${pid}" data-mode="buy">✍️ Vertragsgespräche führen</button></div></div>`}
     return `<div class="news t-offer"><b>↩️ Gegenangebot von ${esc(sc.name)}</b> für ${esc(fullname(p))}: ${bidText(R.bid)}${R.final?' <span class="small muted">(letzte Runde)</span>':''}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="bidOpen" data-id="${pid}">Ansehen / annehmen / neu bieten</button></div></div>`}).join('');
-  const offers=pend+res+talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet für ${esc(fullname(p))} ${ovrTag(ovr(p))}: <b>${o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span>${o.wait?`<div class="small" style="margin-top:6px">📨 Dein Gegenangebot liegt bei ihnen – Antwort bis <b>${fmtDate(((S.pbids||[]).find(x=>x.oid===o.id)||{}).when)}</b></div>`:`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div>`}</div>`}).join('');
+  const uq=(S.uinq||[]).filter(x=>x.st==='open').map(x=>{const p=S.players[x.pid],c=club(x.by);if(!p||!c||p.club!==S.user)return '';
+    return `<div class="news t-offer"><b>❓ Anfrage von ${esc(c.name)}</b> <span class="small muted">(${esc(leagueName(c))})</span> zu ${esc(fullname(p))} ${ovrTag(ovr(p))}: ${x.kind==='loan'?'Wäre eine Leihe möglich?':x.kind==='both'?'Ist er zu haben – fest oder als Leihe?':'Ist er zu haben?'}
+      <div class="row" style="margin-top:6px">${x.kind!=='loan'?`<button class="btn sm pri" data-act="uinqPrice" data-id="${x.id}">Verkäuflich ab …</button>`:''}${x.kind!=='buy'?`<button class="btn sm" data-act="uinqAns" data-id="${x.id}" data-v="loan">Leihe möglich</button>`:''}<button class="btn sm" data-act="uinqAns" data-id="${x.id}" data-v="no">${x.kind==='loan'?'Keine Leihe':'Unverkäuflich'}</button></div></div>`}).join('');
+  const lres=Object.entries(S.bidRes||{}).map(([pid,R])=>{const p=S.players[pid];if(!p||p.club===S.user)return '';const sc=club(R.seller);
+    if(R.res==='loanyes'&&userLoanDeal(pid))return `<div class="news t-transfer"><b>✅ Leihe mit ${esc(sc.name)} vereinbart</b> für ${esc(fullname(p))}: ${loanText(R.t)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="loanClose" data-id="${pid}">🔁 Spieler fragen & abschließen</button></div></div>`;
+    if(R.res==='loancounter')return `<div class="news t-offer"><b>↩️ Gegenvorschlag zur Leihe von ${esc(sc.name)}</b> für ${esc(fullname(p))}: ${loanText(R.t)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="loanOpen" data-id="${pid}">Ansehen / annehmen</button></div></div>`;
+    return ''}).join('');
+  const offers=uq+lres+pend+res+talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> ${o.loan?'möchte':'bietet für'} ${esc(fullname(p))} ${ovrTag(ovr(p))}${o.loan?' ausleihen':''}: <b>${o.loan?loanText(o.loan):o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span>${o.wait?`<div class="small" style="margin-top:6px">📨 Dein Gegenangebot liegt bei ihnen – Antwort bis <b>${fmtDate(((S.pbids||[]).find(x=>x.oid===o.id)||{}).when)}</b></div>`:`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button>${o.loan?'':`<button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button>`}<button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div>`}</div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
   return `<div class="grid home-grid">
@@ -216,7 +223,7 @@ function renderHome(){
 const POS_ORDER=Object.fromEntries(POS_LIST.map((p,i)=>[p,i]));
 function playerRow(p,c,extra){
   const inXI=c&&c.lineup.includes(p.id);
-  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.inj?' <span class="bad small">🩹'+p.inj+'</span>':''}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(mon(p.wage))}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
+  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.loan?` <span class="pill" style="font-size:10px;padding:0 6px;border-color:var(--info)" title="Leihe von ${esc(club(p.loan.from).name)}">Leihe</span>`:''}${p.inj?' <span class="bad small">🩹'+p.inj+'</span>':''}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(mon(p.wage))}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
 }
 const PH='<th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Pot.</th><th class="n">Fit</th><th class="n">Moral</th><th class="n">Sp.</th><th class="n">Tore</th><th class="n">Marktwert</th><th class="n">Gehalt/M.</th><th>Rolle</th><th class="n">Vertrag</th>';
 function renderSquad(){
@@ -225,7 +232,8 @@ function renderSquad(){
   const sb=(key,l)=>`<button class="${k===key?'on':''}" data-act="sort" data-k="${key}">${l}</button>`;
   return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Kader <span class="muted small">${ps.length} Spieler · Gehälter ${money(mon(wageBill(c)))} von ${money(mon(c.wBudget))}/Monat</span></h2><div class="seg">${sb('pos','Position')}${sb('ovr','Stärke')}${sb('age','Alter')}${sb('val','Wert')}</div></div>
   <div class="tw"><table><thead><tr>${PH}</tr></thead><tbody>${ps.map(p=>playerRow(p,c)).join('')}</tbody></table></div>
-  <p class="small muted">● = Startelf · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
+  ${loanedOut(c).length?`<h3 style="margin-top:14px">Verliehene Spieler</h3><div class="tw"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Alter</th><th class="n">Stärke</th><th>Leihverein</th><th>Konditionen</th><th class="n">Spiele</th></tr></thead><tbody>${loanedOut(c).map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td>${p.pos}</td><td><b>${esc(fullname(p))}</b></td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td>${esc(club(p.loan.to).name)}</td><td class="small">${loanText({fee:p.loan.fee,ws:Math.round(p.loan.ws*100),opt:p.loan.opt,obl:p.loan.obl})}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>`:''}
+  <p class="small muted">● = Startelf · <span class="pill" style="font-size:10px;padding:0 6px">Leihe</span> = ausgeliehener Spieler · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
 }
 const seasonLbl=s=>`${s}/${String((s+1)%100).padStart(2,'0')}`;
 const fmtR=v=>v?v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}):'–';
@@ -241,7 +249,7 @@ function playerModal(pid){
       <div class="pid">${c?badge(c,52):'<span class="badge" style="width:52px;height:52px;font-size:13px;background:var(--panel2);color:var(--muted)">FA</span>'}
         <div style="min-width:0"><h2 style="margin:0">${esc(fullname(p))}</h2>
         <div class="muted small">${POS_LABEL[p.pos]} · ${c?esc(c.name)+' · '+esc(leagueName(c)):'vereinslos'}</div>
-        <div class="chips"><span class="pill">${esc(natName(p.nat))}</span><span class="pill">${p.age} Jahre</span>${p.listed?'<span class="pill gold">🏷️ Transferliste</span>':''}${p.inj?`<span class="pill bad">🩹 ${p.inj} Wo. verletzt</span>`:''}</div></div></div>
+        <div class="chips"><span class="pill">${esc(natName(p.nat))}</span><span class="pill">${p.age} Jahre</span>${p.listed?'<span class="pill gold">🏷️ Transferliste</span>':''}${p.loan?`<span class="pill" style="border-color:var(--info)">🔁 Leihe von ${esc(club(p.loan.from).name)} bis 30.06.${p.loan.until+1}</span>`:''}${p.inj?`<span class="pill bad">🩹 ${p.inj} Wo. verletzt</span>`:''}</div></div></div>
       <div class="pscore"><div><span>Stärke</span>${ovrTag(ovr(p))}</div><div><span>Potenzial</span>${ovrTag(p.pot)}</div></div></div>
       <div class="seg ptabs">${[['profil','Profil'],['vertrag','Vertrag'],['karriere','Karriere']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ptab" data-v="${k}">${l}</button>`).join('')}</div>`;
     let body='';
@@ -313,11 +321,17 @@ function playerModal(pid){
         </div>`;
       }
       let actions='';
-      if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag anpassen / verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
-      else{const bf=buyFee(p,u),D=userDeal(p.id),w=isWindow(),dis=w?'':'disabled';
-        actions=`<div class="row">${p.club===null?`<button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>✍️ Verhandeln (vereinslos)</button>`
+      const LN=p.loan;
+      if(LN)actions=`<div class="clist"><h3>Leihgeschäft</h3><div class="crow"><span>Stammverein<small>Vertrag läuft dort bis ${contractEnd(p)}</small></span><b>${esc(club(LN.from).name)}</b></div><div class="crow"><span>Leihverein<small>bis 30.06.${LN.until+1}</small></span><b>${esc(club(LN.to).name)}</b></div><div class="crow"><span>Konditionen</span><b class="small" style="font-family:inherit">${loanText({fee:LN.fee,ws:Math.round(LN.ws*100),opt:LN.opt,obl:LN.obl})}</b></div>
+        ${LN.to===S.user&&LN.opt&&!LN.obl?`<div class="row" style="margin-top:8px"><button class="btn ${LN.buy?'':'pri'}" data-act="loanBuyToggle" data-id="${p.id}">${LN.buy?'Kaufoption doch nicht ziehen':'💶 Kaufoption ziehen ('+money(LN.opt)+')'}</button><span class="small muted">${LN.buy?'✅ Wird zum Saisonende fest übernommen.':'Wird zum Saisonende ausgeübt, wenn du sie ziehst.'}</span></div>`:''}
+        ${LN.to===S.user&&LN.obl?'<div class="small muted" style="margin-top:6px">Kaufpflicht: Er wird zum Saisonende automatisch fest übernommen.</div>':''}</div>`;
+      else if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag anpassen / verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
+      else{const bf=buyFee(p,u),D=userDeal(p.id),LD=p.club!==null?userLoanDeal(p.id):null,w=isWindow(),dis=w?'':'disabled',q=p.club!==null?inqFor(p.id,S.user):null;
+        const intel=q?(q.st==='open'?`<div class="news t-offer" style="margin-bottom:10px">🔎 Deine Anfrage läuft – Antwort bis ${fmtDate(q.when)}.</div>`:inqFresh(q)?`<div class="clist" style="margin-bottom:10px"><h3>Erkenntnisse aus deiner Anfrage <span class="small muted">(${fmtDate(gameDate(q.aw!==undefined?q.aw:q.w))})</span></h3>${q.res.club?`<div class="crow"><span>Verein<small>${q.res.club.saleTxt||''} ${q.res.club.loanTxt||''}${q.res.club.txt||''}</small></span><b>${q.res.club.lo?money(q.res.club.lo)+' – '+money(q.res.club.hi):q.res.club.sale==='no'?'<span class="bad">nicht zu haben</span>':'–'}</b></div>`:''}${q.res.agent?`<div class="crow"><span>Berater ${esc(q.res.agent.agent)}<small>${q.res.agent.txt} ${q.res.agent.why.join(', ')}${q.res.agent.loanTxt?' · '+q.res.agent.loanTxt:''}</small></span><b class="${q.res.agent.lvl==='hot'?'good':q.res.agent.lvl==='no'?'bad':''}">${q.res.agent.lvl!=='no'?money(q.res.agent.wlo)+' – '+money(q.res.agent.whi)+'/M.':'kein Interesse'}</b></div>`:''}</div>`:''):'';
+        actions=intel+`<div class="row">${p.club===null?`<button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>✍️ Verhandeln (vereinslos)</button>`
           :D?`<button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>✍️ Vertragsgespräche führen</button><span class="small good">Ablöse vereinbart: ${bidText(D.bid)}</span>`
-          :`<button class="btn pri" data-act="bidOpen" data-id="${p.id}" ${dis}>💶 Ablöse-Angebot abgeben</button>${bf.clause?`<button class="btn" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>⚡ Ausstiegsklausel ziehen: ${money(bf.fee)}</button>`:''}`}</div>${w?'':'<div class="small muted" style="margin-top:4px">Transferfenster geschlossen.</div>'}`}
+          :LD?`<button class="btn pri" data-act="loanClose" data-id="${p.id}" ${dis}>🔁 Leihe abschließen – Spieler fragen</button><span class="small good">${loanText(LD.t)}</span>`
+          :`<button class="btn" data-act="inqOpen" data-id="${p.id}">🔎 Anfrage stellen</button><button class="btn pri" data-act="bidOpen" data-id="${p.id}" ${dis}>💶 Ablöse-Angebot</button><button class="btn" data-act="loanOpen" data-id="${p.id}" ${dis}>🔁 Leihangebot</button>${bf.clause?`<button class="btn" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>⚡ Ausstiegsklausel ziehen: ${money(bf.fee)}</button>`:''}`}</div>${w?'':`<div class="small muted" style="margin-top:4px">Transferfenster geschlossen – Anfragen sind trotzdem möglich, Angebote erst ${windowLabel()}.</div>`}`}
       body+=`<div style="margin-top:14px">${actions}</div>`;
     }
     else{
@@ -477,6 +491,8 @@ function negSubmit(){
   const free=u.wBudget-(wageBill(u)-(buy?0:p.wage));if(E.W>free)return fail('Das Gehalt sprengt dein Gehaltsbudget.');
   if(N.years!==0){const sugg=suggestRole(p,u),gap=ROLE_ORDER.indexOf(N.role)-ROLE_ORDER.indexOf(sugg);
     if(gap>=2){p.negTries=(p.negTries||0)+1;return fail(`Als ${ROLES[N.role].label} will er nicht unterschreiben – er sieht sich mindestens als ${ROLES[ROLE_ORDER[ROLE_ORDER.indexOf(sugg)+1]].label}.`)}}
+  const qa=buy&&p.club!==null?inqFor(p.id,S.user):null;
+  if(qa&&inqFresh(qa)&&qa.res&&qa.res.agent&&qa.res.agent.lvl==='no'&&E.ratio<1.25){p.negTries=(p.negTries||0)+1;return fail(`Sein Berater hatte dir schon gesagt, dass er kein Interesse hat. Nur ein deutlich besseres Paket (mind. 125 %) könnte ihn umstimmen.`)}
   const accept=E.ratio>=1||(N.years!==0&&rnd()<clamp((E.ratio-.85)/.15,0,1)*.8);
   if(!accept){p.negTries=(p.negTries||0)+1;p.mor=clamp(p.mor-2,15,100);
     return fail(E.ratio>=.92?`Knapp! Das Paket erreicht ${Math.round(E.ratio*100)} % seiner Vorstellung – etwas mehr Gehalt oder eine Prämie, die er sich wünscht, könnte reichen.`:`Abgelehnt – das Paket liegt bei nur ${Math.round(E.ratio*100)} % seiner Vorstellung (entspricht ca. ${money(mon(E.dem))} brutto/Monat).`)}
@@ -567,6 +583,58 @@ function bidSubmit(){
   return say('counter',j.msg);
 }
 
+/* ---------- Anfrage stellen ---------- */
+function inqModal(){
+  return ()=>{
+    const Q=UI.inq,p=S.players[Q.pid],u=userClub(),s=club(p.club);if(!p||!s)return '';
+    const seg=(k,cur,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${cur===v?'on':''}" data-act="inqSet" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const A=agentOf(p),open=(S.inq||[]).find(x=>x.pid===p.id&&x.by===S.user&&x.st==='open');
+    return `<div class="negc"><h2 style="margin-bottom:2px">Anfrage: ${esc(fullname(p))}</h2><div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · ${esc(s.name)} (${esc(leagueName(s))}) · ${ROLES[p.role].label} · Vertrag bis ${contractEnd(p)}</div>
+      <div class="card" style="margin-top:12px"><label class="f">Wen kontaktierst du?</label>${seg('to',Q.to,[['club',`Verein (Sportdirektor ${esc(s.staff.dir.name)})`],['agent',`Berater (${esc(A.name)})`],['both','Beide']])}
+        <label class="f" style="margin-top:10px">Worum geht es?</label>${seg('kind',Q.kind,[['buy','Fester Transfer'],['loan','Leihe'],['both','Transfer oder Leihe']])}
+        <p class="small muted" style="margin-top:10px">Der <b>Verein</b> sagt dir, ob er überhaupt verkaufen bzw. verleihen würde und in welchem Rahmen. Der <b>Berater</b> verrät, ob der Spieler offen für einen Wechsel zu euch ist und was er verdienen möchte. Anfragen sind jederzeit möglich – auch außerhalb des Transferfensters – und verpflichten zu nichts. Die Antwort dauert ein paar Tage.</p></div>
+      ${Q.msg?`<div class="news t-offer" style="margin-top:10px">${Q.msg}</div>`:open?`<div class="news t-offer" style="margin-top:10px">🔎 Es läuft bereits eine Anfrage – Antwort bis ${fmtDate(open.when)}.</div>`:''}
+      <div class="row" style="margin-top:14px;justify-content:space-between">${Q.msg||open?'<span></span>':'<button class="btn pri" data-act="inqSend">Anfrage senden</button>'}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
+  };
+}
+/* ---------- Leihangebot ---------- */
+function loanModal(){
+  return ()=>{
+    const B=UI.loan,p=S.players[B.pid],u=userClub(),s=club(p.club);if(!p||!s)return '';const t=B.t;
+    const seg=(k,cur,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${String(cur)===String(v)?'on':''}" data-act="loanSet" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const inp=(k,v)=>`<label class="minp"><input type="text" inputmode="decimal" data-chg="loanAmt" data-k="${k}" value="${v?fmtNum(v):''}" placeholder="0"><span>€</span></label>`;
+    const q=inqFor(p.id,S.user),hint=q&&q.st==='done'&&q.res.club&&q.res.club.loanTxt?q.res.club.loanTxt:'Tipp: Mit einer Anfrage erfährst du vorher, ob und zu welchen Bedingungen eine Leihe möglich ist.';
+    const weeks=Math.max(1,S.weeks-S.week),cost=(t.fee||0)+t.ws/100*p.wage*weeks,pend=pendingBid(p.id),R=(S.bidRes||{})[p.id];
+    return `<div class="negc"><h2 style="margin-bottom:2px">Leihangebot an ${esc(s.name)}</h2><div class="small muted">für ${esc(fullname(p))} · ${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · bei ${esc(s.short)}: ${ROLES[p.role].label} · bei dir wäre er: ${ROLES[suggestRole(p,u)].label}</div>
+      <div class="news" style="margin-top:10px">${hint}</div>
+      <div class="neggrid"><div class="card"><h3>Konditionen</h3>
+        <div class="nrow"><div class="nhead"><div><b>Leihgebühr</b><small>einmalig an ${esc(s.short)}</small></div>${inp('fee',t.fee)}</div></div>
+        <div class="nrow"><div><b>Gehaltsübernahme</b><small>Anteil am Gehalt (${money(mon(p.wage))}/Monat), den du zahlst</small></div>${seg('ws',t.ws,WS_OPTS.map(x=>[x,x+' %']))}</div>
+        <div class="nrow"><div class="nhead"><div><b>Kaufoption</b><small>fester Preis zum Saisonende (leer = keine)</small></div>${inp('opt',t.opt)}</div>${t.opt?seg('obl',t.obl?1:0,[[0,'Option (du entscheidest)'],[1,'Kaufpflicht']]):''}</div>
+        <div class="nrow"><div><b>Dauer</b><small>bis 30.06.${S.season+1} – danach kehrt er zurück${t.opt?', außer die Option wird gezogen':''}</small></div></div>
+      </div><div class="card"><h3>Übersicht</h3>
+        <div class="crow"><span>Leihgebühr</span><b>${money(t.fee||0)}</b></div>
+        <div class="crow"><span>Dein Gehaltsanteil<small>${t.ws} % · ca. ${weeks} Wochen</small></span><b>${money(mon(p.wage*t.ws/100))}/M.</b></div>
+        <div class="crow"><span>Kosten der Leihe gesamt</span><b>${money(cost)}</b></div>
+        ${t.opt?`<div class="crow"><span>${t.obl?'Kaufpflicht':'Kaufoption'}</span><b>${money(t.opt)}</b></div>`:''}
+        <div class="small muted" style="margin-top:8px">Junge Spieler verleiht ein Verein nur, wenn sie Spielpraxis bekommen. Stamm- und Schlüsselspieler werden praktisch nie verliehen.</div></div></div>
+      ${B.msg?`<div class="news ${B.res==='yes'?'t-transfer':'t-offer'}" style="margin-top:12px">${B.msg}</div>`:''}
+      ${R&&R.res==='loancounter'&&!B.msg?`<div class="news t-offer" style="margin-top:12px">Gegenvorschlag von ${esc(s.name)}: <b>${loanText(R.t)}</b><div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="loanTake">Annehmen</button></div></div>`:''}
+      <div class="row" style="margin-top:14px;justify-content:space-between">${B.msg||pend?'<span>'+(pend?'📨 Dein Leihangebot wird geprüft – Antwort bis '+fmtDate(pend.when):'')+'</span>':'<button class="btn pri" data-act="loanSend">Leihangebot abschicken</button>'}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
+  };
+}
+/* ---------- Antwort auf eine Anfrage an dich ---------- */
+function uinqModal(){
+  return ()=>{
+    const X=UI.uinq,x=(S.uinq||[]).find(y=>y.id===X.id),p=x&&S.players[x.pid],c=x&&club(x.by);if(!x||!p)return '<p>Anfrage nicht mehr aktuell.</p><button class="btn" data-act="closeModal">Schließen</button>';
+    return `<h2 style="margin-bottom:2px">Antwort an ${esc(c.name)}</h2><div class="small muted">Anfrage zu ${esc(fullname(p))} · Marktwert ${money(p.val)}</div>
+      <label class="f" style="margin-top:12px">Ab welcher Ablöse würdest du verkaufen?</label>
+      <div class="row"><label class="minp big"><input type="text" inputmode="decimal" data-chg="uinqAmt" value="${fmtNum(X.price)}"><span>€</span></label>${[1,1.25,1.5,2].map(m=>`<button class="btn sm" data-act="uinqMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div>
+      <p class="small muted">Der Verein orientiert sich an deiner Antwort: Er bietet nur, wenn er sich diesen Betrag leisten kann.</p>
+      <div class="row" style="margin-top:14px;justify-content:space-between"><button class="btn pri" data-act="uinqSend">Antwort senden</button><button class="btn" data-act="closeModal">Abbrechen</button></div>`;
+  };
+}
+
 /* ---------- Taktik ---------- */
 function renderTactic(){
   const c=userClub(),t=c.tactic,F=FORMATIONS[t.f],str=teamStrength(c);
@@ -643,7 +711,7 @@ function renderTransfers(){
   const filt=`<div class="row" style="gap:8px;margin-bottom:12px">
       <select data-chg="tkCode"><option value="">Alle Länder</option>${S.active.map(code=>`<option value="${code}" ${tk.code===code?'selected':''}>${esc(natName(code))}</option>`).join('')}</select>
       <select data-chg="tkLg"><option value="">Alle Ligen${tk.code?' in '+esc(natName(tk.code)):''}</option>${S.leagues.filter(L=>!tk.code||L.assoc===tk.code).sort((a,b)=>a.assoc.localeCompare(b.assoc)||a.tier-b.tier).map(L=>`<option value="${L.id}" ${String(L.id)===String(tk.lg)?'selected':''}>${esc(L.name)}${tk.code?'':' ('+L.assoc+')'}</option>`).join('')}</select>
-      <button class="btn sm" data-act="tkMine">Meine Liga</button>
+      <button class="btn sm" data-act="tkMine">Meine Liga</button><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-chg="tkInq" ${tk.inq?'checked':''}> Anfragen anzeigen</label>
       <input type="search" placeholder="Spieler oder Verein…" data-chg="tkQ" value="${esc(tk.q)}" style="min-width:180px">
     </div>`;
   const q=tk.q.toLowerCase(),qOk=txt=>!q||txt.toLowerCase().includes(q);
@@ -652,13 +720,14 @@ function renderTransfers(){
       ...(S.talks||[]).filter(t=>t.st==='open'&&pairOk([t.from,t.seller])).map(t=>({p:S.players[t.pid],a:club(t.from),b:club(t.seller),st:t.kind==='clause'?'Spieler verhandelt (Ausstiegsklausel)':'Ablöse steht – Spieler verhandelt',bid:t.bid||{fee:t.fee},when:gameDate(t.dec)}))]
       .filter(x=>x.p&&x.a&&x.b&&qOk(fullname(x.p)+' '+x.a.name+' '+x.b.name));
     const runT=`<h3 style="margin-top:4px">Laufende Verhandlungen <span class="small muted">${run.length}</span></h3>${run.length?`<div class="tw" style="margin-bottom:14px;max-height:46vh;overflow:auto"><table><thead><tr><th>Spieler</th><th>Käufer</th><th>Verkäufer</th><th>Stand</th><th>Angebot</th><th>bis</th></tr></thead><tbody>${run.slice(0,150).map(x=>`<tr class="click" data-act="player" data-id="${x.p.id}"><td><b>${esc(fullname(x.p))}</b> ${ovrTag(ovr(x.p))}</td><td class="small">${esc(x.a.name)}<div class="muted">${esc(leagueName(x.a))}</div></td><td class="small">${esc(x.b.name)}<div class="muted">${esc(leagueName(x.b))}</div></td><td class="small">${x.st}</td><td class="small" style="white-space:normal;min-width:220px">${bidText(normBid(x.bid))}</td><td class="small muted">${fmtDate(x.when)}</td></tr>`).join('')}</tbody></table></div>`:`<p class="small muted">${isWindow()?'Gerade keine laufenden Verhandlungen mit diesem Filter.':'Das Transferfenster ist geschlossen.'}</p>`}`;
-    const news=(S.tnews||[]).filter(n=>(tk.lg!==''?n.lg.includes(+tk.lg):tk.code?n.as.includes(tk.code):true)&&qOk(n.title+' '+n.body.replace(/<[^>]+>/g,'')));
+    const src=tk.inq?[...(S.tnews||[]),...(S.tinq||[])].sort((a,b)=>(b.season*100+b.w)-(a.season*100+a.w)):(S.tnews||[]);
+    const news=src.filter(n=>(tk.lg!==''?n.lg.includes(+tk.lg):tk.code?n.as.includes(tk.code):true)&&qOk(n.title+' '+n.body.replace(/<[^>]+>/g,'')));
     const feed=news.slice(0,200).map(n=>`<div class="news t-${n.type} tick ${n.u?'mine':''}"><b>${n.title}</b> <span class="small muted">· ${fmtDate(n.d)} · ${n.season%100}/W${n.w+1} · ${n.as.map(a=>esc(natName(a))).join(' / ')}</span><div class="small">${n.body}</div></div>`).join('')||'<p class="muted">Noch keine Meldungen mit diesem Filter.</p>';
     return `<h2>Transfers</h2>${tabs}${filt}${runT}<h3 style="margin-top:8px">Transfer-Ticker <span class="small muted">${news.length} Meldungen</span></h3><div class="tickfeed">${feed}</div>`;
   }
   if(f.tab==='log'){
     const list=S.transfers.filter(t=>(t.fid===undefined?(!tk.code&&tk.lg===''):pairOk([t.fid,t.tid]))&&qOk(t.name+' '+t.from+' '+t.to));
-    return `<h2>Transfers</h2>${tabs}${filt}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${list.slice(0,200).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.fee?money(t.fee):'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Wechsel mit diesem Filter.</td></tr>'}</tbody></table></div><p class="small muted">* mit Raten, Erfolgsbonus oder Weiterverkaufsbeteiligung – Details beim Antippen bzw. Überfahren.</p>`;
+    return `<h2>Transfers</h2>${tabs}${filt}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${list.slice(0,200).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n" ${t.det?`title="${esc(t.det)}"`:''}>${t.loan?'<span class="pill" style="font-size:10px">Leihe</span> ':''}${t.fee?money(t.fee):t.loan?'':'ablösefrei'}${t.det?' <span class="muted small">*</span>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Wechsel mit diesem Filter.</td></tr>'}</tbody></table></div><p class="small muted">* mit Raten, Erfolgsbonus oder Weiterverkaufsbeteiligung – Details beim Antippen bzw. Überfahren.</p>`;
   }
   let ps=Object.values(S.players).filter(p=>p.club!==S.user&&(p.club===null||!club(p.club).guest));
   if(f.pos)ps=ps.filter(p=>p.pos===f.pos);
@@ -959,6 +1028,27 @@ const ACT={
   tkMine:()=>{const u=userClub();UI.tk=UI.tk||{};UI.tk.code=u.assoc;UI.tk.lg=String(u.league);render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
   negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years'){N.years=+d.v;negDateFix(N)}else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else if(d.k==='rw'){N.rw=d.v;if((d.v==='from'||d.v==='range')&&!N.rf)N.rf=`${S.season+1}-07-01`;if((d.v==='until'||d.v==='range')&&!N.ru)N.ru=`${S.season+1}-06-30`;negDateFix(N)}else N[d.k]=d.v;N.msg=null;render()},
+  inqOpen:d=>{UI.inq={pid:d.id,to:'both',kind:'buy',msg:null};UI.modal=inqModal();render()},
+  inqSet:d=>{UI.inq[d.k]=d.v;render()},
+  inqSend:()=>{const Q=UI.inq,p=S.players[Q.pid];const x=sendInquiry(p,userClub(),Q.to,Q.kind);if(!x){Q.msg='Es läuft bereits eine Anfrage.';render();return}
+    Q.msg=`🔎 Anfrage verschickt. ${Q.to==='agent'?'Der Berater':Q.to==='club'?esc(club(p.club).name):'Verein und Berater'} melde${Q.to==='both'?'n':'t'} sich bis ${fmtDate(x.when)} – die Antwort kommt in den Posteingang.`;
+    addNews('transfer',`Anfrage gestellt: ${fullname(p)}`,`Du hast bei ${Q.to==='agent'?'seinem Berater':Q.to==='club'?esc(club(p.club).name):esc(club(p.club).name)+' und seinem Berater'} nachgefragt (${Q.kind==='loan'?'Leihe':Q.kind==='both'?'Transfer oder Leihe':'Transfer'}). Antwort bis ${fmtDate(x.when)}.`);save();render()},
+  loanOpen:d=>{const p=S.players[d.id],u=userClub(),L=loanTarget(p,u),R=(S.bidRes||{})[p.id];UI.loan={pid:p.id,t:R&&R.res==='loancounter'?{...R.t}:{fee:nice(L.fee*.8),ws:50,opt:0,obl:false},msg:null};UI.modal=loanModal();render()},
+  loanSet:d=>{const B=UI.loan;B.t[d.k]=d.k==='obl'?d.v==='1':+d.v;render()},
+  loanSend:()=>{const B=UI.loan,p=S.players[B.pid],u=userClub();if(!isWindow()){B.msg='Das Transferfenster ist geschlossen.';render();return}
+    if(u.players.length>=32){B.msg='Dein Kader ist voll (max. 32).';render();return}if((B.t.fee||0)>u.tBudget){B.msg='Die Leihgebühr übersteigt dein Transferbudget.';render();return}
+    const R=sendLoanBid(p,{...B.t});B.msg=R.now?'Deadline Day – die Antwort ist schon im Posteingang.':`📨 Leihangebot verschickt – ${esc(club(p.club).name)} prüft und antwortet bis ${fmtDate(R.when)}.`;save();render()},
+  loanTake:()=>{const B=UI.loan,p=S.players[B.pid],R=(S.bidRes||{})[p.id];if(!R||!R.t)return;S.ldeals=S.ldeals||{};S.ldeals[p.id]={t:R.t,season:S.season,exp:windowEnd()};S.bidRes[p.id]={res:'loanyes',t:R.t,seller:R.seller};B.msg=`✅ Leihe vereinbart: ${loanText(R.t)}. Jetzt muss nur noch der Spieler zustimmen.`;B.res='yes';save();render()},
+  loanClose:d=>{const p=S.players[d.id],LD=userLoanDeal(d.id),u=userClub();if(!LD){toast('Die Vereinbarung ist nicht mehr gültig');return}
+    if((LD.t.fee||0)>u.tBudget){toast('Die Leihgebühr übersteigt dein Transferbudget');return}
+    startClauseTalk(p,u,LD.t.fee||0,'loan',null,LD.t);delete S.ldeals[p.id];if(S.bidRes)delete S.bidRes[p.id];UI.modal=null;save();toast('Der Spieler überlegt – Antwort im Posteingang');render()},
+  loanBuyToggle:d=>{const p=S.players[d.id];if(p&&p.loan){p.loan.buy=!p.loan.buy;if(p.loan.buy&&userClub().budget<p.loan.opt)toast('Achtung: Das Geld muss zum Saisonende auf dem Konto sein');save();render()}},
+  uinqAns:d=>{const x=(S.uinq||[]).find(y=>y.id===d.id);if(!x)return;x.st='done';x.ans=d.v;x.w=S.week;x.season=S.season;const c=club(x.by),p=S.players[x.pid];
+    addNews('transfer',`Antwort an ${esc(c.name)}: ${fullname(p)}`,d.v==='no'?'Du hast abgewunken – sie werden kein Angebot machen.':'Du hast signalisiert, dass eine Leihe möglich ist.');save();render()},
+  uinqPrice:d=>{const x=(S.uinq||[]).find(y=>y.id===d.id),p=S.players[x.pid];UI.uinq={id:d.id,price:nice(p.val*1.25)};UI.modal=uinqModal();render()},
+  uinqMul:d=>{const x=(S.uinq||[]).find(y=>y.id===UI.uinq.id),p=S.players[x.pid];UI.uinq.price=nice(p.val*(+d.v));render()},
+  uinqSend:()=>{const x=(S.uinq||[]).find(y=>y.id===UI.uinq.id);if(!x)return;x.st='done';x.ans='price';x.price=UI.uinq.price;x.w=S.week;x.season=S.season;const c=club(x.by),p=S.players[x.pid];
+    addNews('transfer',`Antwort an ${esc(c.name)}: ${fullname(p)}`,`Du hast signalisiert: verkäuflich ab <b>${money(x.price)}</b>.`);UI.modal=null;save();render()},
   bidOpen:d=>{const p=S.players[d.id],R=(S.bidRes||{})[p.id];UI.bid={pid:p.id,mode:'buy',b:normBid(R&&R.bid?R.bid:{fee:nice(scoutEst(p)*.9)}),res:null,msg:null};
     if(R&&R.res==='counter'){UI.bid.res='counter';UI.bid.counter=R.bid;UI.bid.msg=`${esc(club(R.seller).name)} hat ein Gegenangebot gemacht: <b>${bidText(R.bid)}</b>.${R.final?' Weitere Runden gibt es in diesem Fenster nicht.':''}`}
     else if(R&&R.res==='no'){UI.bid.msg=`${esc(club(R.seller).name)} hat dein letztes Angebot abgelehnt.`;UI.bid.res=null}
@@ -987,7 +1077,7 @@ const ACT={
     UI.confirmRel=null;const cost=release(p);addNews('transfer',`${fullname(p)} freigestellt`,`Abfindung: ${money(cost)}.`);UI.modal=null;save();toast('Spieler freigestellt')},
   offerYes:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;const p=S.players[o.pid],fc=club(o.from);S.offers=S.offers.filter(x=>x.pid!==o.pid);
     if(!isWindow()){toast('Das Transferfenster ist geschlossen');render();return}
-    startClauseTalk(p,fc,o.fee,'deal',o.bid||{fee:o.fee});save();toast('Einigung mit dem Verein – jetzt entscheidet der Spieler');render()},
+    if(o.loan)startClauseTalk(p,fc,o.loan.fee,'loan',null,o.loan);else startClauseTalk(p,fc,o.fee,'deal',o.bid||{fee:o.fee});save();toast('Einigung mit dem Verein – jetzt entscheidet der Spieler');render()},
   offerNo:d=>{const o=S.offers.find(x=>x.id===d.id);if(o){const p=S.players[o.pid];p.mor=clamp(p.mor-3,15,100)}S.offers=S.offers.filter(x=>x.id!==d.id);save();render()},
   saveNow:()=>{save();toast('Gespeichert')},
   exportOpen:()=>{UI.modal=exportModal();render()},
@@ -1003,6 +1093,9 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  tkInq:el=>{UI.tk.inq=el.checked;render()},
+  loanAmt:el=>{const B=UI.loan;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.t[el.dataset.k]=Math.round(v);if(el.dataset.k==='opt'&&!v)B.t.obl=false;render()},
+  uinqAmt:el=>{const v=parseMoney(el.value);if(!isNaN(v))UI.uinq.price=Math.round(v);render()},
   tkCode:el=>{UI.tk.code=el.value;UI.tk.lg='';render()},
   tkLg:el=>{UI.tk.lg=el.value;render()},
   tkQ:el=>{UI.tk.q=el.value.trim();render()},

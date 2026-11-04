@@ -92,7 +92,7 @@ function clauseWatch(){
 /* ---------- Ausstiegsklausel ---------- */
 function inIntlComp(c){return (S.comps||[]).some(C=>!C.bg&&(C.teams||[]).includes(c.id))}
 function clauseApplies(p,buyer,ct){
-  ct=ct||contractOf(p);if(!ct.rc||p.club===null||clauseState(ct)!=='on')return false;const s=club(p.club);if(!s||!buyer||buyer.id===s.id)return false;
+  ct=ct||contractOf(p);if(!ct.rc||p.club===null||p.loan||clauseState(ct)!=='on')return false;const s=club(p.club);if(!s||!buyer||buyer.id===s.id)return false;
   const Ls=league(s),Lb=league(buyer);
   switch(ct.rt){
     case 'foreign':return buyer.assoc!==s.assoc;
@@ -240,7 +240,7 @@ function talkDuration(p,seller){
 function dealVisible(t){const u=userClub();return [t.from,t.seller].some(id=>{const x=club(id);return x&&x.league===u.league})}
 function talkVisible(t){const u=userClub();return t.seller===S.user||t.from===S.user||[t.from,t.seller].some(id=>{const x=club(id);return x&&(x.league===u.league||x.assoc===u.assoc)})}
 // kind: 'clause' = Ausstiegsklausel, 'deal' = Vereine haben sich auf eine Ablöse geeinigt
-function startClauseTalk(p,c,fee,kind,bid){
+function startClauseTalk(p,c,fee,kind,bid,loan){
   kind=kind||'clause';
   S.talks=S.talks||[];
   if(S.talks.some(t=>t.pid===p.id&&(t.st==='open'||t.from===c.id)))return true; // läuft schon / Verein hat es diese Saison schon versucht
@@ -249,9 +249,14 @@ function startClauseTalk(p,c,fee,kind,bid){
   if(kind==='clause'&&S.week>=windowEnd()&&seller.id===S.user)return false; // dir bleibt sonst keine Zeit zu reagieren
   const role=suggestRole(p,c),wage=rw(Math.max(aiWageFor(p,c),p.wage*(1.08+rnd()*.35))),years=p.age>=31?ri(1,2):ri(3,5);
   const D=talkDuration(p,seller),dec=S.week+D.w;
-  const t={id:'t'+(S.nextId++),kind,bid:bid?normBid(bid):null,pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
+  const t={id:'t'+(S.nextId++),kind,bid:bid?normBid(bid):null,loan:loan||null,pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
   S.talks.push(t);
   const dl=`bis Woche ${dec+1} (${fmtDate(gameDate(dec))})`;
+  if(kind==='loan'){
+    const vis=dealVisible(t)||c.id===S.user||seller.id===S.user;
+    tn(vis,[c.id,seller.id],'transfer',`Leihe vereinbart: ${fullname(p)}`,`${esc(seller.name)} und ${esc(c.name)} sind sich über eine Leihe einig (${loanText(loan)}). Jetzt muss ${esc(pname(p))} noch zustimmen – er wäre dort ${ROLES[role].label}. Entscheidung ${dl}.`);
+    return true;
+  }
   if(kind==='deal'){
     if(seller.id===S.user)tn(true,[c.id,seller.id],'transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
     else tn(dealVisible(t),[c.id,seller.id],'transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
@@ -274,6 +279,7 @@ function talkChance(t){
   const p=S.players[t.pid],c=club(t.from),u=club(t.seller!==undefined?t.seller:S.user);if(!p||!c||!u)return 0;
   const ri_=ROLE_ORDER.indexOf(t.role)-ROLE_ORDER.indexOf(p.role);
   const pay=t.wage/Math.max(1,p.wage)-1,A=agentOf(p),sit=clubSituation(u);
+  if(t.kind==='loan')return clamp(.42+(ROLE_ORDER.indexOf(p.role)-ROLE_ORDER.indexOf(t.role))*.12+(p.age<=23?.1:0)-A.stay+(p.mor<50?.1:0),.05,.95);
   const base=t.kind==='deal'?.42+(u.id===S.user&&p.listed?.2:0)+(p.listed&&u.id!==S.user?.15:0):.3;
   return clamp(base+pay*1.1*A.pay-A.stay-sit.v*.09+(t.deadline?.04:0)+(c.rep-u.rep)/30+(at(p,'amb')-10)/35-(p.mor-60)/120-(c.assoc!==u.assoc?(10-at(p,'ada'))/30:0)-ri_*.08-(inIntlComp(c)?0:inIntlComp(u)?.08:0),.03,.95);
 }
@@ -282,12 +288,17 @@ function clauseTalksWeekly(){
     if(t.st!=='open'||S.week<t.dec)continue;
     const p=S.players[t.pid],c=club(t.from),sid=t.seller!==undefined?t.seller:S.user,mine=sid===S.user;let vis=talkVisible(t);const sn=club(sid)?club(sid).name:'';
     if(!p||!c||p.club!==sid){t.st='void';continue}
-    const ct=contractOf(p),deal=t.kind==='deal';
+    const ct=contractOf(p),deal=t.kind==='deal'||t.kind==='loan',isLoan=t.kind==='loan';
     if(deal)vis=dealVisible(t);
     if(!deal&&!clauseApplies(p,c,ct)){t.st='void';tn(vis,[t.from,sid],'transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
     const fee=deal?t.fee:Math.min(t.fee,ct.rc||t.fee);
     if(c.budget<fee||!isWindow()){t.st='void';tn(vis||mine,[t.from,sid],'transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
     if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;tn(mine||vis,[t.from,sid],'transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
+    if(isLoan){
+      if(rnd()<talkChance(t)){t.st='done';executeLoan(p,c,t.loan);trimSquad(c)}
+      else{t.st='no';tn(vis||mine||c.id===S.user,[t.from,sid],'transfer',`${fullname(p)} lehnt Leihe ab`,`${esc(pname(p))} möchte nicht zu ${esc(c.name)} – die Leihe kommt nicht zustande.`)}
+      continue;
+    }
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
       executeDeal(p,c,{...(t.bid||{}),fee},{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);

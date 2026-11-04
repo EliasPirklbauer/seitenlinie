@@ -54,8 +54,8 @@ function aiNegotiate(p,c){
   return null;
 }
 // Gebot eines KI-Vereins für einen deiner Spieler (mit Schmerzgrenze lim)
-function aiOfferFor(p,c){
-  const base=p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5),b=aiMakeBid(p,c,base/.875);if(!b)return null;
+function aiOfferFor(p,c,price){
+  const base=price?price*(.9+rnd()*.12):p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5),b=aiMakeBid(p,c,base/.875);if(!b)return null;
   const F=aiFinance(c),lim=Math.min(bidValue(b,p)*(1.12+rnd()*.3),F.now+F.inst*.9);
   return {bid:b,lim:Math.max(lim,bidValue(b,p))};
 }
@@ -133,6 +133,15 @@ function sendBid(p,b){
   if(R.now)processBids();
   return R;
 }
+function sendLoanBid(p,lt){
+  const s=club(p.club),R=replyDelay(s,p);S.pbids=S.pbids||[];
+  S.pbids.push({id:'b'+(S.nextId++),kind:'loan',pid:p.id,seller:s.id,t:lt,w:S.week,dec:R.dec,when:R.when});
+  if(S.bidRes)delete S.bidRes[p.id];
+  addNews('transfer',`Leihanfrage verschickt: ${fullname(p)}`,`Dein Leihangebot an ${esc(s.name)} (${loanText(lt)}) wird geprüft. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`Antwort bis ${fmtDate(R.when)}.`}`);
+  if(R.now)processBids();
+  return R;
+}
+function userLoanDeal(pid){const D=S.ldeals&&S.ldeals[pid];if(!D)return null;if(D.season!==S.season||!isWindow()||S.week>D.exp){delete S.ldeals[pid];return null}return D}
 function sendCounter(o,ask){
   const c=club(o.from),R=replyDelay(c,null);S.pbids=S.pbids||[];
   S.pbids.push({id:'b'+(S.nextId++),kind:'sell',oid:o.id,pid:o.pid,buyer:c.id,b:ask,w:S.week,dec:R.dec,when:R.when});o.wait=1;
@@ -145,10 +154,21 @@ function processBids(){
     if(S.week<x.dec){keep.push(x);continue}
     const p=S.players[x.pid];if(!p)continue;
     if(!isWindow()){addNews('transfer',`Keine Antwort mehr: ${fullname(p)}`,'Das Transferfenster hat geschlossen, bevor eine Einigung zustande kam.');continue}
+    if(x.kind==='loan'){
+      const s=club(x.seller);S.bidRes=S.bidRes||{};
+      if(p.club!==x.seller){addNews('transfer',`Leihanfrage hinfällig: ${fullname(p)}`,`${esc(pname(p))} spielt nicht mehr bei ${esc(s.name)}.`);continue}
+      const j=sellerJudgeLoan(p,x.t,userClub());
+      if(j.res==='yes'){S.ldeals=S.ldeals||{};S.ldeals[p.id]={t:x.t,season:S.season,exp:windowEnd()};S.bidRes[p.id]={res:'loanyes',t:x.t,seller:s.id};
+        addNews('offer',`✅ Leihe möglich: ${fullname(p)}`,`${esc(s.name)} stimmt der Leihe zu (${loanText(x.t)}). Jetzt muss nur noch der Spieler zustimmen.`)}
+      else if(j.res==='counter'){S.bidRes[p.id]={res:'loancounter',t:j.terms,seller:s.id};addNews('offer',`Gegenvorschlag zur Leihe: ${fullname(p)}`,j.msg)}
+      else{S.bidRes[p.id]={res:'no',seller:s.id};addNews('offer',`❌ Keine Leihe: ${fullname(p)}`,j.msg)}
+      continue;
+    }
     if(x.kind==='buy'){
       const s=club(x.seller);
       if(p.club!==x.seller){addNews('transfer',`Angebot hinfällig: ${fullname(p)}`,`${esc(pname(p))} spielt nicht mehr bei ${esc(s.name)}.`);continue}
-      const j=sellerJudge(p,x.b),k=bidKey(p.id),last=((S.btries||{})[k]||0)>=3;
+      let j=sellerJudge(p,x.b);const k=bidKey(p.id),last=((S.btries||{})[k]||0)>=3;
+      const q=inqFor(p.id,S.user);if(q&&inqFresh(q)&&q.res&&q.res.club&&q.res.club.sale==='no'&&bidValue(x.b,p)<sellerTarget(p)*1.3)j={res:'no',msg:`${esc(s.name)} verweist auf die Antwort zu deiner Anfrage: ${esc(pname(p))} ist nicht zu haben. Nur ein außergewöhnliches Angebot würde daran etwas ändern.`};
       S.bidRes=S.bidRes||{};
       if(j.res==='yes'){S.deals=S.deals||{};S.deals[p.id]={bid:x.b,season:S.season,exp:windowEnd()};S.bidRes[p.id]={res:'yes',bid:x.b,seller:s.id};
         addNews('offer',`✅ ${esc(s.name)} nimmt an: ${fullname(p)}`,`${esc(s.name)} akzeptiert dein Angebot (<b>${bidText(x.b)}</b>). Jetzt musst du dich nur noch mit dem Spieler einigen – bis zum Ende des Transferfensters.`)}
