@@ -266,6 +266,7 @@ optgroup{color:#000}
 .dinp input{width:auto;text-align:left;font-family:inherit;font-size:15px;color-scheme:dark}
 .whys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.whys span{font-size:11.5px;background:var(--night2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
 .tickfeed .news{padding:9px 13px}.tickfeed .news.mine{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+.split{height:8px;border-radius:9px;background:color-mix(in srgb,var(--info) 55%,var(--panel3));overflow:hidden;margin:4px 0}.split>div{height:100%;background:var(--accent);border-radius:9px 0 0 9px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -677,7 +678,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.16.1';
+const APP_VERSION='0.16.2';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -2944,7 +2945,7 @@ function sellerJudgeLoan(p,t,borrower){
   const nt={...t,ws:Math.max(t.ws||0,L.ws)};const v2=loanValue(p,nt,borrower).v;if(v2<need)nt.fee=nice((nt.fee||0)+(need-v2));
   return {res:'counter',terms:nt,msg:`${esc(s.name)} macht einen Gegenvorschlag: ${loanText(nt)}.`};
 }
-function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${t.ws||0} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push(durText(t.dur||'1'));return x.join(' · ')}
+function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${String(t.ws||0).replace('.',',')} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push(durText(t.dur||'1'));return x.join(' · ')}
 function executeLoan(p,borrower,t){
   const parent=club(p.club);if(!parent||p.loan)return;
   closeRow(p);
@@ -3357,7 +3358,7 @@ function renderSquad(){
   const sb=(key,l)=>`<button class="${k===key?'on':''}" data-act="sort" data-k="${key}">${l}</button>`;
   return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Kader <span class="muted small">${ps.length} Spieler · Gehälter ${money(mon(wageBill(c)))} von ${money(mon(c.wBudget))}/Monat</span></h2><div class="seg">${sb('pos','Position')}${sb('ovr','Stärke')}${sb('age','Alter')}${sb('val','Wert')}</div></div>
   <div class="tw"><table><thead><tr>${PH}</tr></thead><tbody>${ps.map(p=>playerRow(p,c)).join('')}</tbody></table></div>
-  ${loanedOut(c).length?`<h3 style="margin-top:14px">Verliehene Spieler</h3><div class="tw"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Alter</th><th class="n">Stärke</th><th>Leihverein</th><th>Konditionen</th><th class="n">Spiele</th></tr></thead><tbody>${loanedOut(c).map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td>${p.pos}</td><td><b>${esc(fullname(p))}</b></td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td>${esc(club(p.loan.to).name)}</td><td class="small">${loanText({fee:p.loan.fee,ws:Math.round(p.loan.ws*100),opt:p.loan.opt,obl:p.loan.obl,dur:p.loan.half?'half':p.loan.until>p.loan.since?'2':'1'})}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>`:''}
+  ${loanedOut(c).length?`<h3 style="margin-top:14px">Verliehene Spieler</h3><div class="tw"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Alter</th><th class="n">Stärke</th><th>Leihverein</th><th>Konditionen</th><th class="n">Spiele</th></tr></thead><tbody>${loanedOut(c).map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td>${p.pos}</td><td><b>${esc(fullname(p))}</b></td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td>${esc(club(p.loan.to).name)}</td><td class="small">${loanText({fee:p.loan.fee,ws:Math.round(p.loan.ws*1000)/10,opt:p.loan.opt,obl:p.loan.obl,dur:p.loan.half?'half':p.loan.until>p.loan.since?'2':'1'})}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>`:''}
   <p class="small muted">● = Startelf · <span class="pill" style="font-size:10px;padding:0 6px">Leihe</span> = ausgeliehener Spieler · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
 }
 const seasonLbl=s=>`${s}/${String((s+1)%100).padStart(2,'0')}`;
@@ -3447,7 +3448,7 @@ function playerModal(pid){
       }
       let actions='';
       const LN=p.loan;
-      if(LN)actions=`<div class="clist"><h3>Leihgeschäft</h3><div class="crow"><span>Stammverein<small>Vertrag läuft dort bis ${contractEnd(p)}</small></span><b>${esc(club(LN.from).name)}</b></div><div class="crow"><span>Leihverein<small>${loanEndText(LN)}</small></span><b>${esc(club(LN.to).name)}</b></div><div class="crow"><span>Konditionen</span><b class="small" style="font-family:inherit">${loanText({fee:LN.fee,ws:Math.round(LN.ws*100),opt:LN.opt,obl:LN.obl,dur:LN.half?'half':LN.until>LN.since?'2':'1'})}</b></div>
+      if(LN)actions=`<div class="clist"><h3>Leihgeschäft</h3><div class="crow"><span>Stammverein<small>Vertrag läuft dort bis ${contractEnd(p)}</small></span><b>${esc(club(LN.from).name)}</b></div><div class="crow"><span>Leihverein<small>${loanEndText(LN)}</small></span><b>${esc(club(LN.to).name)}</b></div><div class="crow"><span>Konditionen</span><b class="small" style="font-family:inherit">${loanText({fee:LN.fee,ws:Math.round(LN.ws*1000)/10,opt:LN.opt,obl:LN.obl,dur:LN.half?'half':LN.until>LN.since?'2':'1'})}</b></div>
         ${LN.to===S.user&&LN.opt&&!LN.obl?`<div class="row" style="margin-top:8px"><button class="btn ${LN.buy?'':'pri'}" data-act="loanBuyToggle" data-id="${p.id}">${LN.buy?'Kaufoption doch nicht ziehen':'💶 Kaufoption ziehen ('+money(LN.opt)+')'}</button><span class="small muted">${LN.buy?'✅ Wird zum Saisonende fest übernommen.':'Wird zum Saisonende ausgeübt, wenn du sie ziehst.'}</span></div>`:''}
         ${LN.to===S.user&&LN.obl?'<div class="small muted" style="margin-top:6px">Kaufpflicht: Er wird zum Saisonende automatisch fest übernommen.</div>':''}</div>`;
       else if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag anpassen / verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
@@ -3734,12 +3735,16 @@ function loanModal(){
       <div class="news" style="margin-top:10px">${hint}</div>
       <div class="neggrid"><div class="card"><h3>Konditionen</h3>
         <div class="nrow"><div class="nhead"><div><b>Leihgebühr</b><small>einmalig an ${esc(s.short)}</small></div>${inp('fee',t.fee)}</div></div>
-        <div class="nrow"><div><b>Gehaltsübernahme</b><small>Anteil am Gehalt (${money(mon(p.wage))}/Monat), den du zahlst</small></div>${seg('ws',t.ws,WS_OPTS.map(x=>[x,x+' %']))}</div>
+        <div class="nrow"><div class="nhead"><div><b>Gehaltsübernahme</b><small>Anteil am Gehalt (${money(mon(p.wage))} brutto/Monat), den du zahlst</small></div><label class="minp"><input type="text" inputmode="decimal" data-chg="loanPct" value="${String(t.ws).replace('.',',')}" style="width:70px"><span>%</span></label></div>
+          <div class="chipsel">${WS_OPTS.map(x=>`<button class="${t.ws===x?'on':''}" data-act="loanSet" data-k="ws" data-v="${x}">${x} %</button>`).join('')}</div>
+          <div class="split"><div style="width:${t.ws}%"></div></div>
+          <div class="row" style="justify-content:space-between;gap:8px"><span class="small"><b>Du (${esc(u.short)}):</b> ${money(mon(p.wage*t.ws/100))}/Monat · ${money(p.wage*t.ws/100*weeks)} gesamt</span><span class="small" style="text-align:right"><b>${esc(s.short)}:</b> ${money(mon(p.wage*(100-t.ws)/100))}/Monat · ${money(p.wage*(100-t.ws)/100*weeks)} gesamt</span></div></div>
         <div class="nrow"><div class="nhead"><div><b>Kaufoption</b><small>fester Preis zum Ende der Leihe (leer = keine)</small></div>${inp('opt',t.opt)}</div>${t.opt?seg('obl',t.obl?1:0,[[0,'Option (du entscheidest)'],[1,'Kaufpflicht']]):''}</div>
         <div class="nrow"><div><b>Dauer</b><small>${durText(dur)} – danach kehrt er zurück${t.opt?', außer die Option wird gezogen':''}</small></div>${seg('dur',dur,loanDurOpts(p))}${p.until<S.season+1?`<small class="muted">Länger nicht möglich – sein Vertrag bei ${esc(s.short)} endet am 30.06.${p.until+1}.</small>`:''}</div>
       </div><div class="card"><h3>Übersicht</h3>
         <div class="crow"><span>Leihgebühr</span><b>${money(t.fee||0)}</b></div>
-        <div class="crow"><span>Dein Gehaltsanteil<small>${t.ws} % · ca. ${weeks} Spielwochen</small></span><b>${money(mon(p.wage*t.ws/100))}/M.</b></div>
+        <div class="crow"><span>Dein Gehaltsanteil<small>${String(t.ws).replace('.',',')} % · ca. ${weeks} Spielwochen</small></span><b>${money(mon(p.wage*t.ws/100))}/M.</b></div>
+        <div class="crow"><span>Anteil ${esc(s.short)}<small>${String(Math.round((100-t.ws)*10)/10).replace('.',',')} %</small></span><b>${money(mon(p.wage*(100-t.ws)/100))}/M.</b></div>
         <div class="crow"><span>Kosten der Leihe gesamt</span><b>${money(cost)}</b></div>
         ${t.opt?`<div class="crow"><span>${t.obl?'Kaufpflicht':'Kaufoption'}</span><b>${money(t.opt)}</b></div>`:''}
         <div class="small muted" style="margin-top:8px">Junge Spieler verleiht ein Verein nur, wenn sie Spielpraxis bekommen. Stamm- und Schlüsselspieler werden praktisch nie verliehen.</div></div></div>
@@ -4218,6 +4223,7 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  loanPct:el=>{const B=UI.loan;if(!B)return;const v=parseFloat(String(el.value).replace('%','').replace(',','.').trim());if(isNaN(v)){toast('Bitte einen Prozentwert zwischen 0 und 100 eingeben');render();return}B.t.ws=Math.round(clamp(v,0,100)*10)/10;render()},
   tkInq:el=>{UI.tk.inq=el.checked;render()},
   loanAmt:el=>{const B=UI.loan;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.t[el.dataset.k]=Math.round(v);if(el.dataset.k==='opt'&&!v)B.t.obl=false;render()},
   uinqAmt:el=>{const v=parseMoney(el.value);if(!isNaN(v))UI.uinq.price=Math.round(v);render()},

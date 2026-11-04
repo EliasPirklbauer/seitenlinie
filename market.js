@@ -54,7 +54,7 @@ function sellerJudgeLoan(p,t,borrower){
   const nt={...t,ws:Math.max(t.ws||0,L.ws)};const v2=loanValue(p,nt,borrower).v;if(v2<need)nt.fee=nice((nt.fee||0)+(need-v2));
   return {res:'counter',terms:nt,msg:`${esc(s.name)} macht einen Gegenvorschlag: ${loanText(nt)}.`};
 }
-function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${t.ws||0} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push(durText(t.dur||'1'));return x.join(' · ')}
+function loanText(t){const x=[`Leihgebühr ${t.fee?money(t.fee):'keine'}`,`${String(t.ws||0).replace('.',',')} % Gehaltsübernahme`];if(t.opt)x.push(`${t.obl?'Kaufpflicht':'Kaufoption'} ${money(t.opt)}`);x.push(durText(t.dur||'1'));return x.join(' · ')}
 function executeLoan(p,borrower,t){
   const parent=club(p.club);if(!parent||p.loan)return;
   closeRow(p);
