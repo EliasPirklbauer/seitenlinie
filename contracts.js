@@ -240,7 +240,7 @@ function talkDuration(p,seller){
 function dealVisible(t){const u=userClub();return [t.from,t.seller].some(id=>{const x=club(id);return x&&x.league===u.league})}
 function talkVisible(t){const u=userClub();return t.seller===S.user||t.from===S.user||[t.from,t.seller].some(id=>{const x=club(id);return x&&(x.league===u.league||x.assoc===u.assoc)})}
 // kind: 'clause' = Ausstiegsklausel, 'deal' = Vereine haben sich auf eine Ablöse geeinigt
-function startClauseTalk(p,c,fee,kind){
+function startClauseTalk(p,c,fee,kind,bid){
   kind=kind||'clause';
   S.talks=S.talks||[];
   if(S.talks.some(t=>t.pid===p.id&&(t.st==='open'||t.from===c.id)))return true; // läuft schon / Verein hat es diese Saison schon versucht
@@ -249,12 +249,12 @@ function startClauseTalk(p,c,fee,kind){
   if(kind==='clause'&&S.week>=windowEnd()&&seller.id===S.user)return false; // dir bleibt sonst keine Zeit zu reagieren
   const role=suggestRole(p,c),wage=rw(Math.max(aiWageFor(p,c),p.wage*(1.08+rnd()*.35))),years=p.age>=31?ri(1,2):ri(3,5);
   const D=talkDuration(p,seller),dec=S.week+D.w;
-  const t={id:'t'+(S.nextId++),kind,pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
+  const t={id:'t'+(S.nextId++),kind,bid:bid?normBid(bid):null,pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
   S.talks.push(t);
   const dl=`bis Woche ${dec+1} (${fmtDate(gameDate(dec))})`;
   if(kind==='deal'){
-    if(seller.id===S.user)addNews('transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich über <b>${money(fee)}</b> Ablöse einig. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
-    else if(dealVisible(t))addNews('transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse ${money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
+    if(seller.id===S.user)addNews('transfer',`Einigung mit ${esc(c.name)}: ${fullname(p)}`,`Die Vereine sind sich einig: <b>${bid?bidText(normBid(bid)):money(fee)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ${esc(c.name)} über seinen Vertrag (ca. ${money(mon(wage))} brutto/Monat als ${ROLES[role].label}, bei dir ${money(mon(p.wage))}). Entscheidung ${dl}. Gründe für die Dauer: ${D.why.map(esc).join('; ')}.`);
+    else if(dealVisible(t))addNews('transfer',`${esc(c.short)} und ${esc(seller.short)} einig über ${fullname(p)}`,`Ablöse: ${bid?bidText(normBid(bid)):money(fee)} – jetzt muss sich ${esc(pname(p))} noch mit ${esc(c.name)} auf einen Vertrag einigen. Entscheidung ${dl}.`);
     return true;
   }
   if(seller.id===S.user){
@@ -290,8 +290,8 @@ function clauseTalksWeekly(){
     if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
-      doTransfer(p,c,fee,{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
-      if(deal){if(mine)addNews('transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel für <b>${money(fee)}</b> ist perfekt.`);
+      executeDeal(p,c,{...(t.bid||{}),fee},{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
+      if(deal){if(mine)addNews('transfer',`${nm} verkauft`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat). Der Wechsel ist perfekt: <b>${t.bid?bidText({...t.bid,fee}):money(fee)}</b>.`);
         else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(sn)} für ${money(fee)}.`)}
       else if(mine)addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt (${money(mon(t.wage))} brutto/Monat, ${ROLES[t.role].label}). Der Verein hat die Klausel gezogen und <b>${money(fee)}</b> überwiesen – der Wechsel ist perfekt, du konntest ihn nicht verhindern.`);
       else if(vis)addNews('transfer',`${esc(c.short)}: ${nm} per Ausstiegsklausel`,`${esc(pname(p))} hat sich mit ${esc(c.name)} geeinigt. Die Klausel über ${money(fee)} wurde gezogen – ${esc(sn)} konnte den Wechsel nicht verhindern.`);

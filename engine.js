@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.13.0';
+const APP_VERSION='0.14.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -610,7 +610,7 @@ function simMatch(hc,ac,detail,neutral){
       const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';
       if(pos==='TW'&&ga===0)p.cs=(p.cs||0)+1;
       let r=6.45+clamp((gf-ga)*.18,-.6,.6)+x.g*.95+x.a*.5-x.y*.3+(ga===0&&def?(pos==='TW'?.55:.3):0)-(def?Math.max(0,ga-1)*(pos==='TW'?.25:.12):0)+((rateAt(p,pos)||ovr(p))-avg)*.025+gauss()*.42;
-      r=clamp(Math.round(r*10)/10,3.5,10);p.rs=(p.rs||0)+Math.round(r*10);p.rn=(p.rn||0)+1;
+      r=clamp(Math.round(r*10)/10,3.5,10);p.rs=(p.rs||0)+Math.round(r*10);p.rn=(p.rn||0)+1;if(p.ao)aoTick(p);
       if(detail){res.rt=res.rt||{};res.rt[id]=r}});
     matchBonuses(c,res,ga);
   }
@@ -683,6 +683,7 @@ function doTransfer(p,to,fee,contract){
   const from=p.club!==null?club(p.club):null;
   const ct=contract||{wage:aiWageFor(p,to),until:S.season+ri(2,4),role:suggestRole(p,to)};
   const sign=signingFee(p,ct.wage);
+  paySellOn(p,from,to,fee);
   if(from){from.players=from.players.filter(x=>x!==p.id);from.lineup=from.lineup.map(x=>x===p.id?null:x);from.budget+=fee;from.tBudget=(from.tBudget||0)+fee*PRES[from.staff.pres.trait].saleBack}
   to.players.push(p.id);to.budget-=fee+sign;to.tBudget=Math.max(0,(to.tBudget||0)-fee-sign);
   if(to.id===S.user){p.ct=Object.assign({},ct.ct||{});p.ct.n=0;delete p.ct.ad;p.ct.pd=0}else delete p.ct;
@@ -716,11 +717,11 @@ function aiTransfer(c){
     if(p.club===c.id||p.inj>0)continue;
     if(dir==='jugend'&&(p.age>23||p.pot<need.level+4))continue;
     if(dir==='erfahrung'&&p.age<26)continue;
-    let bf=buyFee(p,c);
-    // Schlüsselspieler geben KI-Vereine nicht freiwillig ab – dann geht es nur über eine gültige Ausstiegsklausel
-    if(p.club!==null&&p.club!==S.user&&p.role==='schluessel'&&S.clubs[p.club].budget>0&&!bf.clause){if(bf.rc)bf={fee:bf.rc,clause:true};else continue}
+    let bf=buyFee(p,c);const tgt=p.club!==null&&p.club!==S.user?sellerTarget(p):bf.fee;
+    // Schlüsselspieler kosten einen Aufschlag – ist eine gültige Klausel günstiger, wird sie gezogen
+    if(!bf.clause&&bf.rc&&bf.rc<tgt)bf={fee:bf.rc,clause:true};
     if(p.club!==null){const sc=S.clubs[p.club];if(sc.guest||sc.players.length<=19||(sc.rep-c.rep>22&&!bf.clause))continue}
-    const price=bf.fee,wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max)continue;
+    const price=bf.clause||p.club===null||p.club===S.user?bf.fee:tgt,wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max*(bf.clause||p.club===null?1:1.5))continue;
     if(bill+wage>c.wBudget)continue;
     const o=ovr(p);
     if(dir==='jugend'){if(p.age>23||p.pot<need.level+4)continue}else if(o<need.level+2)continue;
@@ -735,12 +736,16 @@ function aiTransfer(c){
     const bf=buyFee(p,c),u=userClub();
     if(bf.clause&&bf.fee<=max){if(startClauseTalk(p,c,bf.fee))return}
     if(S.offers.some(o=>o.pid===p.id)||activeTalk(p.id))return;if(!p.listed&&rnd()<.5)return;
-    const fee=Math.round(p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5)/5000)*5000;if(fee>max)return;
-    S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee,w:S.week});
-    addNews('offer',`Angebot für ${fullname(p)}`,`${esc(c.name)} (${esc(league(c).name)}, Sportdirektor ${esc(c.staff.dir.name)}, ${DIR[dir].label}) bietet <b>${money(fee)}</b>.`);
+    const of=aiOfferFor(p,c);if(!of)return;
+    S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee:of.bid.fee,bid:of.bid,lim:of.lim,rounds:0,w:S.week});
+    addNews('offer',`Angebot für ${fullname(p)}`,`${esc(c.name)} (${esc(league(c).name)}, Sportdirektor ${esc(c.staff.dir.name)}, ${DIR[dir].label}) bietet: <b>${bidText(of.bid)}</b>.`);
     return;
   }
-  if(p.club!==null){startClauseTalk(p,c,price,cl?'clause':'deal');return}
+  if(p.club!==null){
+    if(cl){startClauseTalk(p,c,price,'clause');return}
+    const bid=aiNegotiate(p,c),sc=club(p.club);
+    if(!bid){if(rnd()<.5&&(sc.league===userClub().league||c.league===userClub().league))addNews('transfer',`Keine Einigung: ${fullname(p)}`,`${esc(c.name)} und ${esc(sc.name)} konnten sich nicht auf eine Ablöse einigen.`);return}
+    startClauseTalk(p,c,bid.fee,'deal',bid);return}
   const fromName=p.club!==null?club(p.club).name:'vereinslos';
   doTransfer(p,c,price);trimSquad(c);
   if(c.league===userClub().league)addNews('transfer',`${c.short}: ${fullname(p)} verpflichtet`,`${POS_LABEL[p.pos]}, ${p.age} J., Stärke ${ovr(p)} – von ${esc(fromName)} für ${price?money(price):'ablösefrei'}.`);
@@ -948,6 +953,7 @@ function seasonEnd(){
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};
+  payInstallments();
   for(const c of S.clubs){if(c.guest)continue;if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
   fixLineup(u);
   setupComps();setupSupercups();setupNatCups();
