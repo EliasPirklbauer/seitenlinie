@@ -184,7 +184,9 @@ function renderHome(){
   }
   const talks=(S.talks||[]).filter(t=>t.st==='open'&&(t.seller===undefined||t.seller===S.user)).map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
     return `<div class="news t-offer"><b>⚡ ${esc(fc.name)}</b> verhandelt über die Ausstiegsklausel (${money(t.fee)}) mit ${esc(fullname(p))} ${ovrTag(ovr(p))}
-      <div class="small" style="margin-top:4px">Angebot an den Spieler: ca. <b>${money(mon(t.wage))}</b> brutto/Monat als ${ROLES[t.role].label} · bei dir: ${money(mon(p.wage))} · Entscheidung bis Woche ${t.dec+1}</div>
+      <div class="small" style="margin-top:4px">Angebot an den Spieler: ca. <b>${money(mon(t.wage))}</b> brutto/Monat als ${ROLES[t.role].label} · bei dir: ${money(mon(p.wage))}</div>
+      <div class="small" style="margin-top:2px">⏱️ Entscheidung bis <b>Woche ${t.dec+1}</b> (${fmtDate(gameDate(t.dec))})${t.deadline?' · <b class="gold">Deadline Day</b>':t.dur?` · Verhandlungsdauer ca. ${t.dur} ${t.dur===1?'Woche':'Wochen'}`:''}</div>
+      ${t.why?`<div class="whys">${t.why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`:''}
       <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>
       <div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">Vertrag nachbessern</button><button class="btn sm" data-act="player" data-id="${p.id}">Spielerprofil</button></div></div>`}).join('');
   const offers=talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
@@ -257,6 +259,7 @@ function playerModal(pid){
         ${tile('Starker Fuß',FOOT_LABEL[B.foot])}
         ${tile('Schwacher Fuß',B.foot==='B'?'Beidfüßig':weakLabel(B.weak),wbar)}
         ${tile('Persönlichkeit',personality(p))}
+        ${(()=>{const A=agentOf(p);return tile('Berater',esc(A.name),esc(A.lbl)+' · '+esc(A.agency))})()}
         ${tile('Marktwert',money(p.val))}
         ${tile('Fitness · Moral',`${Math.round(p.fit)}% · ${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'} ${Math.round(p.mor)}`)}
         ${tile('Saison '+seasonLbl(S.season),`${p.apps} Sp · ${p.goals} T · ${p.ast||0} V`,`Ø-Note <b class="${rCls(avg)}">${fmtR(avg)}</b>`)}
@@ -420,6 +423,7 @@ function negModal(){
     return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
      <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
      ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?(bf.clause?`⚡ <b>Ausstiegsklausel:</b> Für <b>${money(fee)}</b> darf ${esc(pname(p))} wechseln – ${esc(club(p.club).name)} kann nicht ablehnen. Zuerst musst du dich aber mit dem Spieler auf einen Vertrag einigen; erst dann wird die Klausel gezogen und die Ablöse überwiesen.`:`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`):'Vereinslos: keine Ablöse, aber '+money(hand)+' Handgeld.'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
+     <div class="small" style="margin-top:8px">Berater: <b>${esc(agentOf(p).name)}</b> (${esc(agentOf(p).agency)}) · ${esc(agentOf(p).lbl)} – ${esc(agentOf(p).desc)}</div>
      ${wi.length?`<div class="small" style="margin-top:8px">Wünsche des Beraters: ${wi.map(k=>`<span class="pill gold">★ ${WISH_LABEL[k]}</span>`).join(' ')}</div>`:''}
      <div class="neggrid">
       <div class="card"><h3>Grunddaten</h3>

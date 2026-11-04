@@ -195,25 +195,68 @@ function seasonContracts(info){
    über einen Vertrag einigen. Erst wenn der Spieler zusagt, wird die Klausel gezahlt und er wechselt. */
 function windowEnd(){return S.week<4?3:winterStart()+2}
 function activeTalk(pid){return (S.talks||[]).find(t=>t.pid===pid&&t.st==='open')}
+/* ---------- Berater ---------- */
+const AGENT_TYPES={
+ fast:{lbl:'Zügiger Abwickler',d:-1,pay:1,stay:0,desc:'will schnell Klarheit und hält Fristen ein'},
+ poker:{lbl:'Pokerspieler',d:1.5,pay:1.35,stay:0,desc:'zieht Gespräche in die Länge, um mehr herauszuholen'},
+ family:{lbl:'Familienberater',d:.5,pay:.8,stay:.1,desc:'achtet auf das Umfeld, rät eher zum Bleiben'},
+ biz:{lbl:'Geschäftsmann',d:0,pay:1.3,stay:0,desc:'Geld steht im Vordergrund'}};
+const AGENCIES=['Sports Management','Football Agency','Player Consulting','Sportsmanagement','Talent Group','Pro Sports'];
+function agentOf(p){
+  const R=mkRng(hashStr('ag'+p.id)),pool=poolArr(ASSOC[p.nat]?ASSOC[p.nat].pool:'de'),r=R();
+  const type=r<.28?'fast':r<.52?'poker':r<.72?'family':'biz';
+  const ln=pool.l[Math.floor(R()*pool.l.length)];
+  return {name:pool.f[Math.floor(R()*pool.f.length)]+' '+ln,agency:ln+' '+AGENCIES[Math.floor(R()*AGENCIES.length)],type,...AGENT_TYPES[type]};
+}
+/* Sportliche Lage eines Vereins aus Sicht des Spielers: +1 = top, −1 = Krise */
+function clubSituation(c){
+  const L=league(c);if(!L)return {v:0,txt:'keine Ligaspiele'};
+  const n=L.clubs.length,early=S.week<3,r=early?(c.lastRank||c.expRank):rankOf(c.id),exp=c.expRank||Math.ceil(n/2),where=early?(c.lastRank?'letzte Saison Platz':'Prognose Platz'):'aktuell Platz';
+  if(L.down&&r>n-L.down)return {v:-1,txt:`Abstiegskampf (${where} ${r})`};
+  if(r<=2&&L.tier===1)return {v:1,txt:`Titelkampf (${where} ${r})`};
+  if(L.tier>1&&L.up&&r<=L.up)return {v:.7,txt:`Aufstiegskurs (${where} ${r})`};
+  if(r<=exp-3)return {v:.6,txt:`läuft besser als erwartet (${where} ${r})`};
+  if(r>=exp+4)return {v:-.6,txt:`sportliche Krise (${where} ${r})`};
+  return {v:0,txt:`im Soll (${where} ${r})`};
+}
+/* Individuelle Verhandlungsdauer in Wochen – mit Begründung */
+function talkDuration(p,seller){
+  const A=agentOf(p),sit=clubSituation(seller),why=[];let d=2;
+  d+=A.d;why.push(`Berater ${A.name}: ${A.lbl}${A.d>0?' – zieht die Gespräche in die Länge':A.d<0?' – will schnell Klarheit':''}`);
+  if(p.mor>=75){d+=1;why.push(`Moral hoch (${Math.round(p.mor)}) – fühlt sich wohl, zögert`)}
+  else if(p.mor<45){d-=1;why.push(`Moral niedrig (${Math.round(p.mor)}) – will schnell weg`)}
+  else why.push(`Moral durchschnittlich (${Math.round(p.mor)})`);
+  if(sit.v>=.6){d+=1;why.push(`Verein: ${sit.txt} – er überlegt lange`)}
+  else if(sit.v<=-.6){d-=.7;why.push(`Verein: ${sit.txt} – Wechsel ist reizvoll`)}
+  else why.push(`Verein: ${sit.txt}`);
+  if(inIntlComp(seller)){d+=.5;why.push('spielt mit seinem Verein international')}
+  const winter=S.week>=winterStart();if(winter){d-=.5;why.push('Winterfenster – wenig Zeit')}
+  else if(S.week===0)why.push('Fenster hat gerade erst geöffnet – genug Zeit');
+  d+=(mkRng(hashStr('dur'+p.id+':'+S.season+':'+S.week))()-.5);
+  let w=clamp(Math.round(d),1,5);const left=windowEnd()-S.week;let deadline=false;
+  if(w>=left){w=left;deadline=true;const k=why.indexOf('Fenster hat gerade erst geöffnet – genug Zeit');if(k>=0)why.splice(k,1);why.push(left<=0?'Deadline Day – Entscheidung noch heute':`Fensterschluss in ${left} ${left===1?'Woche':'Wochen'} – Entscheidung am letzten Tag`)}
+  return {w,deadline,why,agent:A,sit};
+}
 function talkVisible(t){const u=userClub();return t.seller===S.user||t.from===S.user||[t.from,t.seller].some(id=>{const x=club(id);return x&&(x.league===u.league||x.assoc===u.assoc)})}
 function startClauseTalk(p,c,fee){
   S.talks=S.talks||[];
   if(S.talks.some(t=>t.pid===p.id&&(t.st==='open'||t.from===c.id)))return true; // läuft schon / Verein hat es diese Saison schon versucht
   if(S.talks.some(t=>t.from===c.id&&t.st==='open'))return true;
-  if(S.week>=windowEnd())return false; // kurz vor Fensterschluss reicht die Zeit nicht mehr
-  const seller=club(p.club),role=suggestRole(p,c),wage=rw(Math.max(aiWageFor(p,c),p.wage*(1.08+rnd()*.35))),years=p.age>=31?ri(1,2):ri(3,5);
-  const dec=Math.min(S.week+ri(2,3),windowEnd());
-  const t={id:'t'+(S.nextId++),pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open'};
+  const seller=club(p.club);
+  if(S.week>=windowEnd()&&seller.id===S.user)return false; // dir bleibt sonst keine Zeit zu reagieren
+  const role=suggestRole(p,c),wage=rw(Math.max(aiWageFor(p,c),p.wage*(1.08+rnd()*.35))),years=p.age>=31?ri(1,2):ri(3,5);
+  const D=talkDuration(p,seller),dec=S.week+D.w;
+  const t={id:'t'+(S.nextId++),pid:p.id,from:c.id,seller:seller.id,fee,wage,role,years,w:S.week,dec,st:'open',dur:D.w,deadline:D.deadline,why:D.why};
   S.talks.push(t);
   if(seller.id===S.user){
-    addNews('offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
+    addNews('offer',`Ausstiegsklausel: ${esc(c.name)} verhandelt mit ${fullname(p)}`,`${esc(c.name)} (${esc(leagueName(c))}) will die Klausel über <b>${money(fee)}</b> ziehen und führt Vertragsgespräche mit ${esc(pname(p))}. Laut seinem Berater geht es um rund <b>${money(mon(wage))}</b> brutto/Monat als ${ROLES[role].label} (bei dir aktuell ${money(mon(p.wage))}). Er entscheidet sich bis Woche ${dec+1} (${fmtDate(gameDate(dec))}) – ${D.deadline?'Entscheidung erst zum Fensterschluss':'Verhandlungsdauer ca. '+D.w+' '+(D.w===1?'Woche':'Wochen')}. Gründe: ${D.why.map(esc).join('; ')}. Du kannst den Vertrag nachbessern, um ihn zu halten – an der Klausel selbst lässt er jetzt nicht mehr rütteln.`);
   }else{
     // Der abgebende KI-Verein reagiert: wichtige Spieler sollen mit einem besseren Vertrag gehalten werden
     const key=seller.lineup.includes(p.id)||ROLE_ORDER.indexOf(p.role)<=1,trait=seller.staff.pres.trait;
     const keen=key?(trait==='sparsam'?.35:.65):.15,room=seller.wBudget-wageBill(seller);
     if(rnd()<keen){const nw=rw(Math.min(p.wage+Math.max(0,room),t.wage*(.9+rnd()*.2)));
       if(nw>p.wage){t.counter={old:p.wage,nw};p.wage=nw;p.mor=clamp(p.mor+8,15,100)}}
-    if(talkVisible(t))addNews('transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}.`);
+    if(talkVisible(t))addNews('transfer',`${esc(c.short)} will Ausstiegsklausel bei ${fullname(p)} ziehen`,`${esc(c.name)} verhandelt mit ${esc(pname(p))} (${esc(seller.name)}) über einen Wechsel – Klausel: ${money(fee)}.${t.counter?` ${esc(seller.name)} bessert nach und erhöht sein Gehalt auf ${money(mon(t.counter.nw))}/Monat.`:''} Entscheidung bis Woche ${dec+1}${D.deadline?' (Deadline Day)':''}.`);
   }
   return true;
 }
@@ -221,8 +264,8 @@ function startClauseTalk(p,c,fee){
 function talkChance(t){
   const p=S.players[t.pid],c=club(t.from),u=club(t.seller!==undefined?t.seller:S.user);if(!p||!c||!u)return 0;
   const ri_=ROLE_ORDER.indexOf(t.role)-ROLE_ORDER.indexOf(p.role);
-  const pay=t.wage/Math.max(1,p.wage)-1;
-  return clamp(.3+pay*1.1+(c.rep-u.rep)/30+(at(p,'amb')-10)/35-(p.mor-60)/120-(c.assoc!==u.assoc?(10-at(p,'ada'))/30:0)-ri_*.08-(inIntlComp(c)?0:inIntlComp(u)?.08:0),.03,.95);
+  const pay=t.wage/Math.max(1,p.wage)-1,A=agentOf(p),sit=clubSituation(u);
+  return clamp(.3+pay*1.1*A.pay-A.stay-sit.v*.09+(t.deadline?.04:0)+(c.rep-u.rep)/30+(at(p,'amb')-10)/35-(p.mor-60)/120-(c.assoc!==u.assoc?(10-at(p,'ada'))/30:0)-ri_*.08-(inIntlComp(c)?0:inIntlComp(u)?.08:0),.03,.95);
 }
 function clauseTalksWeekly(){
   for(const t of S.talks||[]){
@@ -233,6 +276,7 @@ function clauseTalksWeekly(){
     if(!clauseApplies(p,c,ct)){t.st='void';if(vis)addNews('transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
     const fee=Math.min(t.fee,ct.rc||t.fee);
     if(c.budget<fee||!isWindow()){t.st='void';if(vis)addNews('transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
+    if(agentOf(p).type==='poker'&&!t.poked){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;if(mine||vis)addNews('transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(rnd()<talkChance(t)){
       t.st='done';const nm=fullname(p);
       doTransfer(p,c,fee,{wage:t.wage,until:S.season+t.years-(S.week<winterStart()?1:0),role:t.role});trimSquad(c);
