@@ -1,0 +1,561 @@
+'use strict';
+/* =========================================================
+   SEITENLINIE – Oberfläche
+   ========================================================= */
+let UI={view:'home',modal:null,live:null,setup:null,tf:{pos:'',max:'',q:'',tab:'markt',nat:''},mdView:null,selSlot:null,toast:null,sortK:'pos',tableLeague:null,world:{confed:'UEFA',assoc:null},loading:null,meta:null,oldSave:false};
+
+/* ---------- Installierbare Web-App (PWA) ---------- */
+const PWA={deferred:null,update:null,
+  standalone:(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true,
+  ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),
+  swOK:'serviceWorker' in navigator&&/^https?:$/.test(location.protocol)};
+if(PWA.swOK){
+  const hadController=!!navigator.serviceWorker.controller;let reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadController||reloading)return;reloading=true;location.reload()});
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      PWA.reg=reg;
+      if(reg.waiting&&navigator.serviceWorker.controller){PWA.update=reg.waiting;render()}
+      reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller){PWA.update=w;render()}})});
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&navigator.onLine)reg.update().catch(()=>{})});
+    }).catch(()=>{PWA.swOK=false});
+  });
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();PWA.deferred=e;if(!UI.setup)render()});
+window.addEventListener('appinstalled',()=>{PWA.deferred=null;toast('App installiert!')});
+window.addEventListener('online',()=>{if(!UI.setup&&UI.view!=='live')render()});
+window.addEventListener('offline',()=>{if(!UI.setup&&UI.view!=='live')render()});
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{})}catch(e){}
+function updateBanner(){return PWA.update?`<div class="upd">🔄 Neue Version verfügbar <button class="btn sm pri" data-act="applyUpdate">Aktualisieren</button></div>`:''}
+function installCard(){
+  let body;
+  if(PWA.standalone)body='<p class="good">✓ Läuft als installierte App – auch ohne Internet.</p>';
+  else if(PWA.deferred)body='<p class="small muted">Installiere Seitenlinie als App: eigenes Symbol, Vollbild, startet auch offline.</p><button class="btn pri" data-act="install">📲 App installieren</button>';
+  else if(PWA.ios)body='<p class="small">So installierst du die App auf iPhone/iPad:</p><ol class="small" style="margin:6px 0 0;padding-left:20px"><li>Diese Seite in <b>Safari</b> öffnen</li><li>Auf das <b>Teilen-Symbol</b> ⬆️ tippen</li><li><b>„Zum Home-Bildschirm“</b> wählen</li></ol>';
+  else if(PWA.swOK)body='<p class="small">Im Browser-Menü <b>„App installieren“</b> wählen (Chrome/Edge: Symbol rechts in der Adressleiste).</p>';
+  else body='<p class="small muted">Installieren geht nur über die Webadresse (https). Als lokale Datei läuft das Spiel trotzdem offline im Browser.</p>';
+  return `<div class="card"><h3>Als App installieren</h3>${body}<p class="small muted" style="margin-top:10px">Die installierte App hat einen eigenen Speicher. Spielstände überträgst du per Export/Import.</p></div>`;
+}
+
+/* ---------- Grundgerüst ---------- */
+const NAV=[['home','🏠','Übersicht'],['squad','👥','Kader'],['tactic','📋','Taktik'],['fixtures','📅','Spielplan'],['table','🏆','Tabelle'],['transfers','💱','Transfers'],['finance','💶','Finanzen'],['world','🌍','Welt'],['menu','⚙️','Menü']];
+function modalHtml(){return UI.modal?`<div class="ov" data-act="closeModal"><div class="modal" data-stop="1">${UI.modal()}</div></div>`:''}
+function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
+function render(){
+  const app=document.getElementById('app');
+  if(UI.loading){app.innerHTML=`<div class="title"><div class="card" style="text-align:center;max-width:420px"><div style="font-size:40px">🌍</div><h2>${UI.loading}</h2><p class="muted small">Einen Moment – Vereine, Kader und Spielpläne werden erzeugt.</p></div></div>`;return}
+  if(!S||S.user===null){app.innerHTML=(UI.setup?renderSetup():renderTitle())+updateBanner()+modalHtml()+toastHtml();return}
+  const c=userClub(),v=UI.view;
+  let body='';
+  if(v==='live')body=renderLive();
+  else if(v==='matchday')body=renderWeekResults();
+  else if(v==='season')body=renderSeasonEndScreen();
+  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,table:renderTable,transfers:renderTransfers,finance:renderFinance,world:renderWorld,menu:renderMenu}[v]||renderHome)();
+  const nav=NAV.map(([k,i,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}"><span>${i}</span> ${l}</a>`).join('');
+  const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
+  const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
+  app.innerHTML=`<div class="shell">
+   <header class="top">
+     <div class="club">${badge(c)}<div style="min-width:0"><b>${esc(c.name)}</b><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(league(c).name)} · ${S.season}/${(S.season+1)%100}</div></div></div>
+     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<span class="small hide-m muted">Woche <b style="color:var(--text)">${Math.min(S.week+1,S.weeks)}/${S.weeks}</b></span><span class="small hide-m muted">Transferbudget <b style="color:var(--text)">${money(c.tBudget)}</b></span>${adv}</div>
+   </header>
+   <nav class="side nav">${nav}</nav>
+   <main class="main">${body}</main>
+   <nav class="bnav">${nav}</nav>
+  </div>${updateBanner()}${modalHtml()}${toastHtml()}`;
+}
+function toast(msg){UI.toast=msg;render();clearTimeout(toast.t);toast.t=setTimeout(()=>{UI.toast=null;render()},2400)}
+
+/* ---------- Titel ---------- */
+function renderTitle(){
+  const m=UI.meta;
+  return `<div class="title"><div class="card" style="max-width:480px;width:100%;text-align:center;padding:28px">
+   <div style="font-size:46px">⚽</div><h1 style="font-size:30px">Seitenlinie</h1><p class="muted" style="margin-top:-4px">Fußball Manager · 211 Verbände · offline spielbar</p>
+   <div class="grid" style="margin-top:20px">
+    ${m?`<button class="btn pri" style="justify-content:center;padding:12px" data-act="continue">Karriere fortsetzen</button><div class="small muted">${esc(m.club)} · ${esc(m.league)} · Saison ${m.season}/${(m.season+1)%100} · Woche ${Math.min(m.week+1,m.weeks)}</div>`:''}
+    <button class="btn ${m?'':'pri'}" style="justify-content:center;padding:12px" data-act="newCareer">Neue Karriere</button>
+    <button class="btn" style="justify-content:center" data-act="importOpen">Spielstand importieren</button>
+   </div>
+   ${UI.oldSave&&!m?'<p class="small gold" style="margin-top:14px">Hinweis: Karrieren aus Version 0.3 und älter (fiktive Einzel-Liga) lassen sich in der neuen Weltversion nicht fortsetzen.</p>':''}
+   ${!PWA.standalone&&(PWA.deferred||PWA.ios)?`<div style="margin-top:16px">${PWA.deferred?'<button class="btn" style="width:100%;justify-content:center" data-act="install">📲 Als App installieren</button>':'<p class="small muted">📲 Als App installieren: in Safari Teilen ⬆️ → „Zum Home-Bildschirm“</p>'}</div>`:''}
+  </div></div>`;
+}
+
+/* ---------- Karrierestart: Verein wählen, dann Welt ---------- */
+function assocLeaguesInfo(code){const st=assocStructure(code,UI.setup.seed);return st}
+function renderSetup(){
+  const st=UI.setup;
+  return st.step==='world'?renderSetupWorld():renderSetupClub();
+}
+function confedTabs(cur,act){return `<div class="seg" style="margin-bottom:10px">${CONFEDS.map(c=>`<button class="${cur===c.id?'on':''}" data-act="${act}" data-v="${c.id}" title="${c.region}">${c.name}</button>`).join('')}</div>`}
+function renderSetupClub(){
+  const st=UI.setup;
+  const q=(st.q||'').toLowerCase();
+  const list=ASSOCS.filter(a=>a.confed===st.confed&&(!q||a.name.toLowerCase().includes(q))).sort((a,b)=>b.str-a.str);
+  const assocList=list.map(a=>{const d=LEAGUE_DATA[a.code]||{};const nl=d.noLeague;const L=nl?[]:assocLeaguesInfo(a.code);
+    return `<div class="card clubpick ${st.assoc===a.code?'on':''}" style="padding:10px" data-act="pickAssoc" data-v="${a.code}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${esc(a.name)}</b><span class="small gold">${stars(a.str)}</span></div><div class="small muted">${nl?'keine eigene Liga':L.length+(L.length>1?' Ligen':' Liga')+' · '+L.reduce((s,l)=>s+l.clubs.length,0)+' Vereine'}${d.clubs?' · echte Vereine':''}</div></div>`}).join('');
+  let right='<p class="muted">Wähle links einen Verband.</p>';
+  if(st.assoc){
+    const a=ASSOC[st.assoc],d=LEAGUE_DATA[st.assoc]||{};
+    if(d.noLeague)right=`<div class="card"><h2>${esc(a.name)}</h2><p>${esc(d.info)}</p></div>`;
+    else{
+      const L=assocLeaguesInfo(st.assoc);const tier=Math.min(st.tier,L.length);const lt=L[tier-1];
+      const cards=lt.clubs.map((nm,i)=>{const rep=repFor(a,tier,i,lt.clubs.length),econ=econOf(st.assoc,tier),staff=staffForAssoc(nm,st.seed,st.assoc),col=clubColors(nm);
+        const fake={colors:col,short:shortName(nm)};const sel=st.pick&&st.pick.code===st.assoc&&st.pick.tier===tier&&st.pick.idx===i;
+        return `<div class="card clubpick ${sel?'on':''}" data-act="pickClub" data-i="${i}"><div class="row" style="flex-wrap:nowrap">${badge(fake,34)}<div style="min-width:0"><b>${esc(nm)}</b><div class="small gold">${stars(rep)}</div></div></div>
+          <div class="small" style="margin-top:6px">Budget ca. <b>${money(estBudget(rep,econ))}</b> · Stadion ${estStadium(rep,econ).toLocaleString('de-DE')}</div>
+          <div class="small muted">Präsident: ${PRES[staff.pres.trait].label} · Sportdir.: ${DIR[staff.dir.trait].label}</div></div>`}).join('');
+      right=`<div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(a.name)}</h2><span class="small muted">${a.confed}</span></div>
+       <div class="seg" style="margin:10px 0">${L.map(l=>`<button class="${l.tier===tier?'on':''}" data-act="pickTier" data-v="${l.tier}">${esc(l.name)}</button>`).join('')}</div>
+       ${lt.real?'':'<p class="small muted">Vereine dieser Liga sind nach echten Städten benannt.</p>'}
+       <div class="grid g3">${cards}</div>`;
+    }
+  }
+  const sel=st.pick;
+  return `<div class="main" style="margin:auto;padding-top:calc(18px + var(--sat));max-width:1300px">
+   <div class="row" style="justify-content:space-between"><h2>Neue Karriere · 1/2 Verein wählen</h2><button class="btn sm" data-act="backTitle">Zurück</button></div>
+   <div class="card" style="margin-bottom:12px"><div class="row"><div style="flex:1;min-width:200px"><label class="f">Dein Managername</label><input id="mgrName" value="${esc(st.name)}" placeholder="z. B. Elias" style="width:100%"></div></div></div>
+   ${confedTabs(st.confed,'setConfed')}
+   <div class="setup-grid"><div><input placeholder="Verband suchen…" value="${esc(st.q||'')}" data-chg="assocQ" style="width:100%;margin-bottom:8px"><div class="grid assoc-list">${assocList||'<p class="muted">Kein Verband gefunden.</p>'}</div></div><div id="assocRight">${right}</div></div>
+   <div style="position:sticky;bottom:0;padding:14px 0;padding-bottom:calc(14px + var(--sab));background:linear-gradient(transparent,var(--bg) 30%)">
+    <button class="btn pri" style="width:100%;justify-content:center;padding:13px" data-act="toWorldStep" ${sel?'':'disabled'}>${sel?'Weiter mit '+esc(assocStructure(sel.code,st.seed)[sel.tier-1].clubs[sel.idx])+' ▶':'Verein auswählen'}</button>
+   </div></div>`;
+}
+function worldSize(codes){let clubs=0;for(const c of codes)assocStructure(c,UI.setup.seed).forEach(l=>clubs+=l.clubs.length);return {clubs,players:clubs*27}}
+const PRESETS=[
+ ['Nur mein Land',()=>[]],
+ ['Top 5 Europas',()=>['ENG','ESP','GER','ITA','FRA']],
+ ['Europa Top 12',()=>['ENG','ESP','GER','ITA','FRA','POR','NED','BEL','TUR','AUT','SUI','SCO']],
+ ['Südamerika',()=>['BRA','ARG','COL','URU','CHI','ECU','PAR','PER']],
+ ['Weltweit Top 15',()=>['ENG','ESP','GER','ITA','FRA','POR','NED','BRA','ARG','USA','MEX','KSA','JPN','TUR','BEL']],
+];
+function renderSetupWorld(){
+  const st=UI.setup,act=st.active,size=worldSize([...act]);
+  const warn=size.players>9000?'bad':size.players>5000?'gold':'good';
+  const conf=st.wconfed||st.confed;
+  const list=ASSOCS.filter(a=>a.confed===conf&&!(LEAGUE_DATA[a.code]||{}).noLeague).sort((a,b)=>b.str-a.str).map(a=>{
+    const on=act.has(a.code),locked=a.code===st.pick.code;
+    return `<label class="card clubpick ${on?'on':''}" style="padding:8px 10px;display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-chg="actToggle" data-v="${a.code}" ${on?'checked':''} ${locked?'disabled':''}><span style="flex:1"><b>${esc(a.name)}</b> <span class="small gold">${stars(a.str)}</span><br><span class="small muted">${assocStructure(a.code,st.seed).map(l=>esc(l.name)).join(' · ')}</span></span></label>`}).join('');
+  return `<div class="main" style="margin:auto;padding-top:calc(18px + var(--sat));max-width:1100px">
+   <div class="row" style="justify-content:space-between"><h2>Neue Karriere · 2/2 Welt einrichten</h2><button class="btn sm" data-act="backClubStep">◀ Zurück</button></div>
+   <div class="card" style="margin-bottom:12px"><p style="margin:0">Alle <b>211 Verbände</b> sind dabei. Die Länder, die du hier auswählst, werden <b>voll simuliert</b>: echte Spielpläne, Kader und Transfers. Alle anderen laufen im Hintergrund mit, dort wird pro Saison nur der Meister ermittelt.</p>
+    <div class="row" style="margin-top:10px">${PRESETS.map((p,i)=>`<button class="btn sm" data-act="preset" data-i="${i}">${p[0]}</button>`).join('')}</div>
+    <div class="small" style="margin-top:10px">Aktiv: <b>${act.size}</b> Länder · ca. <b>${size.clubs}</b> Vereine · <b class="${warn}">${size.players.toLocaleString('de-DE')}</b> Spieler ${size.players>9000?'– auf Handys/iPads spürbar langsamer':size.players>5000?'– auf älteren Handys etwas langsamer':''}</div></div>
+   ${confedTabs(conf,'setWConfed')}
+   <div class="grid g3">${list}</div>
+   <div style="position:sticky;bottom:0;padding:14px 0;padding-bottom:calc(14px + var(--sab));background:linear-gradient(transparent,var(--bg) 30%)">
+    <button class="btn pri" style="width:100%;justify-content:center;padding:13px" data-act="startCareer">Karriere starten ▶</button></div></div>`;
+}
+
+/* ---------- Übersicht ---------- */
+function renderHome(){
+  const c=userClub(),L=league(c),tab=tableOf(L),rank=tab.findIndex(r=>r.id===S.user)+1,me=tab[rank-1];
+  const nx=nextUserMatch();
+  let next='<p class="muted">Die Saison ist beendet. Tippe auf „Saisonende“.</p>';
+  if(nx){
+    const m=nx.m,opp=club(m.h===S.user?m.a:m.h),home=m.h===S.user;const co=COACH[opp.staff.coach.trait];const oR=tab.findIndex(r=>r.id===opp.id)+1;
+    const wait=nx.w>S.week?`<div class="pill" style="margin-bottom:8px">Diese Woche spielfrei – nächstes Spiel in Woche ${nx.w+1}</div>`:'';
+    next=`${wait}<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div class="row" style="flex-wrap:nowrap">${badge(opp,40)}<div><b>${esc(opp.name)}</b><div class="small muted">${home?'Heimspiel':'Auswärtsspiel'} · ${nx.r+1}. Spieltag · Platz ${oR}</div></div></div><div style="text-align:right"><div class="small muted">Ø-Stärke</div><b>${clubAvg(c)}</b> <span class="muted">vs</span> <b>${clubAvg(opp)}</b></div></div>
+    <div class="small" style="margin-top:10px">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b> – ${co.label}: <span class="muted">${co.desc}</span></div>`;
+  }
+  const offers=S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(league(fc).name)})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
+  const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
+  const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
+  return `<div class="grid g2">
+   <div class="card"><h3>Nächstes Spiel</h3>${next}${S.week<S.weeks?`<div class="row" style="margin-top:12px"><button class="btn" data-act="nav" data-v="tactic">Taktik prüfen</button><button class="btn pri" data-act="advance">${nx&&nx.w===S.week?'Spiel starten ▶':'Woche simulieren ▶'}</button></div>`:''}</div>
+   <div class="card"><h3>Saison · ${esc(L.name)}</h3>
+     <div class="row" style="gap:22px"><div><div class="small muted">Platz</div><div style="font-size:30px;font-weight:800">${rank}.</div></div><div><div class="small muted">Punkte</div><div style="font-size:30px;font-weight:800">${me.pts}</div></div><div><div class="small muted">Tore</div><div style="font-size:22px;font-weight:700">${me.tf}:${me.ta}</div></div></div>
+     <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
+     <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
+     <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(wageBill(c))} / ${money(c.wBudget)} pro Woche</div>
+   </div>
+   <div class="card" style="grid-column:1/-1"><h3>Posteingang</h3>${offers}${news||'<p class="muted">Keine Nachrichten.</p>'}</div>
+  </div>`;
+}
+
+/* ---------- Kader ---------- */
+const POS_ORDER=Object.fromEntries(POS_LIST.map((p,i)=>[p,i]));
+function playerRow(p,c,extra){
+  const inXI=c&&c.lineup.includes(p.id);
+  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.inj?' <span class="bad small">🩹'+p.inj+'</span>':''}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(p.wage)}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
+}
+const PH='<th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Pot.</th><th class="n">Fit</th><th class="n">Moral</th><th class="n">Sp.</th><th class="n">Tore</th><th class="n">Marktwert</th><th class="n">Gehalt/Wo.</th><th>Rolle</th><th class="n">Vertrag</th>';
+function renderSquad(){
+  const c=userClub();let ps=squadOf(c);const k=UI.sortK;
+  ps.sort(k==='ovr'?(a,b)=>ovr(b)-ovr(a):k==='age'?(a,b)=>a.age-b.age:k==='val'?(a,b)=>b.val-a.val:(a,b)=>POS_ORDER[a.pos]-POS_ORDER[b.pos]||ovr(b)-ovr(a));
+  const sb=(key,l)=>`<button class="${k===key?'on':''}" data-act="sort" data-k="${key}">${l}</button>`;
+  return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Kader <span class="muted small">${ps.length} Spieler · Gehälter ${money(wageBill(c))} von ${money(c.wBudget)}/Woche</span></h2><div class="seg">${sb('pos','Position')}${sb('ovr','Stärke')}${sb('age','Alter')}${sb('val','Wert')}</div></div>
+  <div class="tw"><table><thead><tr>${PH}</tr></thead><tbody>${ps.map(p=>playerRow(p,c)).join('')}</tbody></table></div>
+  <p class="small muted">● = Startelf · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
+}
+function playerModal(pid){
+  return ()=>{
+    const p=S.players[pid];if(!p)return '<p>Spieler nicht gefunden.</p>';
+    const c=p.club!==null?club(p.club):null,mine=p.club===S.user;
+    const attrs=ATTRS.filter(k=>p.pos==='TW'||k!=='tor').map(k=>`<div class="attr"><span>${ATTR_LABEL[k]}${WEIGHTS[p.pos][k]?' <b class="gold">•</b>':''}</span><div class="bar"><i style="width:${p.a[k]}%;background:${ovrColor(p.a[k])}"></i></div><b>${p.a[k]}</b></div>`).join('');
+    const posFit=POS_LIST.map(pos=>`<span class="pill" style="margin:2px">${pos} ${Math.round(rateAt(p,pos))}</span>`).join('');
+    let actions='';
+    if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen (${money(releaseCost(p))})</button></div>`;
+    else{const price=askPrice(p);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>Verhandeln: ${price?money(price)+' Ablöse':'ablösefrei'}</button>${isWindow()?'':'<div class="small muted">Transferfenster geschlossen.</div>'}</div>`}
+    return `<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><h2 style="margin:0">${esc(fullname(p))}</h2><div class="muted small">${POS_LABEL[p.pos]} · ${p.age} Jahre · ${esc(natName(p.nat))} · ${c?esc(c.name)+' ('+esc(league(c).name)+')':'vereinslos'}</div></div><div style="text-align:center">${ovrTag(ovr(p))}<div class="small muted">Pot. ${p.pot}</div></div></div>
+    <div class="grid g2" style="margin-top:14px"><div>${attrs}<div class="small muted" style="margin-top:4px"><b class="gold">•</b> = wichtig für ${p.pos}</div></div>
+    <div class="small"><div>Marktwert: <b>${money(p.val)}</b></div><div>Gehalt: <b>${money(p.wage)}</b>/Woche</div>${c?`<div>Vertrag bis: <b class="${p.until<=S.season?'gold':''}">${contractEnd(p)}</b> · Rolle: <b>${ROLES[p.role].label}</b></div>`:'<div class="gold">Vereinslos – nur Handgeld nötig</div>'}<div>Fitness: <b>${Math.round(p.fit)}%</b> · Moral: <b>${Math.round(p.mor)}</b></div><div>Saison: ${p.apps} Spiele, ${p.goals} Tore</div>${p.inj?`<div class="bad">Verletzt: noch ${p.inj} Woche(n)</div>`:''}<h3 style="margin-top:12px">Stärke je Position</h3>${posFit}</div></div>
+    <div class="row" style="margin-top:16px;justify-content:space-between">${actions}<button class="btn" data-act="closeModal">Schließen</button></div>`;
+  };
+}
+
+/* ---------- Vertragsverhandlung ---------- */
+function negModal(){
+  return ()=>{
+    const N=UI.neg,p=S.players[N.pid],u=userClub();if(!p)return '';
+    const buy=N.mode==='buy',fee=buy?askPrice(p):0,demand=wageDemand(p,u,N.role,N.years);
+    const bill=wageBill(u)-(buy?0:p.wage),free=u.wBudget-bill,sign=buy&&p.club===null?N.wage*6:0;
+    const sugg=suggestRole(p,u),endYear=buy?S.season+N.years-(S.week<winterStart()?1:0):S.season+N.years;
+    const seg=(k,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${String(N[k])===String(v)?'on':''}" data-act="negSet" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const roles=ROLE_ORDER.filter(r=>r!=='perspektive'||p.age<=21).map(r=>[r,ROLES[r].short]);const over=N.wage>free;
+    return `<h2 style="margin-bottom:2px">${buy?'Transfer':'Vertragsverlängerung'}: ${esc(fullname(p))}</h2>
+     <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(p.wage)}/Wo.${p.club!==null?' bis '+contractEnd(p):''}</div>
+     ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`:'Vereinslos: keine Ablöse, aber '+money(sign)+' Handgeld (6 Wochengehälter).'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
+     <label class="f" style="margin-top:12px">Rolle im Kader <span class="muted">(Empfehlung: ${ROLES[sugg].short})</span></label>${seg('role',roles)}
+     <label class="f" style="margin-top:12px">Laufzeit (bis 06/${String((endYear+1)%100).padStart(2,'0')})</label>${seg('years',[[1,'1 J.'],[2,'2 J.'],[3,'3 J.'],[4,'4 J.'],[5,'5 J.']])}
+     <label class="f" style="margin-top:12px">Gehaltsangebot pro Woche</label>
+     <div class="row"><button class="btn sm" data-act="negWageStep" data-v="-1">−</button><b style="font-size:20px;min-width:120px;text-align:center" class="${over?'bad':''}">${money(N.wage)}</b><button class="btn sm" data-act="negWageStep" data-v="1">+</button><button class="btn sm" data-act="negWageSet">Forderung übernehmen</button></div>
+     <div class="small" style="margin-top:8px">Forderung des Beraters: <b>${money(demand)}</b>/Woche ${N.wage<demand?'<span class="muted">– darunter riskierst du eine Ablehnung</span>':''}</div>
+     <div class="small ${over?'bad':'muted'}">Gehaltsbudget frei: ${money(free)}/Woche${over?' – zu wenig! Budget unter Finanzen umschichten.':''}</div>
+     <div class="small muted">Versuche übrig: ${Math.max(0,3-(p.negTries||0))}</div>
+     ${N.msg?`<div class="news ${N.ok?'t-transfer':'t-coach'}" style="margin-top:10px">${N.msg}</div>`:''}
+     <div class="row" style="margin-top:14px;justify-content:space-between"><button class="btn pri" data-act="negSubmit" ${over||(p.negTries||0)>=3?'disabled':''}>Angebot abgeben</button><button class="btn" data-act="closeModal">Schließen</button></div>`;
+  };
+}
+function negSubmit(){
+  const N=UI.neg,p=S.players[N.pid],u=userClub(),buy=N.mode==='buy';
+  const fail=m=>{N.msg=m;N.ok=false;render()};
+  if((p.negTries||0)>=3)return fail('Der Berater hat die Gespräche für diese Saison abgebrochen.');
+  if(buy){
+    if(!isWindow())return fail('Das Transferfenster ist geschlossen.');
+    if(p.club===S.user)return fail('Spieler gehört schon dir.');
+    if(u.players.length>=32)return fail('Dein Kader ist voll (max. 32).');
+    if(p.club!==null&&club(p.club).players.length<=19)return fail(`${esc(club(p.club).name)} gibt keine Spieler mehr ab – Kader zu klein.`);
+    if(p.club!==null&&club(p.club).rep-u.rep>22&&ovr(p)>=clubAvg(club(p.club))-2)return fail(`${esc(pname(p))} hat kein Interesse – ${esc(club(p.club).name)} ist ihm sportlich zu weit voraus.`);
+  }
+  const fee=buy?askPrice(p):0,sign=buy&&p.club===null?N.wage*6:0;
+  if(buy&&u.tBudget<fee+sign)return fail(`Nicht genug Transferbudget (nötig: ${money(fee+sign)}).`);
+  const free=u.wBudget-(wageBill(u)-(buy?0:p.wage));if(N.wage>free)return fail('Das Gehalt sprengt dein Gehaltsbudget.');
+  const sugg=suggestRole(p,u),gap=ROLE_ORDER.indexOf(N.role)-ROLE_ORDER.indexOf(sugg);
+  if(gap>=2){p.negTries=(p.negTries||0)+1;return fail(`Als ${ROLES[N.role].label} will er nicht unterschreiben – er sieht sich mindestens als ${ROLES[ROLE_ORDER[ROLE_ORDER.indexOf(sugg)+1]].label}.`)}
+  const demand=wageDemand(p,u,N.role,N.years),ratio=N.wage/demand;
+  const accept=ratio>=1||rnd()<clamp((ratio-.85)/.15,0,1)*.8;
+  if(!accept){p.negTries=(p.negTries||0)+1;p.mor=clamp(p.mor-2,15,100);return fail(ratio>=.92?`Knapp! Der Berater besteht auf ${money(demand)}/Woche.`:`Abgelehnt – das Angebot liegt deutlich unter der Forderung von ${money(demand)}/Woche.`)}
+  if(buy){
+    const until=S.season+N.years-(S.week<winterStart()?1:0),fromName=p.club!==null?club(p.club).name:'vereinslos';
+    doTransfer(p,u,fee,{wage:N.wage,until,role:N.role});
+    addNews('transfer',`Neuzugang: ${fullname(p)}`,`Von ${esc(fromName)} für ${fee?money(fee):'ablösefrei'} · ${money(N.wage)}/Wo. bis ${contractEnd(p)} · ${ROLES[N.role].label}.`);
+  }else{
+    p.wage=N.wage;p.until=S.season+N.years;p.role=N.role;p.negTries=0;p.mor=clamp(p.mor+8,15,100);p.unhappy=false;
+    addNews('transfer',`${fullname(p)} verlängert`,`Neuer Vertrag bis ${contractEnd(p)} · ${money(N.wage)}/Woche · ${ROLES[N.role].label}.`);
+  }
+  UI.modal=null;UI.neg=null;S.rng=RNG;save();toast(buy?`${fullname(p)} unterschreibt!`:'Vertrag verlängert!');
+}
+
+/* ---------- Taktik ---------- */
+function renderTactic(){
+  const c=userClub(),t=c.tactic,F=FORMATIONS[t.f],str=teamStrength(c);
+  const slots=F.s.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];const col=GROUP_COLOR[GROUP[pos]];const r=p?Math.round(rateAt(p,pos)):'-';
+    return `<div class="slot ${UI.selSlot===i?'sel':''}" style="left:${F.xy[i][0]}%;top:${F.xy[i][1]}%" data-act="slot" data-i="${i}"><div class="dot" style="background:${col};color:#08130d">${r}</div><div class="nm">${p?esc(p.ln):'<i>leer</i>'}${p&&p.inj?' 🩹':''}</div></div>`}).join('');
+  const seg=(key,obj)=>`<div class="seg">${Object.entries(obj).map(([k,l])=>`<button class="${t[key]===k?'on':''}" data-act="tac" data-k="${key}" data-v="${k}">${l}</button>`).join('')}</div>`;
+  const bar=(l,v)=>`<div class="attr"><span>${l}</span><div class="bar"><i style="width:${clamp(v,0,100)}%"></i></div><b>${Math.round(v)}</b></div>`;
+  return `<h2>Taktik</h2><div class="grid g2">
+   <div><div class="pitch"><div class="mid"></div><div class="circ"></div>${slots}</div><p class="small muted" style="text-align:center">Tippe auf eine Position, um den Spieler zu wechseln.</p></div>
+   <div class="grid" style="align-content:start">
+    <div class="card"><label class="f">Formation</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
+     <label class="f" style="margin-top:12px">Mentalität</label>${seg('men',MENTALITY)}
+     <label class="f" style="margin-top:12px">Pressing</label>${seg('press',PRESSING)}
+     <label class="f" style="margin-top:12px">Spielstil</label>${seg('style',STYLE)}
+     <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button></div></div>
+    <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}
+     <div class="small muted" style="margin-top:8px">Offensiv: mehr Angriff, weniger Abwehr. Gegenpressing: mehr Mittelfeldkontrolle, kostet mehr Fitness. Konter: stärkere Chancenverwertung, wenn du weniger Ballbesitz hast.</div></div>
+   </div></div>`;
+}
+function slotPicker(){return ()=>{const c=userClub(),F=FORMATIONS[c.tactic.f];if(UI.selSlot===null)return '';
+  const pos=F.s[UI.selSlot];const ps=squadOf(c).sort((a,b)=>rateAt(b,pos)-rateAt(a,pos));
+  return `<div class="row" style="justify-content:space-between"><h3 style="margin:0">Spieler für ${pos} (${POS_LABEL[pos]})</h3><button class="btn sm" data-act="slotCancel">Abbrechen</button></div>
+   <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}</td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+F.s[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
+
+/* ---------- Liga-Auswahl ---------- */
+function leagueSelect(cur,chg){
+  const groups=S.active.map(code=>`<optgroup label="${esc(natName(code))}">${S.leagues.filter(L=>L.assoc===code).sort((a,b)=>a.tier-b.tier).map(L=>`<option value="${L.id}" ${L.id===cur?'selected':''}>${esc(L.name)}</option>`).join('')}</optgroup>`).join('');
+  return `<select data-chg="${chg}" style="max-width:100%">${groups}</select>`;
+}
+
+/* ---------- Spielplan ---------- */
+function renderFixtures(){
+  const u=userClub(),uL=league(u);
+  const mine=uL.fixtures.map((md,i)=>{const m=md.find(m=>m.h===S.user||m.a===S.user);if(!m)return `<tr><td class="n">${i+1}.</td><td class="muted small">W${uL.rw[i]+1}</td><td colspan="3" class="muted">spielfrei</td></tr>`;
+    const home=m.h===S.user,opp=club(home?m.a:m.h);let res='<span class="muted">–</span>';
+    if(m.hg!==null){const gf=home?m.hg:m.ag,ga=home?m.ag:m.hg;res=`<b class="${gf>ga?'good':gf<ga?'bad':''}">${m.hg}:${m.ag}</b>`}
+    return `<tr class="${uL.rw[i]===S.week?'me':''}"><td class="n">${i+1}.</td><td class="muted small">W${uL.rw[i]+1}</td><td>${home?'H':'A'}</td><td>${badge(opp,22)} ${esc(opp.name)}</td><td class="n">${res}</td></tr>`}).join('');
+  const lid=UI.fxLeague!==undefined&&UI.fxLeague!==null?UI.fxLeague:uL.id,L=S.leagues[lid];
+  let sel=UI.fxRound;if(sel===undefined||sel===null||sel>=L.fixtures.length){sel=0;for(let r=0;r<L.fixtures.length;r++)if(L.rw[r]<=S.week)sel=r}
+  const all=L.fixtures[sel].map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg!==null?m.hg+':'+m.ag:'-:-'}</b></td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`).join('');
+  return `<h2>Spielplan</h2><div class="grid g2"><div class="tw" style="max-height:72vh;overflow:auto"><table><thead><tr><th class="n">ST</th><th>Woche</th><th></th><th>Gegner</th><th class="n">Ergebnis</th></tr></thead><tbody>${mine}</tbody></table></div>
+  <div><div class="row" style="margin-bottom:8px">${leagueSelect(L.id,'fxLeague')}</div><div class="row" style="margin-bottom:8px"><button class="btn sm" data-act="fxRound" data-i="${Math.max(0,sel-1)}">◀</button><b>${sel+1}. Spieltag</b> <span class="small muted">Woche ${L.rw[sel]+1}</span><button class="btn sm" data-act="fxRound" data-i="${Math.min(L.fixtures.length-1,sel+1)}">▶</button></div><div class="tw"><table><tbody>${all}</tbody></table></div></div></div>`;
+}
+
+/* ---------- Tabelle ---------- */
+function tableHtml(L,compact){
+  const tab=tableOf(L),n=tab.length;
+  return `<div class="tw"><table><thead><tr><th class="n">#</th><th>Verein</th><th class="n">Sp</th>${compact?'':'<th class="n">S</th><th class="n">U</th><th class="n">N</th>'}<th class="n">Tore</th><th class="n">Diff</th><th class="n">Pkt</th>${compact?'':'<th>Form</th>'}</tr></thead><tbody>${tab.map((r,i)=>{const c=club(r.id);
+    const z=L.tier===1&&i===0?'z-cl':L.up&&i<L.up?'z-cl':L.down&&i>=n-L.down?'z-ab':'';
+    return `<tr class="${z} ${r.id===S.user?'me':''} click" data-act="clubInfo" data-id="${r.id}"><td class="n">${i+1}</td><td>${badge(c,22)} ${esc(c.name)}</td><td class="n">${r.sp}</td>${compact?'':`<td class="n">${r.s}</td><td class="n">${r.u}</td><td class="n">${r.n}</td>`}<td class="n">${r.tf}:${r.ta}</td><td class="n">${r.tf-r.ta>0?'+':''}${r.tf-r.ta}</td><td class="n"><b>${r.pts}</b></td>${compact?'':`<td>${r.form.slice(-5).map(f=>`<span style="color:${f==='S'?'var(--accent)':f==='N'?'var(--bad)':'var(--muted)'}">${f}</span>`).join(' ')}</td>`}</tr>`}).join('')}</tbody></table></div>
+   <p class="small muted">${L.tier===1?'<span class="good">▌</span> Meister':''}${L.up?' <span class="good">▌</span> Aufstieg ('+L.up+')':''}${L.down?' · <span class="bad">▌</span> Abstieg ('+L.down+')':L.tier===1&&S.leagues.filter(x=>x.assoc===L.assoc).length===1?' · kein Abstieg':''}</p>`;
+}
+function renderTable(){
+  const lid=UI.tableLeague!==null?UI.tableLeague:userClub().league,L=S.leagues[lid];
+  const champs=L.champs.slice(0,5).map(c=>`${c.season}/${(c.season+1)%100}: <b>${esc(c.champ)}</b>`).join(' · ');
+  return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Tabelle</h2>${leagueSelect(L.id,'tableLeague')}</div>${tableHtml(L,false)}${champs?`<p class="small muted">Meister: ${champs}</p>`:''}`;
+}
+
+/* ---------- Transfers ---------- */
+function renderTransfers(){
+  const f=UI.tf,c=userClub();
+  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  if(f.tab==='log'){
+    return `<h2>Transfers</h2>${tabs}<div class="tw"><table><thead><tr><th>Wo.</th><th>Spieler</th><th>Pos</th><th class="n">Alter</th><th class="n">Stärke</th><th>Von</th><th>Nach</th><th class="n">Ablöse</th></tr></thead><tbody>${S.transfers.slice(0,100).map(t=>`<tr><td class="muted small">${t.season%100}/W${t.w+1}</td><td>${esc(t.name)} <span class="small muted">${t.nat||''}</span></td><td>${t.pos}</td><td class="n">${t.age}</td><td class="n">${ovrTag(t.o)}</td><td>${esc(t.from)}</td><td>${esc(t.to)}</td><td class="n">${t.fee?money(t.fee):'ablösefrei'}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Noch keine Transfers.</td></tr>'}</tbody></table></div>`;
+  }
+  let ps=Object.values(S.players).filter(p=>p.club!==S.user);
+  if(f.pos)ps=ps.filter(p=>p.pos===f.pos);
+  if(f.country)ps=ps.filter(p=>p.club!==null&&club(p.club).assoc===f.country);
+  if(f.q){const q=f.q.toLowerCase();ps=ps.filter(p=>fullname(p).toLowerCase().includes(q))}
+  if(f.free)ps=ps.filter(p=>p.club===null);
+  if(f.young)ps=ps.filter(p=>p.age<=21);
+  if(f.exp)ps=ps.filter(p=>p.club!==null&&p.until<=S.season);
+  const max=parseFloat(f.max)*1e6;if(f.max!==''&&max>=0)ps=ps.filter(p=>askPrice(p)<=max);
+  ps.sort((a,b)=>ovr(b)-ovr(a));const total=ps.length;ps=ps.slice(0,80);
+  return `<h2>Transfers</h2>${tabs}
+  <div class="card" style="margin-bottom:12px"><div class="row">
+   <div><label class="f">Position</label><select data-chg="tfPos"><option value="">Alle</option>${POS_LIST.map(p=>`<option ${f.pos===p?'selected':''}>${p}</option>`).join('')}</select></div>
+   <div><label class="f">Land des Vereins</label><select data-chg="tfCountry"><option value="">Alle aktiven</option>${S.active.map(code=>`<option value="${code}" ${f.country===code?'selected':''}>${esc(natName(code))}</option>`).join('')}</select></div>
+   <div><label class="f">Max. Ablöse (Mio.)</label><input type="number" min="0" step="0.5" value="${esc(f.max)}" data-chg="tfMax" style="width:110px"></div>
+   <div style="flex:1;min-width:150px"><label class="f">Name</label><input value="${esc(f.q)}" data-chg="tfQ" placeholder="Suchen…" style="width:100%"></div>
+   <label class="small"><input type="checkbox" data-chg="tfFree" ${f.free?'checked':''}> vereinslos</label>
+   <label class="small"><input type="checkbox" data-chg="tfYoung" ${f.young?'checked':''}> U21</label>
+   <label class="small"><input type="checkbox" data-chg="tfExp" ${f.exp?'checked':''}> Vertrag läuft aus</label>
+  </div><div class="small muted" style="margin-top:8px">Transferbudget: <b style="color:var(--text)">${money(c.tBudget)}</b> · Gehaltsbudget frei: <b style="color:var(--text)">${money(c.wBudget-wageBill(c))}</b>/Wo. · Fenster: ${isWindow()?'<span class="good">offen</span>':'<span class="bad">geschlossen</span>'} · ${total} Treffer${total>80?' (Top 80)':''}</div></div>
+  <div class="tw"><table><thead><tr>${PH}<th>Verein</th><th class="n">Preis</th></tr></thead><tbody>
+  ${ps.map(p=>playerRow(p,null,`<td>${p.club!==null?esc(club(p.club).name):'<span class="muted">frei</span>'}</td><td class="n"><b>${p.club!==null?money(askPrice(p)):'frei'}</b></td>`)).join('')}</tbody></table></div>`;
+}
+
+/* ---------- Finanzen ---------- */
+const WAGE_RATE=40;
+function renderFinance(){
+  const c=userClub(),f=S.fin,wages=wageBill(c),step=rw(Math.max(1000,c.wBudget*.05));
+  const inc=f.tv+f.tickets+f.prize,exp=f.wages;
+  const line=(l,v,cls)=>`<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)"><span>${l}</span><b class="${cls||''}">${money(v)}</b></div>`;
+  return `<h2>Finanzen</h2><div class="grid g2">
+   <div class="card"><h3>Kontostand</h3><div style="font-size:30px;font-weight:800" class="${c.budget<0?'bad':''}">${money(c.budget)}</div><div class="small muted">Gehälter aktuell ${money(wages)} pro Woche (${money(wages*52)} pro Jahr)</div>
+     <div class="small muted" style="margin-top:6px">Wirtschaftskraft der ${esc(league(c).name)}: <b>${Math.round(c.econ*100)} %</b> der stärksten Liga. Danach richten sich TV-Gelder, Ticketpreise und Gehälter.</div>
+     <div class="small muted" style="margin-top:6px">Präsident ${esc(c.staff.pres.name)} (${PRES[c.staff.pres.trait].label}) gibt ${Math.round(PRES[c.staff.pres.trait].tShare*100)} % des Kontostands als Transferbudget frei und lässt dir ${Math.round(PRES[c.staff.pres.trait].saleBack*100)} % der Verkaufserlöse.</div></div>
+   <div class="card"><h3>Budgets vom Vorstand</h3>
+     <div class="row" style="justify-content:space-between"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>
+     <div class="row" style="justify-content:space-between;margin-top:6px"><span>Gehaltsbudget</span><b>${money(wages)} / ${money(c.wBudget)} pro Woche</b></div>
+     <div class="bar" style="margin-top:6px"><i style="width:${clamp(wages/c.wBudget*100,0,100)}%;background:${wages>c.wBudget*.95?'var(--bad)':wages>c.wBudget*.85?'var(--gold)':'var(--accent)'}"></i></div>
+     <label class="f" style="margin-top:12px">Budget umschichten (1 € pro Woche = ${WAGE_RATE} € Transferbudget)</label>
+     <div class="row"><button class="btn sm" data-act="shift" data-v="${step}">+${money(step)}/Wo. Gehalt <span class="muted">(−${money(step*WAGE_RATE)})</span></button><button class="btn sm" data-act="shift" data-v="-${step}">−${money(step)}/Wo. Gehalt <span class="muted">(+${money(step*WAGE_RATE)})</span></button></div></div>
+   <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Prämien',f.prize,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-exp,'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
+   <div class="card" style="grid-column:1/-1"><h3>Wochenverlauf</h3><div class="tw"><table><thead><tr><th>Woche</th><th class="n">TV</th><th class="n">Tickets</th><th class="n">Gehälter</th><th class="n">Kontostand</th></tr></thead><tbody>${f.log.map(l=>`<tr><td>${l.w}.</td><td class="n">${money(l.tv)}</td><td class="n">${l.tickets?money(l.tickets):'–'}</td><td class="n bad">-${money(l.wages)}</td><td class="n"><b>${money(l.bal)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Wochen gespielt.</td></tr>'}</tbody></table></div></div>
+  </div>`;
+}
+
+/* ---------- Welt ---------- */
+function renderWorld(){
+  const W=UI.world,conf=W.confed;
+  if(W.assoc){
+    const a=ASSOC[W.assoc],active=S.active.includes(a.code),d=LEAGUE_DATA[a.code]||{};
+    let body;
+    if(d.noLeague)body=`<p>${esc(d.info)}</p>`;
+    else if(active){
+      body=S.leagues.filter(L=>L.assoc===a.code).sort((x,y)=>x.tier-y.tier).map(L=>{const tab=tableOf(L).slice(0,3);
+        return `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${esc(L.name)}</h3><button class="btn sm" data-act="openTable" data-id="${L.id}">Tabelle ▶</button></div>
+         <div class="small muted">${L.clubs.length} Vereine${L.up?' · '+L.up+' Aufsteiger':''}${L.down?' · '+L.down+' Absteiger':''}</div>
+         <div style="margin-top:6px">${tab.map((r,i)=>`<div class="row small" style="gap:6px">${i+1}. ${badge(club(r.id),20)} ${esc(club(r.id).name)} <span class="muted">${r.pts} Pkt.</span></div>`).join('')}</div>
+         ${L.champs.length?`<div class="small muted" style="margin-top:6px">Letzter Meister: ${esc(L.champs[0].champ)}</div>`:''}</div>`}).join('');
+    }else{
+      const st=assocStructure(a.code,S.seed),h=S.bg[a.code]||[];
+      body=st.map(l=>`<div class="card"><h3 style="margin:0 0 6px">${esc(l.name)}</h3><div class="small">${l.clubs.map(esc).join(' · ')}</div></div>`).join('')+
+        `<div class="card"><h3>Meister</h3>${h.length?h.map(x=>`<div class="small">${x.season}/${(x.season+1)%100}: <b>${esc(x.champ)}</b></div>`).join(''):'<p class="small muted">Noch keine abgeschlossene Saison.</p>'}</div>`;
+    }
+    return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">${esc(a.name)} <span class="small muted">${a.confed} · ${active?'voll simuliert':'Hintergrund'}</span></h2><button class="btn sm" data-act="worldBack">◀ Alle Verbände</button></div>${active||d.noLeague?'':'<p class="small muted">Dieses Land läuft im Hintergrund mit. Pro Saison wird nur der Meister ermittelt. Voll simulieren kannst du es, wenn du es beim Start einer neuen Karriere auswählst.</p>'}<div class="grid g2">${body}</div>`;
+  }
+  const list=ASSOCS.filter(a=>a.confed===conf).sort((a,b)=>(S.active.includes(b.code)-S.active.includes(a.code))||b.str-a.str).map(a=>{
+    const active=S.active.includes(a.code),d=LEAGUE_DATA[a.code]||{},h=S.bg[a.code];
+    const info=d.noLeague?'keine eigene Liga':active?S.leagues.filter(L=>L.assoc===a.code).map(L=>esc(L.name)).join(' · '):h&&h.length?'Meister '+h[0].season+': '+esc(h[0].champ):assocStructure(a.code,S.seed).map(l=>esc(l.name)).join(' · ');
+    return `<div class="card clubpick" style="padding:10px" data-act="worldAssoc" data-v="${a.code}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${esc(a.name)}</b><span class="pill ${active?'good':''}">${active?'aktiv':'Hintergrund'}</span></div><div class="small muted">${info}</div></div>`}).join('');
+  const hist=S.history.map(h=>`<tr><td>${h.season}/${(h.season+1)%100}</td><td>${esc(h.league)}</td><td>${esc(h.champ)}</td><td>${esc(h.userClub)}: ${h.userRank}.</td><td>${esc(h.top)}</td></tr>`).join('');
+  const cf=CONFEDS.find(c=>c.id===conf);
+  return `<h2>Welt</h2>${confedTabs(conf,'worldConfed')}<p class="small muted">${cf.region}: ${ASSOCS.filter(a=>a.confed===conf).length} Verbände · aktiv: ${S.active.filter(c=>ASSOC[c].confed===conf).length}</p><div class="grid g3">${list}</div>
+  ${hist?`<h3 style="margin-top:18px">Deine Chronik</h3><div class="tw"><table><thead><tr><th>Saison</th><th>Liga</th><th>Meister</th><th>Dein Platz</th><th>Torschützenkönig</th></tr></thead><tbody>${hist}</tbody></table></div>`:''}`;
+}
+function clubModal(id){
+  return ()=>{
+    const c=club(id),st=c.staff,ps=squadOf(c).sort((a,b)=>POS_ORDER[a.pos]-POS_ORDER[b.pos]||ovr(b)-ovr(a));
+    const staffRow=(role,s,info)=>`<div class="news"><b>${role}: ${esc(s.name)}</b><div class="small">${info}</div></div>`;
+    return `<div class="row" style="flex-wrap:nowrap">${badge(c,44)}<div><h2 style="margin:0">${esc(c.name)}</h2><div class="small muted">${esc(league(c).name)} · Platz ${rankOf(c.id)} · Ø-Stärke ${clubAvg(c)} · Budget ${money(c.budget)} · Stadion ${c.stadium.toLocaleString('de-DE')}</div></div></div>
+    <div style="margin-top:12px">${staffRow('Präsident',st.pres,`${PRES[st.pres.trait].label} – ${PRES[st.pres.trait].desc}`)}${staffRow('Sportdirektor',st.dir,`${DIR[st.dir.trait].label} – ${DIR[st.dir.trait].desc}`)}${c.id===S.user?staffRow('Trainer',st.coach,'Das bist du.'):staffRow('Trainer',st.coach,`${COACH[st.coach.trait].label} – ${COACH[st.coach.trait].desc}`)}</div>
+    <div class="small muted">Taktik: ${c.tactic.f} · ${MENTALITY[c.tactic.men]} · ${PRESSING[c.tactic.press]} · ${STYLE[c.tactic.style]}</div>
+    <div class="tw" style="margin-top:10px;max-height:300px;overflow:auto"><table><thead><tr><th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Wert</th></tr></thead><tbody>${ps.map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td>${c.lineup.includes(p.id)?'<b class="good">●</b>':''}</td><td>${p.pos}</td><td>${esc(fullname(p))}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n">${money(p.val)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn" data-act="closeModal">Schließen</button></div>`;
+  };
+}
+
+/* ---------- Menü ---------- */
+function renderMenu(){
+  return `<h2>Menü</h2><div class="grid g2">
+   <div class="card"><h3>Spielstand</h3><p class="small muted">Das Spiel speichert automatisch nach jeder Woche auf diesem Gerät. Um auf einem anderen Gerät weiterzuspielen, exportiere den Spielstand und importiere ihn dort.</p>
+    <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
+   ${installCard()}
+   <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
+   <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
+  </div>`;
+}
+function exportModal(){return ()=>`<h2>Spielstand exportieren</h2><p class="small muted">Teile den Spielstand als Datei oder kopiere den Text und füge ihn auf dem anderen Gerät unter „Importieren“ ein. Größe: ca. ${Math.round(exportText().length/1024)} KB.</p>
+  <div class="row" style="margin-top:10px">${navigator.canShare?'<button class="btn pri" data-act="shareExp">📤 Teilen / In Dateien sichern</button>':''}<button class="btn ${navigator.canShare?'':'pri'}" data-act="download">Als Datei speichern</button><button class="btn" data-act="copyExp">Text kopieren</button><button class="btn" data-act="closeModal">Schließen</button></div>`}
+function importModal(){return ()=>`<h2>Spielstand importieren</h2><p class="small muted">Wähle eine exportierte Datei oder füge den Text ein.</p>
+  <input type="file" id="impFile" accept=".json,application/json,text/plain" data-chg="impFile" style="width:100%">
+  <textarea id="impTxt" style="width:100%;height:130px;margin-top:10px;font-size:11px" placeholder="Spielstand-Text hier einfügen…"></textarea>
+  <div class="row" style="margin-top:10px"><button class="btn pri" data-act="doImport">Importieren</button><button class="btn" data-act="closeModal">Abbrechen</button></div>`}
+
+/* ---------- Live-Spiel & Ergebnisse ---------- */
+function renderLive(){
+  const L=UI.live;if(!L)return renderHome();
+  const {m,r}=L,hc=club(m.h),ac=club(m.a);
+  const shown=r.ev.filter(e=>e.m<=L.min);let hg=0,ag=0;shown.forEach(e=>{if(e.type==='goal')e.side==='h'?hg++:ag++});
+  const evHtml=shown.slice().reverse().map(e=>{const c=e.side==='h'?hc:ac;const ic=e.type==='goal'?'⚽':e.type==='card'?'🟨':e.type==='injury'?'🩹':'•';return `<div class="ev ${e.type==='goal'?'goal':''}"><span class="m">${e.m}'</span><span>${ic} <b>${esc(c.short)}</b> ${esc(e.t)}${e.type==='goal'?' <span class="muted">('+e.score+')</span>':''}</span></div>`}).join('');
+  const sp=s=>`<button class="${L.speed===s?'on':''}" data-act="speed" data-v="${s}">${s===400?'Langsam':s===150?'Normal':'Schnell'}</button>`;
+  return `<div class="card"><div class="small muted" style="text-align:center;margin-bottom:6px">${esc(L.L.name)} · ${L.round+1}. Spieltag</div><div class="score"><div>${badge(hc,48)}<div style="margin-top:6px"><b>${esc(hc.name)}</b></div><div class="small muted">${hc.tactic.f} · ${MENTALITY[hc.tactic.men]}</div></div>
+   <div><div class="big">${hg}:${ag}</div><div class="pill">${L.done?'Abpfiff':Math.min(L.min,90)+'. Minute'}</div></div>
+   <div>${badge(ac,48)}<div style="margin-top:6px"><b>${esc(ac.name)}</b></div><div class="small muted">${ac.tactic.f} · ${MENTALITY[ac.tactic.men]}</div></div></div>
+   <div class="bar" style="margin-top:14px"><i style="width:${Math.min(L.min,90)/90*100}%"></i></div>
+   ${L.done?`<div class="row small muted" style="justify-content:center;margin-top:10px;gap:18px"><span>Ballbesitz ${r.poss}% : ${100-r.poss}%</span><span>Torschüsse ${r.sh} : ${r.sa}</span></div>`:''}
+   <div class="row" style="justify-content:center;margin-top:12px">${L.done?`<button class="btn pri" data-act="liveDone">Weiter zu den Ergebnissen ▶</button>`:`<div class="seg">${sp(400)}${sp(150)}${sp(40)}</div><button class="btn" data-act="liveSkip">Zum Ergebnis ⏭</button>`}</div></div>
+   <div class="card tick" style="margin-top:12px">${evHtml||'<p class="muted">Anpfiff…</p>'}</div>`;
+}
+function startLive(res){UI.live={m:res.m,r:res.r,round:res.round,L:res.L,min:0,speed:150,done:false};UI.view='live';render();tickLive()}
+function tickLive(){clearTimeout(tickLive.t);const L=UI.live;if(!L||L.done)return;L.min++;if(L.min>=95){L.min=95;L.done=true}if(UI.view==='live')render();if(!L.done)tickLive.t=setTimeout(tickLive,L.speed)}
+function renderWeekResults(){
+  const W=UI.weekRes||{played:[]};const uL=league(userClub());
+  const mine=W.played.find(x=>x.L.id===uL.id);
+  let main;
+  if(mine){const rows=mine.L.fixtures[mine.r].map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg}:${m.ag}</b></td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`).join('');
+    main=`<h3>${esc(uL.name)} · ${mine.r+1}. Spieltag</h3><div class="tw"><table><tbody>${rows}</tbody></table></div>`}
+  else main=`<div class="card"><b>Deine Liga hatte diese Woche spielfrei.</b><p class="small muted">Andere Ligen haben gespielt: ${W.played.map(x=>esc(x.L.name)).join(', ')||'keine'}.</p></div>`;
+  return `<div class="row" style="justify-content:space-between"><h2>Woche ${S.week} – Ergebnisse</h2><button class="btn pri" data-act="nav" data-v="home">Zur Übersicht</button></div>
+  <div class="grid g2"><div>${main}</div><div>${tableHtml(uL,true)}</div></div>`;
+}
+function renderSeasonEndScreen(){
+  const u=userClub(),L=league(u),tab=tableOf(L),champ=club(tab[0].id),rank=tab.findIndex(r=>r.id===S.user)+1;
+  const n=tab.length,promo=L.up&&rank<=L.up,rel=L.down&&rank>n-L.down;
+  return `<div class="card" style="text-align:center"><div style="font-size:44px">🏆</div><h2>${esc(champ.name)} ist Meister der ${esc(L.name)} ${S.season}/${(S.season+1)%100}!</h2>
+   <p>Dein ${esc(u.name)} beendet die Saison auf <b>Platz ${rank}</b>. Ziel war: ${u.target.t} ${rank<=u.target.r?'<span class="good">✓ erreicht</span>':'<span class="bad">✗ verfehlt</span>'}</p>
+   ${promo?'<p class="good"><b>🎉 Aufstieg geschafft!</b></p>':''}${rel?'<p class="bad"><b>Abstieg 😞</b></p>':''}
+   <p class="small muted">Beim Saisonwechsel steigen Vereine auf und ab, Spieler altern und entwickeln sich, Verträge laufen aus, jede Akademie bringt Jugendspieler, und in den Hintergrund-Ländern werden die Meister ermittelt.</p>
+   <button class="btn pri" data-act="newSeason">Neue Saison starten ▶</button></div><div style="margin-top:14px">${tableHtml(L,false)}</div>`;
+}
+
+/* =========================================================
+   EVENTS
+   ========================================================= */
+function newSeed(){return (Date.now()^Math.floor(Math.random()*1e9))>>>0}
+const ACT={
+  nav:d=>{if(UI.view==='live'&&UI.live&&!UI.live.done)return;UI.view=d.v;UI.selSlot=null;if(d.v==='table')UI.tableLeague=UI.tableLeague;window.scrollTo(0,0);render()},
+  closeModal:()=>{UI.modal=null;UI.selSlot=null;UI.neg=null;render()},
+  continue:async()=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave();UI.loading=null;if(sv){try{applySave(sv);UI.view='home';render()}catch(e){toast('Spielstand konnte nicht geladen werden')}}else{UI.meta=null;render();toast('Kein Spielstand gefunden')}},
+  newCareer:()=>{UI.modal=null;UI.setup={step:'club',confed:'UEFA',assoc:'GER',tier:1,pick:null,name:S&&S.manager||'',seed:newSeed(),q:'',active:new Set()};UI.setupPrev=S;S=null;render();window.scrollTo(0,0)},
+  backTitle:()=>{UI.setup=null;S=UI.setupPrev||null;if(S){RNG=S.rng||1;resetCache();UI.view='menu'}render()},
+  setConfed:d=>{UI.setup.name=document.getElementById('mgrName').value;UI.setup.confed=d.v;UI.setup.assoc=null;render()},
+  pickAssoc:d=>{const el=document.getElementById('mgrName');if(el)UI.setup.name=el.value;UI.setup.assoc=d.v;UI.setup.tier=1;render();if(window.innerWidth<900){const r=document.getElementById('assocRight');if(r)r.scrollIntoView({behavior:'smooth',block:'start'})}},
+  pickTier:d=>{UI.setup.name=document.getElementById('mgrName').value;UI.setup.tier=+d.v;render()},
+  pickClub:d=>{UI.setup.name=document.getElementById('mgrName').value;UI.setup.pick={code:UI.setup.assoc,tier:UI.setup.tier,idx:+d.i};render()},
+  toWorldStep:()=>{const st=UI.setup;st.name=document.getElementById('mgrName').value;st.step='world';st.active=new Set([st.pick.code]);st.wconfed=ASSOC[st.pick.code].confed;render();window.scrollTo(0,0)},
+  backClubStep:()=>{UI.setup.step='club';render()},
+  setWConfed:d=>{UI.setup.wconfed=d.v;render()},
+  preset:d=>{const st=UI.setup;st.active=new Set([st.pick.code,...PRESETS[+d.i][1]()]);render()},
+  startCareer:()=>{
+    const st=UI.setup,codes=[st.pick.code,...[...st.active].filter(c=>c!==st.pick.code)];
+    UI.loading='Welt wird erstellt…';render();
+    setTimeout(()=>{newWorld(st.seed,codes,st.pick,st.name.trim()||'Manager');startCareer(st.name.trim()||'Manager');UI.setup=null;UI.loading=null;UI.view='home';UI.tableLeague=null;UI.fxLeague=null;render()},40);
+  },
+  advance:()=>{
+    if(S.week>=S.weeks){UI.view='season';render();return}
+    const res=playWeek();UI.weekRes=res;UI.fxRound=null;
+    if(res.userRes)startLive(res.userRes);else{UI.view='matchday';render()}
+  },
+  toSeason:()=>{UI.view='season';render()},
+  newSeason:()=>{UI.loading='Neue Saison wird vorbereitet…';render();setTimeout(()=>{seasonEnd();UI.loading=null;UI.view='home';render();toast('Neue Saison gestartet!')},40)},
+  liveSkip:()=>{UI.live.min=95;UI.live.done=true;render()},
+  liveDone:()=>{UI.view='matchday';UI.live=null;render()},
+  speed:d=>{UI.live.speed=+d.v;render();tickLive()},
+  player:d=>{UI.modal=playerModal(d.id);render()},
+  clubInfo:d=>{UI.modal=clubModal(+d.id);render()},
+  sort:d=>{UI.sortK=d.k;render()},
+  slot:d=>{UI.selSlot=+d.i;UI.modal=slotPicker();render()},
+  slotCancel:()=>{UI.selSlot=null;UI.modal=null;render()},
+  assign:d=>{const c=userClub(),i=UI.selSlot,j=c.lineup.indexOf(d.id);if(j>=0)c.lineup[j]=c.lineup[i];c.lineup[i]=d.id;UI.selSlot=null;UI.modal=null;save();render()},
+  formation:d=>{const c=userClub();c.tactic.f=d.v;autoLineup(c);save();render()},
+  tac:d=>{userClub().tactic[d.k]=d.v;save();render()},
+  autoXI:()=>{autoLineup(userClub());save();toast('Beste Elf aufgestellt')},
+  fxRound:d=>{UI.fxRound=+d.i;render()},
+  openTable:d=>{UI.tableLeague=+d.id;UI.view='table';render()},
+  worldConfed:d=>{UI.world.confed=d.v;UI.world.assoc=null;render()},
+  worldAssoc:d=>{UI.world.assoc=d.v;window.scrollTo(0,0);render()},
+  worldBack:()=>{UI.world.assoc=null;render()},
+  tfTab:d=>{UI.tf.tab=d.v;render()},
+  negOpen:d=>{const p=S.players[d.id],u=userClub();const role=suggestRole(p,u),years=p.age>=31?1:p.age<=23?4:3;
+    UI.neg={pid:p.id,mode:d.mode,role,years,wage:wageDemand(p,u,role,years),msg:null};UI.modal=negModal();render()},
+  negSet:d=>{const N=UI.neg;if(!N)return;N[d.k]=d.k==='years'?+d.v:d.v;N.msg=null;render()},
+  negWageStep:d=>{const N=UI.neg;const step=N.wage>=50000?2500:N.wage>=10000?1000:N.wage>=2000?250:100;N.wage=Math.max(100,N.wage+step*(+d.v));N.msg=null;render()},
+  negWageSet:()=>{const N=UI.neg,p=S.players[N.pid];N.wage=wageDemand(p,userClub(),N.role,N.years);N.msg=null;render()},
+  negSubmit:()=>negSubmit(),
+  listToggle:d=>{const p=S.players[d.id];p.listed=!p.listed;save();toast(p.listed?'Auf die Transferliste gesetzt':'Von der Transferliste genommen')},
+  shift:d=>{const u=userClub(),v=+d.v,cost=v*WAGE_RATE;
+    if(v>0){if(u.tBudget<cost)return toast('Nicht genug Transferbudget');u.tBudget-=cost;u.wBudget+=v}
+    else{if(u.wBudget+v<wageBill(u))return toast('Gehaltsbudget kann nicht unter die aktuellen Gehälter fallen');u.wBudget+=v;u.tBudget+=-cost}
+    save();render()},
+  release:d=>{const p=S.players[d.id];if(UI.confirmRel!==d.id){UI.confirmRel=d.id;return toast('Zum Bestätigen nochmal tippen')}
+    UI.confirmRel=null;const cost=release(p);addNews('transfer',`${fullname(p)} freigestellt`,`Abfindung: ${money(cost)}.`);UI.modal=null;save();toast('Spieler freigestellt')},
+  offerYes:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;const p=S.players[o.pid],fc=club(o.from);doTransfer(p,fc,o.fee);addNews('transfer',`${fullname(p)} verkauft`,`An ${esc(fc.name)} für ${money(o.fee)}.`);S.offers=S.offers.filter(x=>x.id!==o.id);save();toast('Verkauf abgeschlossen')},
+  offerNo:d=>{const o=S.offers.find(x=>x.id===d.id);if(o){const p=S.players[o.pid];p.mor=clamp(p.mor-3,15,100)}S.offers=S.offers.filter(x=>x.id!==d.id);save();render()},
+  saveNow:()=>{save();toast('Gespeichert')},
+  exportOpen:()=>{UI.modal=exportModal();render()},
+  importOpen:()=>{UI.modal=importModal();render()},
+  install:()=>{const d=PWA.deferred;if(!d)return;d.prompt();d.userChoice.finally(()=>{PWA.deferred=null;render()})},
+  applyUpdate:()=>{if(S&&S.user!==null)save();if(PWA.update)PWA.update.postMessage({type:'SKIP_WAITING'});else location.reload()},
+  shareExp:()=>{try{const f=new File([exportText()],`seitenlinie_${S.season}_w${S.week}.json`,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:'Seitenlinie Spielstand'}).catch(()=>{});else toast('Teilen nicht möglich – Text kopieren')}catch(e){toast('Teilen nicht möglich – Text kopieren')}},
+  download:()=>{try{const b=new Blob([exportText()],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`seitenlinie_${S.season}_w${S.week}.json`;document.body.appendChild(a);a.click();a.remove();toast('Download gestartet')}catch(e){toast('Download nicht möglich – Text kopieren')}},
+  copyExp:()=>{const t=exportText();try{navigator.clipboard.writeText(t).then(()=>toast('Kopiert!'),()=>toast('Kopieren nicht erlaubt – bitte Datei nutzen'))}catch(e){toast('Kopieren nicht möglich')}},
+  doImport:()=>{const t=document.getElementById('impTxt').value.trim();if(!t)return toast('Kein Text');try{applySave(JSON.parse(t));UI.modal=null;UI.setup=null;UI.view='home';render();toast('Spielstand geladen')}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Ungültiger Spielstand')}},
+};
+const CHG={
+  assocQ:el=>{UI.setup.q=el.value;UI.setup.name=(document.getElementById('mgrName')||{}).value||UI.setup.name;render();const e=document.querySelector('[data-chg=assocQ]');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},
+  actToggle:el=>{const st=UI.setup;if(el.checked)st.active.add(el.dataset.v);else st.active.delete(el.dataset.v);render()},
+  tableLeague:el=>{UI.tableLeague=+el.value;render()},
+  fxLeague:el=>{UI.fxLeague=+el.value;UI.fxRound=null;render()},
+  tfPos:el=>{UI.tf.pos=el.value;render()},
+  tfCountry:el=>{UI.tf.country=el.value;render()},
+  tfMax:el=>{UI.tf.max=el.value;render()},
+  tfQ:el=>{UI.tf.q=el.value;render()},
+  tfFree:el=>{UI.tf.free=el.checked;render()},
+  tfYoung:el=>{UI.tf.young=el.checked;render()},
+  tfExp:el=>{UI.tf.exp=el.checked;render()},
+  impFile:el=>{const f=el.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{document.getElementById('impTxt').value=r.result};r.readAsText(f)},
+};
+document.addEventListener('click',e=>{
+  if(e.target.closest('input[type=checkbox]'))return;
+  const el=e.target.closest('[data-act]');if(!el)return;
+  if(el.dataset.act==='closeModal'&&e.target.closest('[data-stop]')&&!e.target.closest('button'))return;
+  e.preventDefault();ACT[el.dataset.act]&&ACT[el.dataset.act](el.dataset,el);
+});
+document.addEventListener('change',e=>{const el=e.target.closest('[data-chg]');if(el&&CHG[el.dataset.chg])CHG[el.dataset.chg](el)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&UI.modal){UI.modal=null;render()}});
+
+/* Start */
+(function init(){UI.meta=readMeta();UI.oldSave=hasOldSave();render()})();

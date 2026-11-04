@@ -1,10 +1,13 @@
 /* Seitenlinie – Service Worker
    Speichert alle Spieldateien auf dem Gerät, damit die App ohne Internet startet.
    Bei jedem Update: CACHE-Version erhöhen. */
-const CACHE = 'seitenlinie-v0.3.0';
+const CACHE = 'seitenlinie-v0.4.0';
 const ASSETS = [
   './',
   './index.html',
+  './world.js',
+  './engine.js',
+  './ui.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -14,7 +17,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
   // Kein skipWaiting: die neue Version wartet, bis der Spieler „Aktualisieren“ tippt.
 });
 
