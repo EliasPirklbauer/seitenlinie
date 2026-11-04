@@ -190,7 +190,11 @@ function renderHome(){
       ${t.why?`<div class="whys">${t.why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`:''}
       <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${deal?'':ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>
       <div class="row" style="margin-top:6px">${deal?'<span class="small muted">Du hast dem Verkauf zugestimmt – jetzt liegt es am Spieler.</span>':`<button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">Vertrag nachbessern</button>`}<button class="btn sm" data-act="player" data-id="${p.id}">Spielerprofil</button></div></div>`}).join('');
-  const offers=talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet für ${esc(fullname(p))} ${ovrTag(ovr(p))}: <b>${o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
+  const pend=(S.pbids||[]).filter(x=>x.kind==='buy').map(x=>{const p=S.players[x.pid],sc=club(x.seller);return p?`<div class="news t-offer"><b>📨 Angebot an ${esc(sc.name)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))}: ${bidText(x.b)}<div class="small" style="margin-top:4px">Der Verein prüft dein Angebot · Antwort bis <b>${fmtDate(x.when)}</b></div></div>`:''}).join('');
+  const res=Object.entries(S.bidRes||{}).map(([pid,R])=>{const p=S.players[pid];if(!p||p.club===S.user||R.res==='no')return '';const sc=club(R.seller);
+    if(R.res==='yes'){if(!userDeal(pid))return '';return `<div class="news t-transfer"><b>✅ Ablöse mit ${esc(sc.name)} vereinbart</b> für ${esc(fullname(p))}: ${bidText(R.bid)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="negOpen" data-id="${pid}" data-mode="buy">✍️ Vertragsgespräche führen</button></div></div>`}
+    return `<div class="news t-offer"><b>↩️ Gegenangebot von ${esc(sc.name)}</b> für ${esc(fullname(p))}: ${bidText(R.bid)}${R.final?' <span class="small muted">(letzte Runde)</span>':''}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="bidOpen" data-id="${pid}">Ansehen / annehmen / neu bieten</button></div></div>`}).join('');
+  const offers=pend+res+talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet für ${esc(fullname(p))} ${ovrTag(ovr(p))}: <b>${o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span>${o.wait?`<div class="small" style="margin-top:6px">📨 Dein Gegenangebot liegt bei ihnen – Antwort bis <b>${fmtDate(((S.pbids||[]).find(x=>x.oid===o.id)||{}).when)}</b></div>`:`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div>`}</div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
   return `<div class="grid home-grid">
@@ -528,8 +532,9 @@ function bidModal(){
           <div class="small muted" style="margin-top:8px">Raten sind für den Verkäufer etwas weniger wert als Geld sofort, ein Erfolgsbonus etwa die Hälfte. Verhandlungsrunden übrig: ${Math.max(0,left)}</div>
         </div>
       </div>
-      ${B.msg?`<div class="news ${B.res==='yes'?'t-transfer':B.res==='counter'?'t-offer':'t-coach'}" style="margin-top:12px">${B.msg}${B.res==='counter'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="bidTake">Gegenangebot annehmen</button><button class="btn sm" data-act="bidUseCounter">In die Felder übernehmen</button></div>`:''}${B.res==='yes'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="buy">✍️ Weiter zu den Vertragsgesprächen</button></div>`:''}</div>`:''}
-      <div class="row" style="margin-top:14px;justify-content:space-between">${B.res==='yes'||B.res==='no'?'<span></span>':`<button class="btn pri" data-act="bidSubmit" ${over||left<=0?'disabled':''}>${sell?'Gegenangebot senden':'Angebot abschicken'}</button>`}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
+      ${B.msg?`<div class="news ${B.res==='yes'?'t-transfer':B.res==='counter'||B.res==='sent'?'t-offer':'t-coach'}" style="margin-top:12px">${B.msg}${B.res==='counter'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="bidTake">Gegenangebot annehmen</button><button class="btn sm" data-act="bidUseCounter">In die Felder übernehmen</button></div>`:''}${B.res==='yes'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="buy">✍️ Weiter zu den Vertragsgesprächen</button></div>`:''}</div>`:''}
+      ${!B.msg&&(sell?o&&o.wait:pendingBid(p.id))?`<div class="news t-offer" style="margin-top:12px">📨 ${sell?'Dein Gegenangebot':'Dein Angebot'} liegt beim Verein – Antwort bis ${fmtDate((S.pbids||[]).find(x=>x.pid===p.id).when)}.</div>`:''}
+      <div class="row" style="margin-top:14px;justify-content:space-between">${B.res==='yes'||B.res==='no'||B.res==='sent'||(sell?o&&o.wait:pendingBid(p.id))?'<span></span>':`<button class="btn pri" data-act="bidSubmit" ${over||left<=0?'disabled':''}>${sell?'Gegenangebot senden':'Angebot abschicken'}</button>`}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
   };
 }
 function bidSubmit(){
@@ -538,10 +543,10 @@ function bidSubmit(){
   if(!isWindow())return say('no','Das Transferfenster ist geschlossen.');
   if(B.mode==='sell'){
     const o=S.offers.find(x=>x.id===B.oid);if(!o)return say('no','Das Angebot ist nicht mehr gültig.');
-    const r=buyerReply(o,b);
-    if(r.res==='yes'){S.offers=S.offers.filter(x=>x.pid!==o.pid);startClauseTalk(p,club(o.from),r.bid.fee,'deal',r.bid);return say('yes',`${esc(club(o.from).name)} akzeptiert: <b>${bidText(r.bid)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ihnen über seinen Vertrag.`)}
-    if(r.res==='no'){S.offers=S.offers.filter(x=>x.id!==o.id);addNews('transfer',`Verhandlungen abgebrochen: ${fullname(p)}`,r.msg);return say('no',r.msg)}
-    o.fee=o.bid.fee;B.b={...o.bid};return say('counter',r.msg+' Du kannst annehmen (im Posteingang) oder erneut kontern.');
+    if(o.wait)return say('sent','Dein Gegenangebot liegt bereits bei ihnen – warte die Antwort ab.');
+    const R=sendCounter(o,b),c=club(o.from);
+    if(R.now)return say('sent','Deadline Day – die Antwort ist schon da, schau in den Posteingang.');
+    return say('sent',`📨 Gegenangebot an ${esc(c.name)} verschickt (${bidText(b)}). Sie prüfen deine Forderung und melden sich in etwa ${R.days} Tagen (bis ${fmtDate(R.when)}) – die Antwort kommt in den Posteingang.`);
   }
   const s=club(p.club);S.btries=S.btries||{};const k=bidKey(p.id);
   if((S.btries[k]||0)>=3)return say('no',`${esc(s.name)} will in diesem Fenster nicht mehr über ${esc(pname(p))} sprechen.`);
@@ -549,7 +554,11 @@ function bidSubmit(){
   if(s.players.length<=19)return say('no',`${esc(s.name)} gibt keine Spieler mehr ab – Kader zu klein.`);
   if(s.rep-u.rep>22&&ovr(p)>=clubAvg(s)-2)return say('no',`${esc(pname(p))} hat kein Interesse – ${esc(s.name)} ist sportlich zu weit voraus.`);
   if(b.fee>u.tBudget)return say('no','Der Sofort-Betrag übersteigt dein Transferbudget.');
+  if(pendingBid(p.id))return say('sent','Dein Angebot liegt bereits beim Verein – warte die Antwort ab.');
   S.btries[k]=(S.btries[k]||0)+1;
+  const R=sendBid(p,b);
+  if(R.now){B.res=null;B.msg=null;UI.modal=null;save();render();return}
+  return say('sent',`📨 Angebot an ${esc(s.name)} verschickt. Der Verein prüft es und meldet sich in etwa ${R.days} Tagen (bis ${fmtDate(R.when)})${R.why.length?' – '+R.why.join(', '):''}. Die Antwort kommt in den Posteingang.`);
   const j=sellerJudge(p,b);
   if(j.res==='yes'){S.deals=S.deals||{};S.deals[p.id]={bid:b,season:S.season,exp:windowEnd()};addNews('transfer',`Ablöse vereinbart: ${fullname(p)}`,`${esc(s.name)} akzeptiert dein Angebot (${bidText(b)}). Jetzt musst du dich noch mit dem Spieler einigen – bis zum Ende des Transferfensters.`);
     return say('yes',`✅ ${esc(s.name)} akzeptiert: <b>${bidText(b)}</b>. Jetzt musst du dich nur noch mit dem Spieler einigen.`)}
@@ -928,13 +937,16 @@ const ACT={
   tfTab:d=>{UI.tf.tab=d.v;render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
   negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years'){N.years=+d.v;negDateFix(N)}else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else if(d.k==='rw'){N.rw=d.v;if((d.v==='from'||d.v==='range')&&!N.rf)N.rf=`${S.season+1}-07-01`;if((d.v==='until'||d.v==='range')&&!N.ru)N.ru=`${S.season+1}-06-30`;negDateFix(N)}else N[d.k]=d.v;N.msg=null;render()},
-  bidOpen:d=>{const p=S.players[d.id];UI.bid={pid:p.id,mode:'buy',b:normBid({fee:nice(scoutEst(p)*.9)}),res:null,msg:null};UI.modal=bidModal();render()},
+  bidOpen:d=>{const p=S.players[d.id],R=(S.bidRes||{})[p.id];UI.bid={pid:p.id,mode:'buy',b:normBid(R&&R.bid?R.bid:{fee:nice(scoutEst(p)*.9)}),res:null,msg:null};
+    if(R&&R.res==='counter'){UI.bid.res='counter';UI.bid.counter=R.bid;UI.bid.msg=`${esc(club(R.seller).name)} hat ein Gegenangebot gemacht: <b>${bidText(R.bid)}</b>.${R.final?' Weitere Runden gibt es in diesem Fenster nicht.':''}`}
+    else if(R&&R.res==='no'){UI.bid.msg=`${esc(club(R.seller).name)} hat dein letztes Angebot abgelehnt.`;UI.bid.res=null}
+    UI.modal=bidModal();render()},
   bidCounter:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;if(!o.bid)o.bid=normBid({fee:o.fee});if(!o.lim)o.lim=bidValue(o.bid,S.players[o.pid])*1.15;UI.bid={pid:o.pid,mode:'sell',oid:o.id,b:normBid({...o.bid,fee:nice(bidTotal(o.bid)*1.2)}),res:null,msg:null};UI.modal=bidModal();render()},
   bidSet:d=>{const B=UI.bid;B.b[d.k]=+d.v;if(d.k==='fee'||d.k==='so'){}B.msg=B.res==='counter'?B.msg:null;if(B.res!=='counter')B.res=null;render()},
   bidSubmit:()=>bidSubmit(),
   bidUseCounter:()=>{const B=UI.bid;if(B.counter)B.b={...B.counter};B.res=null;B.msg=null;render()},
   bidTake:()=>{const B=UI.bid,p=S.players[B.pid],s=club(p.club);if(!B.counter)return;if(B.counter.fee>userClub().tBudget){B.msg='Der Sofort-Betrag übersteigt dein Transferbudget.';B.res='no';render();return}
-    S.deals=S.deals||{};S.deals[p.id]={bid:B.counter,season:S.season,exp:windowEnd()};B.b={...B.counter};B.res='yes';B.msg=`✅ Einigung mit ${esc(s.name)}: <b>${bidText(B.counter)}</b>. Jetzt musst du dich nur noch mit dem Spieler einigen.`;
+    S.deals=S.deals||{};S.deals[p.id]={bid:B.counter,season:S.season,exp:windowEnd()};if(S.bidRes)S.bidRes[p.id]={res:'yes',bid:B.counter,seller:s.id};B.b={...B.counter};B.res='yes';B.msg=`✅ Einigung mit ${esc(s.name)}: <b>${bidText(B.counter)}</b>. Jetzt musst du dich nur noch mit dem Spieler einigen.`;
     addNews('transfer',`Ablöse vereinbart: ${fullname(p)}`,`Du akzeptierst das Gegenangebot von ${esc(s.name)} (${bidText(B.counter)}).`);save();render()},
   negDatePick:d=>{const N=UI.neg;N[d.k]=d.v;negDateFix(N);N.msg=null;render()},
   negLv:d=>{const N=UI.neg;N.b[d.k]=+d.v;N.msg=null;render()},

@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.14.0';
+const APP_VERSION='0.14.1';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -831,8 +831,9 @@ function playWeek(){
       if(p.mor>50)p.unhappy=false;
     }
   }
-  S.offers=S.offers.filter(o=>S.week-o.w<2&&S.players[o.pid]&&S.players[o.pid].club===S.user);
+  S.offers=S.offers.filter(o=>(o.wait||S.week-o.w<2)&&S.players[o.pid]&&S.players[o.pid].club===S.user);
   S.week++;
+  processBids();
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
   if(S.week===ws)addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');
@@ -949,7 +950,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];S.talks=[];resetCache();
+  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};resetCache();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};

@@ -110,3 +110,62 @@ function payInstallments(){
   if(got)addNews('board','Transferraten erhalten',`Andere Vereine haben Raten über <b>${money(got)}</b> überwiesen.`);
 }
 function userInstallments(){const u=S.user;return (S.inst||[]).filter(r=>r.from===u||r.to===u)}
+
+/* ---------- Bedenkzeit: Vereine antworten erst nach ein paar Tagen ----------
+   Angebote (Kauf) und Gegenangebote (Verkauf) werden verschickt und beim nächsten
+   Spieltagswechsel bzw. eine Woche später beantwortet – spätestens zum Fensterschluss. */
+function replyDelay(c,p){
+  let d=0;const why=[];
+  if(PRES[c.staff.pres.trait].sellMul>1.05&&rnd()<.6){d++;why.push('der Präsident rechnet genau nach')}
+  else if(p&&p.role==='schluessel'&&rnd()<.5){d++;why.push('es geht um einen Schlüsselspieler')}
+  else if(c.rep>=85&&rnd()<.35){d++;why.push('großer Verein, lange Entscheidungswege')}
+  if(S.week>=windowEnd())return {dec:S.week,days:0,when:gameDate(),why:['Deadline Day – die Antwort kommt noch heute'],now:true};
+  const dec=Math.min(S.week+1+d,windowEnd());
+  const days=Math.max(2,Math.round((isoDays(gameDate(dec))-isoDays(gameDate()))*.6)+ri(0,2));
+  return {dec,days,when:addDaysIso(gameDate(),days),why};
+}
+function pendingBid(pid){return (S.pbids||[]).find(x=>x.pid===pid)}
+function sendBid(p,b){
+  const s=club(p.club),R=replyDelay(s,p);S.pbids=S.pbids||[];
+  S.pbids.push({id:'b'+(S.nextId++),kind:'buy',pid:p.id,seller:s.id,b,w:S.week,dec:R.dec,when:R.when});
+  if(S.bidRes)delete S.bidRes[p.id];
+  addNews('transfer',`Angebot verschickt: ${fullname(p)}`,`Dein Angebot an ${esc(s.name)} (${bidText(b)}) liegt jetzt dort auf dem Tisch. ${R.now?'Deadline Day – die Antwort kommt noch heute.':`Eine Antwort ist in etwa ${R.days} Tagen zu erwarten (bis ${fmtDate(R.when)})${R.why.length?' – '+R.why.join(', '):''}.`}`);
+  if(R.now)processBids();
+  return R;
+}
+function sendCounter(o,ask){
+  const c=club(o.from),R=replyDelay(c,null);S.pbids=S.pbids||[];
+  S.pbids.push({id:'b'+(S.nextId++),kind:'sell',oid:o.id,pid:o.pid,buyer:c.id,b:ask,w:S.week,dec:R.dec,when:R.when});o.wait=1;
+  if(R.now)processBids();
+  return R;
+}
+function processBids(){
+  const keep=[];
+  for(const x of S.pbids||[]){
+    if(S.week<x.dec){keep.push(x);continue}
+    const p=S.players[x.pid];if(!p)continue;
+    if(!isWindow()){addNews('transfer',`Keine Antwort mehr: ${fullname(p)}`,'Das Transferfenster hat geschlossen, bevor eine Einigung zustande kam.');continue}
+    if(x.kind==='buy'){
+      const s=club(x.seller);
+      if(p.club!==x.seller){addNews('transfer',`Angebot hinfällig: ${fullname(p)}`,`${esc(pname(p))} spielt nicht mehr bei ${esc(s.name)}.`);continue}
+      const j=sellerJudge(p,x.b),k=bidKey(p.id),last=((S.btries||{})[k]||0)>=3;
+      S.bidRes=S.bidRes||{};
+      if(j.res==='yes'){S.deals=S.deals||{};S.deals[p.id]={bid:x.b,season:S.season,exp:windowEnd()};S.bidRes[p.id]={res:'yes',bid:x.b,seller:s.id};
+        addNews('offer',`✅ ${esc(s.name)} nimmt an: ${fullname(p)}`,`${esc(s.name)} akzeptiert dein Angebot (<b>${bidText(x.b)}</b>). Jetzt musst du dich nur noch mit dem Spieler einigen – bis zum Ende des Transferfensters.`)}
+      else if(j.res==='counter'&&!last){S.bidRes[p.id]={res:'counter',bid:j.bid,seller:s.id};
+        addNews('offer',`Gegenangebot von ${esc(s.name)}: ${fullname(p)}`,`${j.msg} Du kannst annehmen oder ein neues Angebot machen.`)}
+      else{S.bidRes[p.id]={res:'no',seller:s.id};
+        addNews('offer',`❌ ${esc(s.name)} lehnt ab: ${fullname(p)}`,j.res==='counter'?`${j.msg} Mehr Verhandlungsrunden gibt es in diesem Fenster aber nicht – sie bleiben bei ihrer Forderung. Du kannst das Gegenangebot noch annehmen.`:j.msg);
+        if(j.res==='counter')S.bidRes[p.id]={res:'counter',bid:j.bid,seller:s.id,final:1}}
+    }else{
+      const o=S.offers.find(y=>y.id===x.oid);if(!o)continue;o.wait=0;const c=club(o.from);
+      const r=buyerReply(o,x.b);
+      if(r.res==='yes'){S.offers=S.offers.filter(y=>y.pid!==o.pid);startClauseTalk(p,c,r.bid.fee,'deal',r.bid);
+        addNews('offer',`✅ ${esc(c.name)} akzeptiert deine Forderung: ${fullname(p)}`,`Vereinbart: <b>${bidText(r.bid)}</b>. Jetzt verhandelt ${esc(pname(p))} mit ihnen über seinen Vertrag.`)}
+      else if(r.res==='no'){S.offers=S.offers.filter(y=>y.id!==o.id);addNews('offer',`❌ Verhandlungen abgebrochen: ${fullname(p)}`,r.msg)}
+      else{o.fee=o.bid.fee;o.w=S.week;addNews('offer',`Neues Angebot von ${esc(c.name)}: ${fullname(p)}`,`${r.msg} Du kannst annehmen, erneut kontern oder ablehnen.`)}
+    }
+  }
+  S.pbids=keep;
+  if(!isWindow()){S.bidRes={};}
+}
