@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=7;
-const APP_VERSION='0.9.0';
+const VERSION=8;
+const APP_VERSION='0.10.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -268,7 +268,7 @@ function genPlayer(pos,q,age,natCode){
   const atStr=genAttributes(pos,clamp(q,15,97),age);
   const p={id:'p'+(S.nextId++),fn:pick(pool.f),ln:pick(pool.l),nat,age,pos,at:atStr,pp:'',pot:0,fit:100,mor:70,inj:0,goals:0,apps:0,club:null,val:0,wage:0,
     until:S.season+(age<=23?ri(1,4):age>=31?ri(0,1):ri(0,3)),role:'rotation',negTries:0,listed:false};
-  p.pp=genFamiliarity(pos,at(p,'ver'));
+  p.pp=genFamiliarity(pos,at(p,'ver'));if(S.statsFrom!==undefined&&S.season>S.statsFrom)p.cr=S.season;
   const o=ovr(p);
   const drive=(at(p,'det')+at(p,'prf')+at(p,'amb'))/30; // 0.1 … 2
   p.pot=age<24?clamp(Math.round(o+(24-age)*(.8+rnd()*2.2)*(.7+drive*.4)+rnd()*5),o,96):o;
@@ -317,7 +317,7 @@ function schedule(){
 }
 function newWorld(seed,activeCodes,sel,manager){
   RNG=seed>>>0;resetCache();
-  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},ncups:[],cupWinners:{},natHist:{},coefHist:null,coefSeason:{},supercups:[],scHist:{},prevTables:null,prevCup:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
+  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},ncups:[],cupWinners:{},natHist:{},coefHist:null,coefSeason:{},supercups:[],scHist:{},prevTables:null,prevCup:{},season:2026,statsFrom:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
   for(const code of activeCodes){
     const st=assocStructure(code,seed);const ids=[];
     st.forEach(lt=>{const L={id:S.leagues.length,assoc:code,tier:lt.tier,name:lt.name,clubs:[],up:0,down:0,champs:[]};S.leagues.push(L);ids.push(L);
@@ -407,8 +407,95 @@ function wageDemand(p,c,role,years){
   if(p.club===c.id)d=Math.max(d,p.wage*1.03);else if(p.club!==null)d=Math.max(d,p.wage*1.15);
   return rw(d);
 }
+/* ---------- Karriere-Statistik ---------- */
+// Zeile: [Saison, Verein, Spiele, Tore, Vorlagen, Gelb, Weiße Westen, Notensumme×10, benotete Spiele, Liga]
+function seasonRows(p){return (p.car||[]).filter(r=>r[0]===S.season)}
+function liveDelta(p){const d=[p.apps||0,p.goals||0,p.ast||0,p.yc||0,p.cs||0,p.rs||0,p.rn||0];for(const r of seasonRows(p))for(let i=0;i<7;i++)d[i]-=r[i+2];return d.map(v=>Math.max(0,v))}
+function closeRow(p){
+  if(p.club===null||p.club===undefined)return;const c=club(p.club);if(!c)return;
+  const d=liveDelta(p);if(d.every(v=>!v)&&seasonRows(p).some(r=>r[1]===c.id))return;
+  p.car=p.car||[];p.car.push([S.season,c.id,...d,c.league===null?-1:c.league]);if(p.car.length>18)p.car.splice(0,p.car.length-18);
+}
+/* Steckbrief: Größe, Gewicht, Fuß, Geburtstag – einmal ermittelt, dann fest */
+const BIO_H={TW:190,IV:187,ST:183,DM:181,AV:178,ZM:179,OM:176,FL:175};
+function bio(p){
+  if(!p.bi){
+    const R=mkRng(hashStr('bio'+p.id)),G=()=>{let u=R()||1e-9,v=R();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+    const h=clamp(Math.round(BIO_H[p.pos]+(at(p,'jum')+at(p,'hea')-20)*.42+(at(p,'str')-10)*.25+G()*4.2),162,204);
+    const w=clamp(Math.round(h-107+(at(p,'str')-10)*.85+G()*3.2),55,102);
+    const r=R(),ft=r<.07?'B':r<.3?'L':'R';
+    const wf=ft==='B'?17+Math.floor(R()*4):clamp(Math.round(5+R()*6+(at(p,'tec')-10)*.35),1,15);
+    p.bi=[h,w,ft,wf,1+Math.floor(R()*12),1+Math.floor(R()*28)].join('|');
+  }
+  const [h,w,ft,wf,mo,dy]=p.bi.split('|');
+  return {h:+h,w:+w,foot:ft,weak:+wf,mo:+mo,dy:+dy,year:S.season-p.age-(+mo>=7?1:0)};
+}
+const FOOT_LABEL={R:'Rechts',L:'Links',B:'Beidfüßig'};
+function weakLabel(v){return v>=17?'Sehr stark':v>=14?'Stark':v>=10?'Ordentlich':v>=6?'Schwach':'Sehr schwach'}
+
+/* Vorgeschichte vor Spielbeginn (deterministisch, wird nicht gespeichert) */
+const CPOOL={};
+function careerPool(code){
+  if(CPOOL[code])return CPOOL[code];
+  let out=[];
+  if(S.active.includes(code))out=S.leagues.filter(L=>L.assoc===code).flatMap(L=>L.clubs.map(id=>{const c=club(id);return {id,name:c.name,rep:c.rep,lname:L.name,tier:L.tier}}));
+  else assocStructure(code,S.seed).forEach(L=>L.clubs.forEach((nm,i)=>out.push({id:null,name:nm,rep:repFor(ASSOC[code],L.tier,i,L.clubs.length),lname:L.name,tier:L.tier})));
+  return CPOOL[code]=out;
+}
+function poolPick(R,code,rep,avoid){
+  const pool=careerPool(code).filter(x=>!avoid.includes(x.name));if(!pool.length)return null;
+  const sc=pool.map(x=>({x,d:Math.abs(x.rep-rep)+R()*9})).sort((a,b)=>a.d-b.d);return sc[Math.floor(R()*Math.min(3,sc.length))].x;
+}
+const RATE_G={ST:.42,FL:.24,OM:.22,ZM:.09,DM:.04,IV:.045,AV:.03,TW:0},RATE_A={ST:.14,FL:.2,OM:.24,ZM:.13,DM:.07,IV:.03,AV:.1,TW:.004};
+function synthHistory(p){
+  const R=mkRng(hashStr('car'+p.id)),until=Math.max(S.statsFrom||S.season,p.cr||0);
+  const ageF=p.age-(S.season-until),debut=17+Math.floor(R()*3)+(p.pos==='TW'?1:0),n=Math.max(0,ageF-debut);
+  const trs=p.tr||[],stored=p.car||[];
+  let anchorId=stored.length&&stored[0][0]===until?stored[0][1]:trs.length?(trs[0][2]>=0?trs[0][2]:null):stored.length?stored[0][1]:p.club;
+  let anchor=null;if(anchorId!==null&&anchorId!==undefined&&club(anchorId)){const c=club(anchorId),L=league(c);anchor={id:c.id,name:c.name,rep:c.rep,lname:L?L.name:leagueName(c),tier:L?L.tier:1,code:c.assoc}}
+  const homeCode=careerPool(p.nat).length?p.nat:(anchor?anchor.code:p.nat);
+  // Stationen rückwärts aufbauen
+  const stations=[];let left=n,rep=anchor?anchor.rep:clamp(26+ovr(p)*.5,10,80),code=anchor?anchor.code:homeCode;
+  if(anchor){const ten=left===0?0:R()<.18?0:1+Math.floor(Math.pow(R(),1.4)*Math.min(left,6));stations.push({...anchor,len:ten});left-=ten}
+  const avoid=anchor?[anchor.name]:[];
+  while(left>0||!stations.length){
+    const len=Math.min(left,1+Math.floor(R()*3.2));
+    rep=Math.max(5,rep-(4+R()*10));
+    code=careerPool(homeCode).length&&(R()<(left<=len?.8:.5))?homeCode:(anchor?anchor.code:homeCode);
+    const x=poolPick(R,code,rep,avoid);if(!x)break;avoid.push(x.name);stations.push({...x,code,len});left-=len;
+  }
+  // vorwärts: Saisons, Statistiken, Wechsel
+  stations.reverse();
+  const rows=[],moves=[];let s=until-n;const fin=at(p,'fin'),agg=at(p,'agg'),o=ovr(p);
+  stations.forEach((st,k)=>{
+    if(k>0){
+      const prev=stations[k-1],ago=until-s,free=R()<.22;
+      const fee=free?0:Math.round(p.val*Math.pow(.8,ago)*(.2+R()*.7)*(st.rep>prev.rep?1:.6)/25000)*25000;
+      moves.push({s,w:0,f:prev.name,fid:prev.id,t:st.name,tid:st.id,fee,syn:true});
+    }
+    for(let y=0;y<st.len;y++,s++){
+      const age=ageF-(until-s),sh=clamp(.25+(age-17)*.085,.15,.92)*(.75+R()*.45)*(anchor&&st.id===anchor.id&&p.club===anchor.id?.3+ROLES[p.role].exp*.8:1);
+      const apps=Math.max(0,Math.round(sh*36+R()*4-2)),g=Math.round(apps*RATE_G[p.pos]*Math.pow(fin/12,1.4)*(.6+R()*.8));
+      const a=Math.round(apps*RATE_A[p.pos]*(.6+R()*.8)),yc=Math.round(apps*.1*(agg/10)*(.5+R()));
+      const cs=p.pos==='TW'?Math.round(apps*(.22+R()*.18)):0,avg=apps?clamp(6.45+(sh-.5)*.7+(o-60)*.006+(R()-.5)*.35,5.9,7.9):0;
+      rows.push({s,cid:st.id,name:st.name,lname:st.lname,apps,g,a,yc,cs,avg,syn:true});
+    }
+  });
+  const youth=stations[0],last=stations[stations.length-1];
+  const since=anchor&&last&&last.id===anchor.id?until-last.len:null;
+  return {rows,moves,since,youth:youth?youth.name:null};
+}
+function careerView(p){
+  const H=synthHistory(p),rows=H.rows.slice();
+  const nameOf=id=>id>=0&&club(id)?club(id).name:'vereinslos';
+  for(const r of p.car||[])rows.push({s:r[0],cid:r[1],name:nameOf(r[1]),lname:r[9]>=0&&S.leagues[r[9]]?S.leagues[r[9]].name:(club(r[1])?leagueName(club(r[1])):''),apps:r[2],g:r[3],a:r[4],yc:r[5],cs:r[6],avg:r[8]?r[7]/r[8]/10:0});
+  if(p.club!==null){const c=club(p.club),d=liveDelta(p);if(!seasonRows(p).some(r=>r[1]===c.id)||d.some(v=>v))rows.push({s:S.season,cid:c.id,name:c.name,lname:leagueName(c),apps:d[0],g:d[1],a:d[2],yc:d[3],cs:d[4],avg:d[6]?d[5]/d[6]/10:0,live:true})}
+  const moves=H.moves.concat((p.tr||[]).map(t=>({s:t[0],w:t[1],f:nameOf(t[2]),fid:t[2]>=0?t[2]:null,t:nameOf(t[3]),tid:t[3],fee:t[4]})));
+  const since=p.since!==undefined?p.since:H.since;
+  return {rows,moves,since,youth:H.youth};
+}
 function freeAgent(p){
-  if(p.club!==null){const c=club(p.club);c.players=c.players.filter(x=>x!==p.id);c.lineup=c.lineup.map(x=>x===p.id?null:x)}
+  closeRow(p);  if(p.club!==null){const c=club(p.club);c.players=c.players.filter(x=>x!==p.id);c.lineup=c.lineup.map(x=>x===p.id?null:x)}
   p.club=null;p.role='rotation';p.listed=false;p.wage=rw(calcWage(p)*.5);
 }
 function aiKeeps(p,c){
@@ -472,6 +559,12 @@ function pickScorer(c){
   const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p);
   const x=wpick(cand,x=>W[x.pos]*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
+function pickAssist(c,scorer){
+  const slots=FORMATIONS[c.tactic.f].s;const W={ST:1.1,FL:2.3,OM:2.6,ZM:1.7,DM:.7,IV:.35,AV:1.3,TW:.04};
+  const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i]})).filter(x=>x.p&&x.p!==scorer);
+  const x=wpick(cand,x=>W[x.pos]*Math.pow((at(x.p,'pas')+at(x.p,'vis')+at(x.p,'cro')*.6+at(x.p,'tea')*.4)/36,2));return x?x.p:null;
+}
+function mst(res,p){res.st=res.st||{};return res.st[p.id]||(res.st[p.id]={g:0,a:0,y:0})}
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
@@ -491,7 +584,7 @@ function simPeriod(hc,ac,R,from,to,detail,res,cap){
     for(const side of ['h','a']){
       const c=side==='h'?hc:ac,rate=side==='h'?R.rH:R.rA,conv=side==='h'?R.cH:R.cA;
       if(rnd()<rate){side==='h'?res.sh++:res.sa++;
-        if(rnd()<conv){const p=pickScorer(c);side==='h'?res.hg++:res.ag++;if(p)p.goals++;if(detail)res.ev.push({m:mm,side,type:'goal',t:pick(TXT_GOAL).replace('{p}',p?pname(p):'?').replace('{c}',c.short)})}
+        if(rnd()<conv){const p=pickScorer(c);side==='h'?res.hg++:res.ag++;const q=rnd()<.74?pickAssist(c,p):null;if(p){p.goals++;mst(res,p).g++}if(q){q.ast=(q.ast||0)+1;mst(res,q).a++}if(detail)res.ev.push({m:mm,side,type:'goal',t:pick(TXT_GOAL).replace('{p}',p?pname(p):'?').replace('{c}',c.short)+(q?` (Vorlage: ${pname(q)})`:'')})}
         else if(detail&&rnd()<.35){const p=pickScorer(c)||pickAny(c);res.ev.push({m:mm,side,type:'chance',t:pick(TXT_CHANCE).replace('{p}',p?pname(p):'?')})}}
     }
   }
@@ -504,14 +597,20 @@ function simMatch(hc,ac,detail,neutral){
   simPeriod(hc,ac,R,1,90+ri(1,4),detail,res,90);
   for(const [side,c] of [['h',hc],['a',ac]]){
     const xi=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(Boolean);
-    if(detail&&xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot);for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}
+    if(xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot);for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p&&!mst(res,p).y){mst(res,p).y=1;p.yc=(p.yc||0)+1;if(detail)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}}
     const inj=xi.length?xi.reduce((t,p)=>t+at(p,'inp'),0)/xi.length:10;
     if(xi.length&&rnd()<.11*(.6+inj/25)){const p=wpick(xi,p=>Math.pow(at(p,'inp'),1.5)*(1.3-at(p,'nat')/40));if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
   }
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
     const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
-    for(const id of c.lineup){if(!id)continue;const p=S.players[id];if(!p)continue;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100)}
+    const slots=FORMATIONS[c.tactic.f].s,avg=clubAvg(c)||50;
+    c.lineup.forEach((id,i)=>{if(!id)return;const p=S.players[id];if(!p)return;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100);
+      const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';
+      if(pos==='TW'&&ga===0)p.cs=(p.cs||0)+1;
+      let r=6.45+clamp((gf-ga)*.18,-.6,.6)+x.g*.95+x.a*.5-x.y*.3+(ga===0&&def?(pos==='TW'?.55:.3):0)-(def?Math.max(0,ga-1)*(pos==='TW'?.25:.12):0)+((rateAt(p,pos)||ovr(p))-avg)*.025+gauss()*.42;
+      r=clamp(Math.round(r*10)/10,3.5,10);p.rs=(p.rs||0)+Math.round(r*10);p.rn=(p.rn||0)+1;
+      if(detail){res.rt=res.rt||{};res.rt[id]=r}});
   }
   res.end=95;
   return res;
@@ -584,6 +683,7 @@ function doTransfer(p,to,fee,contract){
   const sign=signingFee(p,ct.wage);
   if(from){from.players=from.players.filter(x=>x!==p.id);from.lineup=from.lineup.map(x=>x===p.id?null:x);from.budget+=fee;from.tBudget=(from.tBudget||0)+fee*PRES[from.staff.pres.trait].saleBack}
   to.players.push(p.id);to.budget-=fee+sign;to.tBudget=Math.max(0,(to.tBudget||0)-fee-sign);
+  closeRow(p);p.tr=p.tr||[];p.tr.push([S.season,S.week,from?from.id:-1,to.id,fee]);if(p.tr.length>12)p.tr.shift();p.since=S.season;
   p.club=to.id;p.mor=78;p.wage=ct.wage;p.until=ct.until;p.role=ct.role;p.listed=false;p.negTries=0;
   if(from&&from.id===S.user)S.fin.tOut+=fee;
   if(to.id===S.user)S.fin.tIn+=fee+sign;
@@ -798,6 +898,8 @@ function seasonEnd(){
     if(mv.prom.includes(S.user))addNews('board','AUFSTIEG! 🎉',`Dein ${esc(u.name)} steigt in die ${esc(mv.up.name)} auf!`);
     if(uL.assoc===mv.up.assoc)addNews('info',`Auf- und Abstieg ${esc(mv.up.name)}`,`Absteiger: ${mv.down.map(id=>esc(club(id).name)).join(', ')} · Aufsteiger: ${mv.prom.map(id=>esc(club(id).name)).join(', ')}.`);
   }
+  // Karrierezeilen der Saison abschließen
+  for(const p of Object.values(S.players))closeRow(p);
   // Vertragsenden
   const leaving=[];
   for(const p of Object.values(S.players)){
@@ -810,7 +912,7 @@ function seasonEnd(){
   // Altern, Entwicklung, Karriereende
   const retired=[];
   for(const p of Object.values(S.players)){
-    p.age++;develop(p);p.goals=0;p.apps=0;p.fit=100;p.inj=0;p.mor=70;p.negTries=0;p.unhappy=false;
+    p.age++;develop(p);p.goals=0;p.apps=0;p.ast=0;p.yc=0;p.cs=0;p.rs=0;p.rn=0;p.fit=100;p.inj=0;p.mor=70;p.negTries=0;p.unhappy=false;
     if(p.age>=36||(p.age>=33&&rnd()<.3)||(p.club===null&&p.age>=34)){
       if(p.club!==null){const c=club(p.club);c.players=c.players.filter(x=>x!==p.id);c.lineup=c.lineup.map(x=>x===p.id?null:x);if(c.id===S.user)retired.push(fullname(p))}
       delete S.players[p.id];continue;
@@ -901,6 +1003,11 @@ function applySave(obj){
     for(const pl of Object.values(S.players)){if(pl.pot<ovr(pl))pl.pot=ovr(pl)}
     addNews('info','Neu: Spielerprofile wie im Football Manager','Jeder Spieler hat jetzt rund 50 Eigenschaften auf einer Skala von 1–20, Positionsvertrautheiten und eine Persönlichkeit. Die Stärkewerte wurden neu berechnet.');
     S.v=7;
+  }
+  if(S.v<8){
+    S.statsFrom=S.season;
+    addNews('info','Neu: Ausführliche Spielerprofile','Spielerkarten zeigen jetzt Steckbrief, Vertragsdetails und die komplette Karriere mit allen Stationen. Vorlagen, Karten, weiße Westen und Spielnoten werden ab sofort erfasst.');
+    S.v=8;
   }
   save();
 }

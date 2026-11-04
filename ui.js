@@ -215,29 +215,105 @@ function renderSquad(){
   <div class="tw"><table><thead><tr>${PH}</tr></thead><tbody>${ps.map(p=>playerRow(p,c)).join('')}</tbody></table></div>
   <p class="small muted">● = Startelf · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
 }
+const seasonLbl=s=>`${s}/${String((s+1)%100).padStart(2,'0')}`;
+const fmtR=v=>v?v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}):'–';
+const rCls=v=>!v?'muted':v>=7.2?'good':v<6.5?'bad':'';
+function cBadge(name,id,sz){const c=id!==null&&id!==undefined&&id>=0&&club(id);return badge(c||{short:shortName(name),colors:clubColors(name)},sz)}
+function tile(lbl,val,sub){return `<div class="ptile"><span>${lbl}</span><b>${val}</b>${sub?`<small>${sub}</small>`:''}</div>`}
 function playerModal(pid){
   return ()=>{
     const p=S.players[pid];if(!p)return '<p>Spieler nicht gefunden.</p>';
-    const c=p.club!==null?club(p.club):null,mine=p.club===S.user;
-    const key=WEIGHTS[p.pos];
-    const col=(title,keys)=>`<div class="acol"><h3>${title}</h3>${keys.map(k=>{const v=at(p,k);return `<div class="arow${key[k]?' key':''}"><span>${ATTR_LABEL[k]}</span><b class="av v${v>=16?4:v>=11?3:v>=6?2:1}">${v}</b></div>`}).join('')}</div>`;
-    const T=ATTR_DEF.filter(d=>d[2]==='tech').map(d=>d[0]),Mn=ATTR_DEF.filter(d=>d[2]==='ment').map(d=>d[0]),Ph=ATTR_DEF.filter(d=>d[2]==='phys').map(d=>d[0]),G=ATTR_DEF.filter(d=>d[2]==='gk').map(d=>d[0]);
-    const cols=p.pos==='TW'?col('Torwart',[...G,'fir','pas'])+col('Mental',Mn)+col('Physis',Ph):col('Technik',T)+col('Mental',Mn)+col('Physis',Ph);
-    const PM={TW:[50,90],IV:[50,74],AV:[[14,70],[86,70]],DM:[50,60],ZM:[50,46],OM:[50,32],FL:[[14,30],[86,30]],ST:[50,13]};
-    const dots=POS_LIST.flatMap(pos=>{const f=familiarity(p,pos),xy=Array.isArray(PM[pos][0])?PM[pos]:[PM[pos]];const cls=f>=19?'f4':f>=15?'f3':f>=11?'f2':f>=7?'f1':'f0';
-      return xy.map(([x,y])=>`<div class="pdot ${cls}" style="left:${x}%;top:${y}%" title="${POS_LABEL[pos]}: ${FAM_LABEL(f)} · Stärke ${Math.round(rateAt(p,pos))}">${pos}<small>${Math.round(rateAt(p,pos))}</small></div>`)}).join('');
-    const posList=POS_LIST.map(pos=>({pos,f:familiarity(p,pos)})).filter(x=>x.f>=11).sort((a,b)=>b.f-a.f).map(x=>`${x.pos} <span class="muted">${FAM_LABEL(x.f)}</span>`).join(' · ');
-    let actions='';
-    if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen (${money(releaseCost(p))})</button></div>`;
-    else{const price=askPrice(p);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>Verhandeln: ${price?money(price)+' Ablöse':'ablösefrei'}</button>${isWindow()?'':'<div class="small muted">Transferfenster geschlossen.</div>'}</div>`}
-    return `<div class="phead"><div><h2 style="margin:0">${esc(fullname(p))}</h2><div class="muted small">${POS_LABEL[p.pos]} · ${p.age} Jahre · ${esc(natName(p.nat))} · ${c?esc(c.name)+' ('+esc(leagueName(c))+')':'vereinslos'}</div><div class="small" style="margin-top:4px">Persönlichkeit: <b>${personality(p)}</b></div></div>
+    const c=p.club!==null?club(p.club):null,mine=p.club===S.user,tab=UI.ptab||'profil';
+    const B=bio(p),V=careerView(p);
+    const head=`<div class="phead">
+      <div class="pid">${c?badge(c,52):'<span class="badge" style="width:52px;height:52px;font-size:13px;background:var(--panel2);color:var(--muted)">FA</span>'}
+        <div style="min-width:0"><h2 style="margin:0">${esc(fullname(p))}</h2>
+        <div class="muted small">${POS_LABEL[p.pos]} · ${c?esc(c.name)+' · '+esc(leagueName(c)):'vereinslos'}</div>
+        <div class="chips"><span class="pill">${esc(natName(p.nat))}</span><span class="pill">${p.age} Jahre</span>${p.listed?'<span class="pill gold">🏷️ Transferliste</span>':''}${p.inj?`<span class="pill bad">🩹 ${p.inj} Wo. verletzt</span>`:''}</div></div></div>
       <div class="pscore"><div><span>Stärke</span>${ovrTag(ovr(p))}</div><div><span>Potenzial</span>${ovrTag(p.pot)}</div></div></div>
-    <div class="attrgrid">${cols}</div>
-    <p class="small muted" style="margin:6px 0 0">Werte von 1 bis 20. <b class="keymark">Hervorgehoben</b> sind die Schlüsselattribute für ${POS_LABEL[p.pos]}.</p>
-    <div class="grid g2" style="margin-top:14px">
-     <div><h3>Positionen</h3><div class="minipitch">${dots}</div><div class="small" style="margin-top:6px">${posList}</div></div>
-     <div class="small"><h3>Vertrag & Form</h3><div>Marktwert: <b>${money(p.val)}</b></div><div>Gehalt: <b>${money(p.wage)}</b>/Woche</div>${c?`<div>Vertrag bis: <b class="${p.until<=S.season?'gold':''}">${contractEnd(p)}</b> · Rolle: <b>${ROLES[p.role].label}</b></div>`:'<div class="gold">Vereinslos – nur Handgeld nötig</div>'}<div>Fitness: <b>${Math.round(p.fit)}%</b> · Moral: <b>${Math.round(p.mor)}</b></div><div>Saison: ${p.apps} Spiele, ${p.goals} Tore</div>${p.inj?`<div class="bad">Verletzt: noch ${p.inj} Woche(n)</div>`:''}</div></div>
-    <div class="row" style="margin-top:16px;justify-content:space-between">${actions}<button class="btn" data-act="closeModal">Schließen</button></div>`;
+      <div class="seg ptabs">${[['profil','Profil'],['vertrag','Vertrag'],['karriere','Karriere']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ptab" data-v="${k}">${l}</button>`).join('')}</div>`;
+    let body='';
+    if(tab==='profil'){
+      const key=WEIGHTS[p.pos];
+      const col=(title,keys)=>`<div class="acol"><h3>${title}</h3>${keys.map(k=>{const v=at(p,k);return `<div class="arow${key[k]?' key':''}"><span>${ATTR_LABEL[k]}</span><b class="av v${v>=16?4:v>=11?3:v>=6?2:1}">${v}</b></div>`}).join('')}</div>`;
+      const T=ATTR_DEF.filter(d=>d[2]==='tech').map(d=>d[0]),Mn=ATTR_DEF.filter(d=>d[2]==='ment').map(d=>d[0]),Ph=ATTR_DEF.filter(d=>d[2]==='phys').map(d=>d[0]),G=ATTR_DEF.filter(d=>d[2]==='gk').map(d=>d[0]);
+      const cols=p.pos==='TW'?col('Torwart',[...G,'fir','pas'])+col('Mental',Mn)+col('Physis',Ph):col('Technik',T)+col('Mental',Mn)+col('Physis',Ph);
+      const PM={TW:[50,90],IV:[50,74],AV:[[14,70],[86,70]],DM:[50,60],ZM:[50,46],OM:[50,32],FL:[[14,30],[86,30]],ST:[50,13]};
+      const dots=POS_LIST.flatMap(pos=>{const f=familiarity(p,pos),xy=Array.isArray(PM[pos][0])?PM[pos]:[PM[pos]];const cls=f>=19?'f4':f>=15?'f3':f>=11?'f2':f>=7?'f1':'f0';
+        return xy.map(([x,y])=>`<div class="pdot ${cls}" style="left:${x}%;top:${y}%" title="${POS_LABEL[pos]}: ${FAM_LABEL(f)} · Stärke ${Math.round(rateAt(p,pos))}">${pos}<small>${Math.round(rateAt(p,pos))}</small></div>`)}).join('');
+      const posList=POS_LIST.map(pos=>({pos,f:familiarity(p,pos)})).filter(x=>x.f>=11).sort((a,b)=>b.f-a.f).map(x=>`<div class="arow"><span>${POS_LABEL[x.pos]}</span><b class="small ${x.f>=19?'good':x.f>=15?'':'muted'}">${FAM_LABEL(x.f)}</b></div>`).join('');
+      const avg=p.rn?p.rs/p.rn/10:0,bd=`${String(B.dy).padStart(2,'0')}.${String(B.mo).padStart(2,'0')}.${B.year}`;
+      const wbar=`<span class="wbar"><i style="width:${B.weak*5}%"></i></span>`;
+      body=`<div class="ptiles">
+        ${tile('Nationalität',esc(natName(p.nat)),(()=>{const k=CONFEDS.find(x=>x.id===ASSOC[p.nat].confed);return k?esc(k.name+' · '+k.region):''})())}
+        ${tile('Alter',p.age+' Jahre','geb. '+bd)}
+        ${tile('Größe',B.h+' cm')}
+        ${tile('Gewicht',B.w+' kg')}
+        ${tile('Starker Fuß',FOOT_LABEL[B.foot])}
+        ${tile('Schwacher Fuß',B.foot==='B'?'Beidfüßig':weakLabel(B.weak),wbar)}
+        ${tile('Persönlichkeit',personality(p))}
+        ${tile('Marktwert',money(p.val))}
+        ${tile('Fitness · Moral',`${Math.round(p.fit)}% · ${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'} ${Math.round(p.mor)}`)}
+        ${tile('Saison '+seasonLbl(S.season),`${p.apps} Sp · ${p.goals} T · ${p.ast||0} V`,`Ø-Note <b class="${rCls(avg)}">${fmtR(avg)}</b>`)}
+      </div>
+      <div class="attrgrid">${cols}</div>
+      <p class="small muted" style="margin:6px 0 0">Werte von 1 bis 20. <b class="keymark">Hervorgehoben</b> sind die Schlüsselattribute für ${POS_LABEL[p.pos]}.</p>
+      <div class="grid g2" style="margin-top:14px"><div><h3>Positionen</h3><div class="minipitch">${dots}</div></div><div class="acol" style="align-self:start"><h3>Vertrautheit</h3>${posList}</div></div>`;
+    }
+    else if(tab==='vertrag'){
+      if(!c){
+        const u=userClub(),r=suggestRole(p,u),dem=wageDemand(p,u,r,2);
+        body=`<div class="cbig"><div><span>Status</span><b class="gold">Vereinslos</b><small>Kann jederzeit ablösefrei verpflichtet werden (im Transferfenster).</small></div>
+          <div><span>Gehaltsforderung (ca.)</span><b>${money(dem)}<em>/Woche</em></b><small>${money(dem*52)} pro Jahr · als ${ROLES[r].label}</small></div>
+          <div><span>Handgeld</span><b>${money(dem*6)}</b><small>6 Wochengehälter</small></div></div>`;
+      }else{
+        const end=p.until+1,elapsed=S.week/Math.max(S.weeks,1)*11,leftM=Math.max(0,Math.round((end-S.season)*12-1-elapsed));
+        const since=V.since!==null&&V.since!==undefined?V.since:S.season,totalM=Math.max(1,(end-since)*12),pct=clamp(100-leftM/totalM*100,0,100);
+        const leftTxt=leftM>=12?`${Math.floor(leftM/12)} ${Math.floor(leftM/12)===1?'Jahr':'Jahre'}${leftM%12?`, ${leftM%12} Mon.`:''}`:`${leftM} ${leftM===1?'Monat':'Monate'}`;
+        const yrs=S.season-since,price=askPrice(p),warn=p.until<=S.season;
+        const bill=mine?wageBill(c):0;
+        body=`<div class="cbig">
+          <div><span>Gehalt</span><b>${money(p.wage)}<em>/Woche</em></b><small>${money(p.wage*52)} pro Jahr</small></div>
+          <div><span>Vertrag bis</span><b class="${warn?'gold':''}">30.06.${end}</b><small>${warn?'⚠️ Läuft zum Saisonende aus':'Restlaufzeit: '+leftTxt}</small></div></div>
+        <div class="cline"><div class="row" style="justify-content:space-between"><span class="small muted">Seit ${since<S.season?'Juli '+since:'dieser Saison'}</span><span class="small muted">30.06.${end}</span></div><div class="cbar"><i style="width:${pct}%"></i></div></div>
+        <div class="ptiles">
+          ${tile('Rolle im Kader',ROLES[p.role].label,`erwartet ca. ${Math.round(ROLES[p.role].exp*100)}% der Spiele`)}
+          ${tile('Im Verein seit',seasonLbl(since),yrs>0?`${yrs} ${yrs===1?'Saison':'Saisons'} beim ${esc(c.short)}`:'erste Saison')}
+          ${tile('Marktwert',money(p.val))}
+          ${tile(mine?'Interne Ablöse-Vorstellung':'Geforderte Ablöse',price?money(price):'ablösefrei',p.listed?'🏷️ steht auf der Transferliste':mine?'nicht auf der Transferliste':isWindow()?'Transferfenster offen':'Transferfenster geschlossen')}
+          ${mine?tile('Anteil Gehaltsbudget',Math.round(p.wage/Math.max(1,c.wBudget)*100)+' %',`Gesamt: ${money(bill)} von ${money(c.wBudget)}/Wo.`):''}
+          ${mine?tile('Freistellung kostet',money(releaseCost(p)),'50 % der Restgehälter'):''}
+        </div>`;
+      }
+      let actions='';
+      if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
+      else{const price=askPrice(p);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>Verhandeln: ${price?money(price)+' Ablöse':'ablösefrei'}</button>${isWindow()?'':'<div class="small muted" style="margin-top:4px">Transferfenster geschlossen.</div>'}</div>`}
+      body+=`<div style="margin-top:14px">${actions}</div>`;
+    }
+    else{
+      const rows=V.rows.slice().sort((a,b)=>b.s-a.s||(b.live?1:0)-(a.live?1:0)),gk=p.pos==='TW';
+      const sum=rows.reduce((t,r)=>{t.apps+=r.apps;t.g+=r.g;t.a+=r.a;t.yc+=r.yc;t.cs+=r.cs;t.rw+=r.avg*r.apps;return t},{apps:0,g:0,a:0,yc:0,cs:0,rw:0});
+      const tavg=sum.apps?sum.rw/sum.apps:0;
+      // Stationen gruppieren
+      const st=[];for(const r of V.rows.slice().sort((a,b)=>a.s-b.s)){const l=st[st.length-1];if(l&&l.name===r.name){l.to=r.s;l.apps+=r.apps;l.g+=r.g;l.a+=r.a;l.cs+=r.cs}else st.push({name:r.name,cid:r.cid,from:r.s,to:r.s,apps:r.apps,g:r.g,a:r.a,cs:r.cs,lname:r.lname})}
+      const feeIn=x=>{const m=V.moves.filter(m=>m.t===x.name&&m.s>=x.from-1&&m.s<=x.to).pop();return m?(m.fee?money(m.fee):'ablösefrei'):null};
+      const timeline=st.slice().reverse().map((x,i)=>{const f=feeIn(x),cur=i===0&&p.club!==null&&x.cid===p.club;
+        return `<div class="tl ${cur?'cur':''}"><div class="tl-dot"></div>${cBadge(x.name,x.cid,34)}<div style="min-width:0;flex:1"><b>${esc(x.name)}</b>${cur?' <span class="pill good" style="font-size:10.5px">aktuell</span>':''}<div class="small muted">${seasonLbl(x.from).slice(0,4)}–${cur?'heute':String(x.to+1)} · ${esc(x.lname||'')}</div></div>
+          <div class="tl-st"><b>${x.apps}</b><small>Sp</small></div><div class="tl-st"><b>${gk?x.cs:x.g}</b><small>${gk?'WW':'Tore'}</small></div>${f?`<div class="tl-fee">${f==='ablösefrei'?'<span class="muted">ablösefrei</span>':f}</div>`:'<div class="tl-fee muted">–</div>'}</div>`}).join('');
+      const youth=V.youth?`<div class="tl youth"><div class="tl-dot"></div><span class="small muted">Jugend: <b style="color:var(--text)">${esc(V.youth)}</b></span></div>`:'';
+      const tr=rows.map(r=>`<tr class="${r.live?'me':''}"><td class="small">${seasonLbl(r.s)}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px">${cBadge(r.name,r.cid,22)}<div style="min-width:0"><b>${esc(r.name)}</b><div class="small muted">${esc(r.lname||'')}</div></div></div></td><td class="n">${r.apps}</td><td class="n">${r.g}</td><td class="n">${r.a}</td>${gk?`<td class="n">${r.cs}</td>`:''}<td class="n">${r.yc}</td><td class="n ${rCls(r.avg)}">${fmtR(r.avg)}</td></tr>`).join('');
+      body=`<div class="ksum">
+          <div><b>${sum.apps}</b><span>Spiele</span></div><div><b>${sum.g}</b><span>Tore</span></div><div><b>${sum.a}</b><span>Vorlagen</span></div>
+          ${gk?`<div><b>${sum.cs}</b><span>Weiße Westen</span></div>`:`<div><b>${sum.apps?(sum.g/sum.apps).toLocaleString('de-DE',{maximumFractionDigits:2}):'0'}</b><span>Tore/Spiel</span></div>`}
+          <div><b class="${rCls(tavg)}">${fmtR(tavg)}</b><span>Ø-Note</span></div><div><b>${st.length}</b><span>Stationen</span></div></div>
+        <h3 style="margin-top:16px">Stationen</h3><div class="tlwrap">${timeline}${youth}</div>
+        <h3 style="margin-top:16px">Saison für Saison</h3>
+        <div class="tw"><table class="ctab"><thead><tr><th>Saison</th><th>Verein</th><th class="n" title="Spiele">Sp</th><th class="n" title="Tore">T</th><th class="n" title="Vorlagen">V</th>${gk?'<th class="n" title="Weiße Westen">WW</th>':''}<th class="n" title="Gelbe Karten">🟨</th><th class="n" title="Durchschnittsnote">Ø</th></tr></thead>
+        <tbody>${tr}</tbody><tfoot><tr><td></td><td><b>Gesamt</b></td><td class="n">${sum.apps}</td><td class="n">${sum.g}</td><td class="n">${sum.a}</td>${gk?`<td class="n">${sum.cs}</td>`:''}<td class="n">${sum.yc}</td><td class="n ${rCls(tavg)}">${fmtR(tavg)}</td></tr></tfoot></table></div>
+        <p class="small muted" style="margin:8px 0 0">Alle Pflichtspiele (Liga, Pokal, international). Noten von 1 bis 10 · Werte vor ${seasonLbl(S.statsFrom||S.season)} stammen aus der Vorgeschichte des Spielers.</p>`;
+    }
+    return `<div class="pcard">${head}<div class="pbody">${body}</div>
+      <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn" data-act="closeModal">Schließen</button></div></div>`;
   };
 }
 
@@ -640,7 +716,8 @@ const ACT={
   cupTab:d=>{UI.cupTab=d.v;render()},
   liveDone:()=>{if(UI.liveQueue&&UI.liveQueue.length){startLive(UI.liveQueue.shift());return}UI.view='matchday';UI.live=null;render()},
   speed:d=>{UI.live.speed=+d.v;render();tickLive()},
-  player:d=>{UI.modal=playerModal(d.id);render()},
+  player:d=>{UI.ptab='profil';UI.modal=playerModal(d.id);render()},
+  ptab:d=>{UI.ptab=d.v;render()},
   clubInfo:d=>{UI.modal=clubModal(+d.id);render()},
   sort:d=>{UI.sortK=d.k;render()},
   slot:d=>{UI.selSlot=+d.i;UI.modal=slotPicker();render()},
