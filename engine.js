@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=4;
-const APP_VERSION='0.5.0';
+const VERSION=5;
+const APP_VERSION='0.6.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -228,7 +228,7 @@ function schedule(){
 }
 function newWorld(seed,activeCodes,sel,manager){
   RNG=seed>>>0;resetCache();
-  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
+  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},ncups:[],cupWinners:{},natHist:{},coefHist:null,coefSeason:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
   for(const code of activeCodes){
     const st=assocStructure(code,seed);const ids=[];
     st.forEach(lt=>{const L={id:S.leagues.length,assoc:code,tier:lt.tier,name:lt.name,clubs:[],up:0,down:0,champs:[]};S.leagues.push(L);ids.push(L);
@@ -238,7 +238,8 @@ function newWorld(seed,activeCodes,sel,manager){
   refillFreeAgents();
   schedule();
   S.clubs.forEach(c=>{autoLineup(c);c.target=boardTarget(c)});
-  S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;setupComps();
+  S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;S.coefHist=initCoef();
+  setupComps();setupNatCups();
   return S;
 }
 function refillFreeAgents(){
@@ -464,7 +465,7 @@ function posIndex(){
 }
 function aiTransfer(c){
   const dir=c.staff.dir.trait;
-  const max=Math.min(c.tBudget||0,Math.max(0,c.budget));if(max<50000*Math.max(c.econ,.2))return;
+  const max=Math.min(c.tBudget||0,Math.max(0,c.budget))*(dir==='star'?.9:.6);if(max<50000*Math.max(c.econ,.2))return;
   const bill=wageBill(c),need=weakestPos(c),cands=[];
   const minO=dir==='jugend'?0:need.level+2;
   for(const p of posIndex()[need.pos]){
@@ -563,6 +564,7 @@ function playWeek(){
   }
   const userList=userRes?[userRes]:[];
   playCompWeek(userList);
+  playNatCupWeek(userList);
   CACHE.tables={};
   weeklyFinances(homes);
   for(const p of Object.values(S.players)){
@@ -602,7 +604,7 @@ function bgSeason(){
 }
 function seasonEnd(){
   RNG=S.rng||RNG;resetCache();
-  closeComps();
+  closeComps();closeNatCups();finalizeCoef();
   S.qualOrder={};for(const L of S.leagues)if(L.tier===1)S.qualOrder[L.assoc]=tableOf(L).map(r=>r.id);
   const u=userClub(),uL=league(u),uTab=tableOf(uL),uRank=uTab.findIndex(r=>r.id===S.user)+1;
   // Prämien, Ruf, Meister
@@ -675,7 +677,7 @@ function seasonEnd(){
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,log:[]};
   for(const c of S.clubs){if(c.guest)continue;if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
   fixLineup(u);
-  setupComps();
+  setupComps();setupNatCups();
   const uc=userComps();if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein spielt in dieser Saison: ${uc.map(C=>COMP[C.key].name).join(', ')}. Denk an Rotation – unter der Woche kommen zusätzliche Spiele dazu.`);
   addNews('board',`Saison ${S.season}/${(S.season+1)%100}: Neue Ziele`,`Liga: ${esc(league(u).name)}. Der Vorstand erwartet: <b>${u.target.t}</b>. Transferbudget: ${money(u.tBudget)}, Gehaltsbudget: ${money(u.wBudget)}/Woche.`);
   S.rng=RNG;save();
@@ -709,6 +711,14 @@ function applySave(obj){
   if((obj.v||1)<3)throw new Error('alt');
   S=obj;RNG=S.rng||1;resetCache();
   if(S.v<4){S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;S.v=4;addNews('info','Neu: Internationale Wettbewerbe','Champions League, Copa Libertadores & Co. starten ab der nächsten Saison. Die Startplätze kommen aus den Abschlusstabellen dieser Saison.')}
+  if(S.v<5){
+    S.ncups=[];S.cupWinners={};S.natHist={};S.coefHist=initCoef();S.coefSeason={};
+    for(const C of S.comps){
+      if(C.bg&&C.slots&&!C.entries)C.entries=C.slots.map(x=>{const L=assocStructure(x.code,S.seed)[0];return L&&L.clubs[x.pos]?{code:x.code,name:L.clubs[x.pos],rep:repFor(ASSOC[x.code],1,x.pos,L.clubs.length)}:null}).filter(Boolean);
+      const list=C.bg?(C.entries||[]).map(e=>e.code):(C.teams||[]).map(id=>club(id).assoc);list.forEach(code=>{coefClub(code);coefAdd(code,COEF_BONUS[COMP[C.key].level]||0)});
+    }
+    S.v=5;addNews('info','Neu: Nationale Pokale & Fünfjahreswertung','Die Pokale starten ab der nächsten Saison. Die Fünfjahreswertung läuft ab sofort mit – sie bestimmt künftig die internationalen Startplätze.');
+  }
   save();
 }
 function exportText(){S.rng=RNG;return JSON.stringify(S)}

@@ -21,15 +21,20 @@ const COMP=Object.fromEntries(COMPS.map(c=>[c.key,c]));
 const GUEST_TEMPLATE={TW:[2,-8],IV:[2,1,-5],AV:[2,1,-5],DM:[1],ZM:[2,1,-4],OM:[1],FL:[2,-2],ST:[2,0,-5]};
 const KO_NAMES={32:'Sechzehntelfinale',16:'Achtelfinale',8:'Viertelfinale',4:'Halbfinale',2:'Finale'};
 
-function rankedAssocs(confed){return ASSOCS.filter(a=>a.confed===confed&&!(LEAGUE_DATA[a.code]||{}).noLeague).sort((a,b)=>b.str-a.str||a.code.localeCompare(b.code))}
+function rankedAssocs(confed){return ASSOCS.filter(a=>a.confed===confed&&!(LEAGUE_DATA[a.code]||{}).noLeague).sort((a,b)=>coefTotal(b.code)-coefTotal(a.code)||b.str-a.str||a.code.localeCompare(b.code))}
 function confedActive(confed){return S.active.some(c=>ASSOC[c].confed===confed)}
 
 /* Startplätze nach Verbandsstärke: [{code,pos}] */
-function allocate(def,ranked,used){
+function allocateCodes(def,ranked){
   const out=[];
-  ranked.forEach((a,i)=>{const k=def.scheme[i]!==undefined?def.scheme[i]:(def.fill||0);for(let j=0;j<k&&out.length<def.n;j++){out.push({code:a.code,pos:used[a.code]||0});used[a.code]=(used[a.code]||0)+1}});
-  let j=0;while(out.length<def.n&&j<2000){const a=ranked[j%ranked.length];out.push({code:a.code,pos:used[a.code]||0});used[a.code]=(used[a.code]||0)+1;j++}
+  ranked.forEach((a,i)=>{const k=def.scheme[i]!==undefined?def.scheme[i]:(def.fill||0);for(let j=0;j<k&&out.length<def.n;j++)out.push(a.code)});
+  let j=0;while(out.length<def.n&&j<2000){out.push(ranked[j%ranked.length].code);j++}
   return out;
+}
+function slotTable(confed){
+  const ranked=rankedAssocs(confed),res={};ranked.forEach(a=>res[a.code]={});
+  for(const def of COMPS.filter(d=>d.confed===confed))for(const code of allocateCodes(def,ranked))res[code][def.key]=(res[code][def.key]||0)+1;
+  return {ranked,res};
 }
 /* Reihenfolge der Vereine eines Landes für die Qualifikation */
 function qualOrderActive(code){
@@ -86,23 +91,34 @@ function koPlan(def,teams,startWeek,withPlayoff){
 
 /* ---------- Wettbewerbe einer Saison anlegen ---------- */
 function setupComps(){
-  S.comps=[];S.compHist=S.compHist||{};
-  const keep=new Set();
+  S.comps=[];S.compHist=S.compHist||{};S.coefSeason={};
+  const keep=new Set(),placed=new Set();
+  const key=e=>e.id!==undefined?'c'+e.id:'n'+e.name;
   for(const cf of CONFEDS){
     const defs=COMPS.filter(d=>d.confed===cf.id).sort((a,b)=>a.level-b.level);
-    const ranked=rankedAssocs(cf.id),used={};
-    const live=confedActive(cf.id);
+    const ranked=rankedAssocs(cf.id),live=confedActive(cf.id),queues={};
+    const getQ=code=>queues[code]||(queues[code]=S.active.includes(code)?qualOrderActive(code).map(id=>({id})):qualOrderBg(code).map(e=>({name:e.name,i:e.i,n:e.n})));
+    const cupLevel=defs.length>1?2:1;
     for(const def of defs){
-      const slots=allocate(def,ranked,used);
-      if(!live){S.comps.push({key:def.key,season:S.season,bg:true,slots});continue}
-      const teams=[];
-      for(const s of slots){
-        if(S.active.includes(s.code)){const order=qualOrderActive(s.code);const id=order[s.pos];if(id!==undefined&&!teams.includes(id))teams.push(id)}
-        else{const order=qualOrderBg(s.code);const e=order[s.pos];if(e){const g=guestClub(e.name,s.code,e.i,e.n);if(!teams.includes(g.id))teams.push(g.id)}}
+      const codes=allocateCodes(def,ranked);
+      if(def.level===cupLevel){
+        for(const code of new Set(codes)){const w=S.cupWinners&&S.cupWinners[code];if(!w)continue;
+          const we=w.id!==undefined?{id:w.id}:{name:w.name,i:w.i,n:w.n};
+          if(we.id!==undefined&&(!club(we.id)||club(we.id).guest||club(we.id).league===null))continue;
+          if(placed.has(key(we)))continue;const q=getQ(code);const k=q.findIndex(e=>key(e)===key(we));if(k>=0)q.splice(k,1);q.unshift(we)}
       }
-      // auffüllen, falls Plätze nicht besetzt werden konnten
+      const entries=[];
+      for(const code of codes){const q=getQ(code);while(q.length&&placed.has(key(q[0])))q.shift();if(!q.length)continue;const e=q.shift();placed.add(key(e));entries.push({code,e})}
+      for(const x of entries)coefClub(x.code);
+      for(const x of entries)coefAdd(x.code,COEF_BONUS[def.level]||0);
+      if(!live){S.comps.push({key:def.key,season:S.season,bg:true,entries:entries.map(x=>({code:x.code,name:x.e.name,rep:repFor(ASSOC[x.code],1,x.e.i,x.e.n)}))});continue}
+      const teams=[];
+      for(const x of entries){
+        if(x.e.id!==undefined){if(!teams.includes(x.e.id))teams.push(x.e.id)}
+        else{const g=guestClub(x.e.name,x.code,x.e.i,x.e.n);if(!teams.includes(g.id))teams.push(g.id)}
+      }
       let j=0;while(teams.length<def.n&&j<500){const a=ranked[j%ranked.length];j++;if(S.active.includes(a.code))continue;
-        const order=qualOrderBg(a.code);const e=order.find(x=>!teams.some(id=>club(id).name===x.name));if(e){const g=guestClub(e.name,a.code,e.i,e.n);teams.push(g.id)}}
+        const q=getQ(a.code);while(q.length&&placed.has(key(q[0])))q.shift();if(!q.length)continue;const e=q.shift();placed.add(key(e));coefClub(a.code);const g=guestClub(e.name,a.code,e.i,e.n);teams.push(g.id)}
       const mult=def.fmt==='groups'?4:2;teams.length=teams.length-teams.length%mult;
       teams.forEach(id=>{if(club(id).guest)keep.add(id)});
       S.comps.push(createComp(def,teams));
@@ -148,7 +164,7 @@ function nextKOStage(C,def,pairs){
   }
   // Prämie für das Erreichen der Runde
   const reach=def.prize.ko[Math.min(C.koIdx,def.prize.ko.length-1)]||0;
-  for(const t of stage.ties){payPrize(club(t.a),reach,C);payPrize(club(t.b),reach,C)}
+  for(const t of stage.ties){payPrize(club(t.a),reach,C);payPrize(club(t.b),reach,C);if(!(C.playoff&&C.koIdx===0)){coefAdd(club(t.a).assoc,1);coefAdd(club(t.b).assoc,1)}}
 }
 function payPrize(c,amount,C){
   if(!c||c.guest||!amount)return;c.budget+=amount;
@@ -176,7 +192,7 @@ function playCompWeek(userList){
       for(const m of r.matches){
         const isU=m.h===S.user||m.a===S.user;
         const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
-        for(const [id,gf,ga] of [[m.h,m.hg,m.ag],[m.a,m.ag,m.hg]]){if(r.stage!=='ko')payPrize(club(id),gf>ga?def.prize.win:gf===ga?def.prize.draw:0,C)}
+        for(const [id,gf,ga] of [[m.h,m.hg,m.ag],[m.a,m.ag,m.hg]]){if(r.stage!=='ko')payPrize(club(id),gf>ga?def.prize.win:gf===ga?def.prize.draw:0,C);coefAdd(club(id).assoc,gf>ga?2:gf===ga?1:0)}
         if(isU)userList.push({m,r:res,round:r,comp:C,label:`${def.name} · ${r.label}`});
       }
       r.done=true;
@@ -229,7 +245,7 @@ function advanceComp(C,def,r){
   nextKOStage(C,def,pairs);
 }
 function finishComp(C,def,winnerId){
-  C.winner=winnerId;const w=club(winnerId);payPrize(w,def.prize.champ,C);
+  C.winner=winnerId;const w=club(winnerId);payPrize(w,def.prize.champ,C);coefAdd(w.assoc,2);
   w.rep=clamp(w.rep+(def.level===1?3:2),5,99);
   (S.compHist[def.key]=S.compHist[def.key]||[]).unshift({season:S.season,winner:w.name,assoc:w.assoc});
   if(S.compHist[def.key].length>15)S.compHist[def.key].length=15;
@@ -241,8 +257,11 @@ function closeComps(){
   for(const C of S.comps||[]){
     const def=COMP[C.key];
     if(C.bg){
-      const cands=C.slots.map(s=>{const a=ASSOC[s.code];const L=assocStructure(s.code,S.seed)[0];return L&&L.clubs[s.pos]?{name:L.clubs[s.pos],assoc:s.code,rep:repFor(a,1,s.pos,L.clubs.length)}:null}).filter(Boolean);
+      const cands=(C.entries||[]).map(e=>({name:e.name,assoc:e.code,rep:e.rep}));
       if(!cands.length)continue;const w=wpick(cands,x=>Math.pow(x.rep,4));
+      const mean=cands.reduce((t,x)=>t+x.rep,0)/cands.length,games=def.fmt==='swiss'?def.rounds:def.fmt==='groups'?6:2;
+      for(const x of cands){const f=clamp(Math.pow(x.rep/mean,2),.3,1.8);coefAdd(x.assoc,games*f*.95+(rnd()<.5*f?1+rnd()*3*f:0))}
+      coefAdd(w.assoc,4);
       (S.compHist[def.key]=S.compHist[def.key]||[]).unshift({season:S.season,winner:w.name,assoc:w.assoc});if(S.compHist[def.key].length>15)S.compHist[def.key].length=15;
       continue;
     }

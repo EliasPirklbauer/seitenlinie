@@ -151,6 +151,7 @@ function renderSetupWorld(){
 function nextUserGames(){
   const list=[];const nx=nextUserMatch();if(nx)list.push({w:nx.w,m:nx.m,comp:null,order:0});
   for(const f of userCompFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.C,label:COMP[f.C.key].short+' · '+f.label,order:1});
+  for(const f of userNatCupFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.cup,label:f.cup.name+' · '+f.label,order:2});
   return list.sort((a,b)=>a.w-b.w||a.order-b.order).filter((g,i,arr)=>g.w===arr[0].w);
 }
 function renderHome(){
@@ -175,6 +176,7 @@ function renderHome(){
      <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
      <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
      <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(wageBill(c))} / ${money(c.wBudget)} pro Woche</div>
+     ${userNatCup()?`<div class="small" style="margin-top:4px">🏆 <a data-act="openNatCup" style="color:var(--text);cursor:pointer;text-decoration:underline">${esc(userNatCup().name)}</a>: <b>${natCupStatus(userNatCup(),S.user)}</b></div>`:''}
      ${userComps().map(C=>`<div class="small" style="margin-top:4px">🏅 <a class="click" data-act="openComp" data-v="${C.key}" style="color:var(--text);cursor:pointer;text-decoration:underline">${COMP[C.key].name}</a>: <b>${compStatus(C,S.user)}</b></div>`).join('')}
    </div>
    <div class="card" style="grid-column:1/-1"><h3>Posteingang</h3>${offers}${news||'<p class="muted">Keine Nachrichten.</p>'}</div>
@@ -302,6 +304,7 @@ function renderFixtures(){
   const rows=[];
   uL.fixtures.forEach((md,i)=>{const m=md.find(m=>m.h===S.user||m.a===S.user);rows.push({w:uL.rw[i],o:0,lbl:`${i+1}. ST`,m})});
   userCompFixtures().forEach(f=>rows.push({w:f.w,o:1,lbl:`<span class="pill" style="font-size:11px">${COMP[f.C.key].short}</span>`,m:f.m,title:f.label}));
+  userNatCupFixtures().forEach(f=>rows.push({w:f.w,o:2,lbl:`<span class="pill" style="font-size:11px;border-color:var(--gold)">Pokal</span>`,m:f.m,title:f.cup.name+' · '+f.label}));
   rows.sort((a,b)=>a.w-b.w||a.o-b.o);
   const mine=rows.map(x=>{const m=x.m;if(!m)return `<tr><td class="muted small">W${x.w+1}</td><td>${x.lbl}</td><td colspan="3" class="muted">spielfrei</td></tr>`;
     const home=m.h===S.user,opp=club(home?m.a:m.h);let res='<span class="muted">–</span>';
@@ -385,15 +388,45 @@ function cupTableHtml(C,rows,zones){
   return `<div class="tw"><table><thead><tr><th class="n">#</th><th>Verein</th><th>Land</th><th class="n">Sp</th><th class="n">S</th><th class="n">U</th><th class="n">N</th><th class="n">Tore</th><th class="n">Pkt</th></tr></thead><tbody>${rows.map((r,i)=>{const c=club(r.id);
     return `<tr class="${zones(i)} ${r.id===S.user?'me':''} click" data-act="clubInfo" data-id="${r.id}"><td class="n">${i+1}</td><td>${badge(c,20)} ${esc(c.name)}</td><td class="small muted">${c.assoc}</td><td class="n">${r.sp}</td><td class="n">${r.s}</td><td class="n">${r.u}</td><td class="n">${r.n}</td><td class="n">${r.tf}:${r.ta}</td><td class="n"><b>${r.pts}</b></td></tr>`}).join('')}</tbody></table></div>`;
 }
+function cupsModeTabs(){const m=UI.cupMode||'int';return `<div class="seg" style="margin-bottom:12px">${[['int','International'],['nat','Nationale Pokale'],['coef','Fünfjahreswertung']].map(([k,l])=>`<button class="${m===k?'on':''}" data-act="cupMode" data-v="${k}">${l}</button>`).join('')}</div>`}
 function renderCups(){
+  if(UI.cupMode==='nat')return renderNatCups();
+  if(UI.cupMode==='coef')return renderCoef();
+  return renderIntCups();
+}
+function renderNatCups(){
+  const cups=S.ncups||[];
+  if(!cups.length)return `<h2>Wettbewerbe</h2>${cupsModeTabs()}<div class="card"><p>Die nationalen Pokale starten mit der nächsten Saison.</p></div>`;
+  const code=UI.natCup||userClub().assoc,cup=cups.find(c=>c.code===code)||cups[0];
+  const sel=cups.map(c=>`<button class="btn sm ${c.code===cup.code?'pri':''}" style="margin:2px" data-act="natCupSel" data-v="${c.code}">${c.code===userClub().assoc?'⭐ ':''}${esc(c.name)}</button>`).join('');
+  const rounds=cup.rounds.slice().reverse().map(r=>`<div class="card" style="margin-bottom:10px"><h3>${esc(r.label)} <span class="small muted">Woche ${r.w+1}${r.r===0&&cup.byes.length?' · '+cup.byes.length+' Freilose':''}</span></h3><div class="tw"><table><tbody>${r.matches.slice().sort((a,b)=>((b.h===S.user||b.a===S.user)-(a.h===S.user||a.a===S.user))).map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${m.win===m.h?'<b>':''}${esc(club(m.h).name)}${m.win===m.h?'</b>':''} <span class="small muted">${league(club(m.h)).tier}.</span> ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg!==null?m.hg+':'+m.ag:'-:-'}</b>${m.pen?' <span class="small muted">i.E.</span>':''}</td><td>${badge(club(m.a),20)} <span class="small muted">${league(club(m.a)).tier}.</span> ${m.win===m.a?'<b>':''}${esc(club(m.a).name)}${m.win===m.a?'</b>':''}</td></tr>`).join('')}</tbody></table></div></div>`).join('');
+  const hist=(S.natHist[cup.code]||[]).map(h=>`<div class="small">${h.season}/${(h.season+1)%100}: <b>${esc(h.winner)}</b></div>`).join('')||'<p class="small muted">Noch kein Sieger.</p>';
+  const cf=ASSOC[cup.code].confed,lvl=COMPS.filter(d=>d.confed===cf).length>1?2:1,target=COMPS.find(d=>d.confed===cf&&d.level===lvl);
+  return `<h2>Wettbewerbe</h2>${cupsModeTabs()}<div class="card" style="margin-bottom:12px">${sel}</div>
+   <div class="row" style="justify-content:space-between"><h2 style="margin:0 0 8px">${esc(cup.name)}</h2><span class="small muted">${cup.rounds.length?cup.bracket:0}er-Feld · alle Ligastufen · Unterklassige mit Heimrecht${cup.code===userClub().assoc?' · <b class="good">Dein Verein: '+natCupStatus(cup,S.user)+'</b>':''}</span></div>
+   <p class="small muted">Der Pokalsieger bekommt einen Startplatz in der ${target?target.name:'Kontinentalwettbewerb'} – ist er schon über die Liga höher qualifiziert, rückt der nächste Ligaplatz nach.</p>
+   ${cup.winner!==null?`<div class="card" style="text-align:center;margin-bottom:10px"><div style="font-size:34px">🏆</div><b>${esc(club(cup.winner).name)}</b> gewinnt den ${esc(cup.name)}!</div>`:''}
+   <div class="grid" style="grid-template-columns:minmax(0,1fr) 260px;gap:14px" id="cupgrid"><div>${rounds}</div><div class="card"><h3>Sieger</h3>${hist}</div></div>`;
+}
+function renderCoef(){
+  const cf=UI.coefConfed||ASSOC[userClub().assoc].confed;const {ranked,res}=slotTable(cf);const defs=COMPS.filter(d=>d.confed===cf).sort((a,b)=>a.level-b.level);
+  const yrs=[4,3,2,1,0].map(i=>S.season-1-i);
+  const rows=ranked.map((a,i)=>{const h=S.coefHist[a.code]||[];const cur=coefSeasonValue(a.code);const act=S.active.includes(a.code);
+    return `<tr class="${a.code===userClub().assoc?'me':''}"><td class="n">${i+1}</td><td><b>${esc(a.name)}</b> ${act?'<span class="pill good" style="font-size:10px">aktiv</span>':''}</td>${[4,3,2,1,0].map(k=>`<td class="n small muted">${h[k]!==undefined?h[k].toFixed(3):'–'}</td>`).join('')}<td class="n"><b>${coefTotal(a.code).toFixed(3)}</b></td><td class="n small">${cur?cur.toFixed(3):'–'}</td>${defs.map(d=>`<td class="n">${res[a.code][d.key]||'<span class="muted">–</span>'}</td>`).join('')}</tr>`}).join('');
+  return `<h2>Wettbewerbe</h2>${cupsModeTabs()}${confedTabs(cf,'coefConfed')}
+   <p class="small muted">Pro Saison: Punkte aller Vereine eines Verbands in den Kontinentalwettbewerben (Sieg 2, Remis 1, jede erreichte K.-o.-Runde 1, Titel 2, Teilnahmebonus) geteilt durch die Zahl der Teilnehmer. Die Summe der letzten fünf Saisons bestimmt die Startplätze ${defs.map(d=>d.short).join(' / ')} der nächsten Saison. Startwerte sind an der realen Stärke orientiert.</p>
+   <div class="tw"><table><thead><tr><th class="n">#</th><th>Verband</th>${yrs.map(y=>`<th class="n">${y%100}/${(y+1)%100}</th>`).join('')}<th class="n">Summe</th><th class="n">laufend</th>${defs.map(d=>`<th class="n">${d.short}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+   <p class="small muted">Spalten ${defs.map(d=>d.short).join(', ')}: Startplätze nach aktuellem Stand. Der Pokalsieger nimmt einen Platz im zweithöchsten Wettbewerb ein.</p>`;
+}
+function renderIntCups(){
   const cur=S.comps||[];
-  if(!cur.length)return `<h2>Wettbewerbe</h2><div class="card"><p>Die internationalen Wettbewerbe starten mit der nächsten Saison. Die Startplätze kommen aus den Abschlusstabellen der Ligen.</p></div>`;
+  if(!cur.length)return `<h2>Wettbewerbe</h2>${cupsModeTabs()}<div class="card"><p>Die internationalen Wettbewerbe starten mit der nächsten Saison. Die Startplätze kommen aus den Abschlusstabellen der Ligen.</p></div>`;
   const key=UI.cup||(userComps()[0]||cur.find(C=>!C.bg)||cur[0]).key;const C=cur.find(x=>x.key===key)||cur[0],def=COMP[C.key];
   const sel=CONFEDS.map(cf=>{const items=COMPS.filter(d=>d.confed===cf.id);return `<div style="margin-bottom:6px"><span class="small muted" style="display:inline-block;min-width:92px">${cf.name}</span>${items.map(d=>{const inst=cur.find(x=>x.key===d.key);const mine=inst&&!inst.bg&&inst.teams.includes(S.user);return `<button class="btn sm ${d.key===C.key?'pri':''}" style="margin:2px" data-act="cupSel" data-v="${d.key}">${mine?'⭐ ':''}${d.short}</button>`}).join('')}</div>`}).join('');
   const hist=(S.compHist[def.key]||[]).map(h=>`<div class="small">${h.season}/${(h.season+1)%100}: <b>${esc(h.winner)}</b> <span class="muted">${h.assoc}</span></div>`).join('')||'<p class="small muted">Noch kein Sieger.</p>';
   let body='';
   if(C.bg){
-    const names=C.slots.map(s=>{const L=assocStructure(s.code,S.seed)[0];return L&&L.clubs[s.pos]?`${esc(L.clubs[s.pos])} <span class="muted">${s.code}</span>`:null}).filter(Boolean);
+    const names=(C.entries||[]).map(e=>`${esc(e.name)} <span class="muted">${e.code}</span>`);
     body=`<div class="card"><p class="small muted">Diese Konföderation läuft im Hintergrund, weil kein Land aus ihr voll simuliert wird. Der Sieger wird am Saisonende ermittelt.</p><h3>Teilnehmer</h3><div class="small">${names.join(' · ')}</div></div>`;
   }else{
     const tabs=[];if(def.fmt==='swiss')tabs.push(['league','Ligaphase']);if(def.fmt==='groups')tabs.push(['groups','Gruppen']);tabs.push(['ko','K.-o.-Runde'],['games','Spiele']);
@@ -408,7 +441,7 @@ function renderCups(){
     else{const rounds=C.rounds.slice().sort((a,b)=>a.w-b.w);inner=rounds.map(r=>{const ms=r.matches.filter(m=>!C.teams.includes(S.user)||true);return `<h3 style="margin-top:12px">${esc(r.label)} <span class="small muted">Woche ${r.w+1}</span></h3><div class="tw"><table><tbody>${ms.map(cupMatchRow).join('')}</tbody></table></div>`}).join('')}
     body=`${tabHtml}${inner}`;
   }
-  return `<h2>Wettbewerbe <span class="small muted">Saison ${S.season}/${(S.season+1)%100}</span></h2><div class="card" style="margin-bottom:12px">${sel}</div>
+  return `<h2>Wettbewerbe <span class="small muted">Saison ${S.season}/${(S.season+1)%100}</span></h2>${cupsModeTabs()}<div class="card" style="margin-bottom:12px">${sel}</div>
    <div class="row" style="justify-content:space-between"><h2 style="margin:0 0 8px">${def.name}</h2><span class="small muted">${def.n} Teams · ${def.fmt==='swiss'?'Ligaphase + K.-o.':def.fmt==='groups'?'Gruppen + K.-o.':'K.-o.-System'}${C.teams&&C.teams.includes(S.user)?' · <b class="good">Dein Verein: '+compStatus(C,S.user)+'</b>':''}</span></div>
    <div class="grid" style="grid-template-columns:minmax(0,1fr) 260px;gap:14px" id="cupgrid"><div>${body}</div><div class="card"><h3>Sieger</h3>${hist}</div></div>`;
 }
@@ -429,7 +462,7 @@ function renderWorld(){
     }else{
       const st=assocStructure(a.code,S.seed),h=S.bg[a.code]||[];
       body=st.map(l=>`<div class="card"><h3 style="margin:0 0 6px">${esc(l.name)}</h3><div class="small">${l.clubs.map(esc).join(' · ')}</div></div>`).join('')+
-        `<div class="card"><h3>Meister</h3>${h.length?h.map(x=>`<div class="small">${x.season}/${(x.season+1)%100}: <b>${esc(x.champ)}</b></div>`).join(''):'<p class="small muted">Noch keine abgeschlossene Saison.</p>'}</div>`;
+        `<div class="card"><h3>Meister</h3>${h.length?h.map(x=>`<div class="small">${x.season}/${(x.season+1)%100}: <b>${esc(x.champ)}</b></div>`).join(''):'<p class="small muted">Noch keine abgeschlossene Saison.</p>'}</div>`+`<div class="card"><h3>${esc(natCupName(a.code))}</h3>${(S.natHist[a.code]||[]).map(x=>`<div class="small">${x.season}/${(x.season+1)%100}: <b>${esc(x.winner)}</b></div>`).join('')||'<p class="small muted">Noch kein Pokalsieger.</p>'}</div>`;
     }
     return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">${esc(a.name)} <span class="small muted">${a.confed} · ${active?'voll simuliert':'Hintergrund'}</span></h2><button class="btn sm" data-act="worldBack">◀ Alle Verbände</button></div>${active||d.noLeague?'':'<p class="small muted">Dieses Land läuft im Hintergrund mit. Pro Saison wird nur der Meister ermittelt. Voll simulieren kannst du es, wenn du es beim Start einer neuen Karriere auswählst.</p>'}<div class="grid g2">${body}</div>`;
   }
@@ -462,7 +495,7 @@ function renderMenu(){
     <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
    ${installCard()}
    <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
-   <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
+   <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe, nationale Pokale und Fünfjahreswertung. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
   </div>`;
 }
 function exportModal(){return ()=>`<h2>Spielstand exportieren</h2><p class="small muted">Teile den Spielstand als Datei oder kopiere den Text und füge ihn auf dem anderen Gerät unter „Importieren“ ein. Größe: ca. ${Math.round(exportText().length/1024)} KB.</p>
@@ -499,8 +532,10 @@ function renderWeekResults(){
   const cupRes=(S.comps||[]).filter(C=>!C.bg).map(C=>{const rs=C.rounds.filter(r=>r.w===S.week-1&&r.done);if(!rs.length)return '';
     const mine=C.teams.includes(S.user);
     return rs.map(r=>`<h3 style="margin-top:14px">${COMP[C.key].name} · ${esc(r.label)}</h3><div class="tw"><table><tbody>${r.matches.filter(m=>mine||C.key===UI.cup||true).slice(0,mine?99:8).map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg}:${m.ag}</b></td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`).join('')}</tbody></table></div>`).join('')}).join('');
+  const nc=userNatCup();let natRes='';
+  if(nc){const r=nc.rounds.find(r=>r.w===S.week-1&&r.done);if(r){const ms=r.matches.slice().sort((a,b)=>((b.h===S.user||b.a===S.user)-(a.h===S.user||a.a===S.user)));natRes=`<h3 style="margin-top:14px">${esc(nc.name)} · ${esc(r.label)}</h3><div class="tw"><table><tbody>${ms.slice(0,16).map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg}:${m.ag}</b>${m.pen?' <span class="small muted">i.E.</span>':''}</td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`).join('')}</tbody></table></div>`}}
   return `<div class="row" style="justify-content:space-between"><h2>Woche ${S.week} – Ergebnisse</h2><button class="btn pri" data-act="nav" data-v="home">Zur Übersicht</button></div>
-  <div class="grid g2"><div>${main}${cupRes}</div><div>${tableHtml(uL,true)}</div></div>`;
+  <div class="grid g2"><div>${main}${cupRes}${natRes}</div><div>${tableHtml(uL,true)}</div></div>`;
 }
 function renderSeasonEndScreen(){
   const u=userClub(),L=league(u),tab=tableOf(L),champ=club(tab[0].id),rank=tab.findIndex(r=>r.id===S.user)+1;
@@ -508,6 +543,7 @@ function renderSeasonEndScreen(){
   return `<div class="card" style="text-align:center"><div style="font-size:44px">🏆</div><h2>${esc(champ.name)} ist Meister der ${esc(L.name)} ${S.season}/${(S.season+1)%100}!</h2>
    <p>Dein ${esc(u.name)} beendet die Saison auf <b>Platz ${rank}</b>. Ziel war: ${u.target.t} ${rank<=u.target.r?'<span class="good">✓ erreicht</span>':'<span class="bad">✗ verfehlt</span>'}</p>
    ${promo?'<p class="good"><b>🎉 Aufstieg geschafft!</b></p>':''}${rel?'<p class="bad"><b>Abstieg 😞</b></p>':''}
+   ${userNatCup()?`<p>🏆 ${esc(userNatCup().name)}: <b>${natCupStatus(userNatCup(),S.user)}</b></p>`:''}
    ${userComps().map(C=>`<p>🏅 ${COMP[C.key].name}: <b>${compStatus(C,S.user)}</b></p>`).join('')}
    <p class="small muted">Beim Saisonwechsel steigen Vereine auf und ab, Spieler altern und entwickeln sich, Verträge laufen aus, jede Akademie bringt Jugendspieler, und in den Hintergrund-Ländern werden die Meister ermittelt.</p>
    <button class="btn pri" data-act="newSeason">Neue Saison starten ▶</button></div><div style="margin-top:14px">${tableHtml(L,false)}</div>`;
@@ -545,8 +581,12 @@ const ACT={
   toSeason:()=>{UI.view='season';render()},
   newSeason:()=>{UI.loading='Neue Saison wird vorbereitet…';render();setTimeout(()=>{seasonEnd();UI.loading=null;UI.view='home';render();toast('Neue Saison gestartet!')},40)},
   liveSkip:()=>{UI.live.min=95;UI.live.done=true;render()},
-  openComp:d=>{UI.cup=d.v;UI.view='cups';window.scrollTo(0,0);render()},
+  openComp:d=>{UI.cup=d.v;UI.cupMode='int';UI.view='cups';window.scrollTo(0,0);render()},
   cupSel:d=>{UI.cup=d.v;UI.cupTab=null;render()},
+  cupMode:d=>{UI.cupMode=d.v;render()},
+  natCupSel:d=>{UI.natCup=d.v;render()},
+  coefConfed:d=>{UI.coefConfed=d.v;render()},
+  openNatCup:()=>{UI.cupMode='nat';UI.natCup=userClub().assoc;UI.view='cups';window.scrollTo(0,0);render()},
   cupTab:d=>{UI.cupTab=d.v;render()},
   liveDone:()=>{if(UI.liveQueue&&UI.liveQueue.length){startLive(UI.liveQueue.shift());return}UI.view='matchday';UI.live=null;render()},
   speed:d=>{UI.live.speed=+d.v;render();tickLive()},
