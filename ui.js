@@ -333,7 +333,7 @@ function playerModal(pid){
 /* ---------- Vertragsverhandlung ---------- */
 function negCt(N,p,u){
   const W=wk(N.mw),ct={};
-  for(const b of BONUS){const l=N.lv[b.k]||0;if(l&&bonusApplies(b,p,u))ct[b.k]=bonusAmount(b,l,W)}
+  for(const b of BONUS){const v=N.b[b.k]||0;if(v>0&&bonusApplies(b,p,u))ct[b.k]=Math.round(v)}
   if(N.ri)ct.ri=RAISE.ri[N.ri];if(N.ar)ct.ar=RAISE.ar[N.ar].slice();
   const L=league(u);if(N.up&&L&&L.tier>1)ct.up=RAISE.up[N.up];if(N.dn&&L&&L.down)ct.dn=RAISE.dn[N.dn];
   if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt}
@@ -350,12 +350,12 @@ function negEval(N,p,u){
 }
 function negInit(p,u,mode){
   const role=suggestRole(p,u),keep=mode==='extend'&&p.until>S.season,years=keep?0:p.age>=31?1:p.age<=23?4:3;
-  const N={pid:p.id,mode,role:keep?p.role:role,years,mw:0,lv:{},ri:0,ar:0,up:0,dn:0,rt:'none',rc:0,msg:null};
+  const N={pid:p.id,mode,role:keep?p.role:role,years,mw:0,b:{},ri:0,ar:0,up:0,dn:0,rt:'none',rc:0,msg:null};
   const cur=mode==='extend'?(p.ct||contractOf(p)):{};
   const W0=mode==='extend'?p.wage:wageDemand(p,u,role,years||1);
   for(const b of BONUS){
-    if(mode==='extend'){const v=cur[b.k]||0;let best=0,bd=Infinity;b.lv.forEach((_,l)=>{const d=Math.abs(bonusAmount(b,l,W0)-v);if(d<bd){bd=d;best=l}});N.lv[b.k]=v?Math.max(1,best):0}
-    else N.lv[b.k]=(b.k==='ap'||b.k==='gl')&&bonusApplies(b,p,u)?1:0;
+    if(mode==='extend')N.b[b.k]=b.k==='si'?0:(cur[b.k]||0);
+    else N.b[b.k]=(b.k==='ap'||b.k==='gl')&&bonusApplies(b,p,u)?bonusAmount(b,1,W0):0;
   }
   if(mode==='extend'){const ix=(arr,v)=>Math.max(0,arr.findIndex(x=>JSON.stringify(x)===JSON.stringify(v)));
     N.ri=cur.ri?Math.max(1,ix(RAISE.ri,cur.ri)):0;N.ar=cur.ar?Math.max(1,RAISE.ar.findIndex(x=>x&&x[0]===cur.ar[0])):0;N.up=cur.up?Math.max(1,ix(RAISE.up,cur.up)):0;N.dn=cur.dn?Math.max(1,ix(RAISE.dn,cur.dn)):0;
@@ -364,9 +364,20 @@ function negInit(p,u,mode){
   if(mode==='buy')negMatchDemand(N,p,u);
   return N;
 }
+// Wert ist linear im Gehalt (Prämien fest): zwei Stützstellen → passendes Monatsgehalt
 function negMatchDemand(N,p,u){
-  for(let i=0;i<3;i++){const e=negEval(N,p,u);N.mw=Math.max(100,Math.round(N.mw*e.dem/e.val/100)*100)}
+  const m0=N.mw||1000,e1=negEval(N,p,u);N.mw=m0*2;const e2=negEval(N,p,u);
+  const slope=(e2.val-e1.val)/m0,need=m0+(e1.dem-e1.val)/Math.max(slope,1e-9);
+  N.mw=Math.max(100,Math.ceil(need/100)*100);
 }
+function parseMoney(str){
+  let t=String(str||'').toLowerCase().replace(/€|eur|euro/g,'').replace(/\s+/g,'');if(!t)return 0;
+  let mul=1;if(/(mio|mill|m)\.?$/.test(t)){mul=1e6;t=t.replace(/(mio|mill|m)\.?$/,'')}else if(/(tsd|k|t)\.?$/.test(t)){mul=1e3;t=t.replace(/(tsd|k|t)\.?$/,'')}
+  if(mul>1){if(t.includes(',')||(t.match(/\./g)||[]).length>1)t=t.replace(/\./g,'').replace(',','.')}else{t=t.replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.')}
+  const v=parseFloat(t);return isFinite(v)?Math.max(0,v*mul):NaN;
+}
+const fmtNum=v=>Math.round(v||0).toLocaleString('de-DE');
+function amtInput(k,v,cls){return `<label class="minp ${cls||''}"><input type="text" inputmode="decimal" data-chg="negAmt" data-k="${k}" value="${v?fmtNum(v):''}" placeholder="0" aria-label="Betrag"><span>€</span></label>`}
 function negModal(){
   return ()=>{
     const N=UI.neg,p=S.players[N.pid],u=userClub();if(!p)return '';
@@ -378,7 +389,9 @@ function negModal(){
     const wi=wishes(p),star=k=>wi.includes(k)?' <span class="gold" title="Wunsch des Beraters">★</span>':'';
     const nt=netOf(E.W*52,u.assoc),cost=ctCostSeason(p,u,E.ct,E.W,E.role);
     const yearOpts=[[1,'1 J.'],[2,'2 J.'],[3,'3 J.'],[4,'4 J.'],[5,'5 J.']];if(!buy&&p.until>S.season)yearOpts.unshift([0,'unverändert']);
-    const bonusRows=BONUS.filter(b=>bonusApplies(b,p,u)).map(b=>`<div class="nrow"><div><b>${b.lbl}</b>${star(b.k)}<small>${b.unit}</small></div>${seg('negLv',b.k,N.lv[b.k]||0,b.lv.map((_,l)=>[l,l?money(bonusAmount(b,l,E.W)):'–']))}</div>`).join('');
+    const bonusRows=BONUS.filter(b=>bonusApplies(b,p,u)).map(b=>{const cur=Math.round(N.b[b.k]||0);
+      return `<div class="nrow"><div class="nhead"><div><b>${b.lbl}</b>${star(b.k)}<small>${b.unit}</small></div>${amtInput(b.k,cur)}</div>
+      <div class="chipsel">${b.lv.map((_,l)=>{const v=l?bonusAmount(b,l,E.W):0;return `<button class="${cur===Math.round(v)?'on':''}" data-act="negLv" data-k="${b.k}" data-v="${v}">${l?money(v):'keine'}</button>`}).join('')}</div></div>`}).join('');
     const pctL=a=>a.map((v,i)=>[i,i?(v>0?'+':'')+v+' %':'–']);
     const adjRows=`<div class="nrow"><div><b>Jährliche Steigerung</b><small>pro Vertragsjahr</small></div>${seg('negAdj','ri',N.ri,pctL(RAISE.ri))}</div>
       <div class="nrow"><div><b>Erhöhung nach Einsätzen</b>${star('ar')}<small>einmalig, nach X Pflichtspielen</small></div>${seg('negAdj','ar',N.ar,RAISE.ar.map((v,i)=>[i,v?`${v[0]} Sp. +${v[1]} %`:'–']))}</div>
@@ -386,7 +399,7 @@ function negModal(){
       ${L&&L.down?`<div class="nrow"><div><b>Kürzung bei Abstieg</b><small>spart Kosten, mag kein Spieler</small></div>${seg('negAdj','dn',N.dn,RAISE.dn.map((v,i)=>[i,i?'−'+v+' %':'–']))}</div>`:''}`;
     const types=[['none','Keine'],...Object.entries(CLAUSE_TYPES).filter(([k])=>!(k==='higher'&&(!L||L.tier===1))&&!(k==='releg'&&(!L||!L.down)))];
     const clauseRow=`<div class="nrow col"><div><b>Ausstiegsklausel</b>${star('rc')}<small>Fester Ablösebetrag, bei dem der Spieler wechseln darf</small></div>${seg('negSet','rt',N.rt,types)}
-      ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button><b class="nval">${money(N.rc)}</b><button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>`:''}</div>`;
+      ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button>${amtInput('rc',N.rc)}<button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>`:''}</div>`;
     const sat=clamp(E.ratio*100,0,130),satCls=E.ratio>=1?'good':E.ratio>=.9?'gold':'bad';
     return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
      <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
@@ -397,7 +410,8 @@ function negModal(){
         <label class="f">Rolle im Kader <span class="muted">(Empfehlung: ${ROLES[sugg].short})</span></label>${N.years===0?`<div class="small muted">${ROLES[p.role].label} (bleibt unverändert)</div>`:seg('negSet','role',N.role,roles)}
         <label class="f" style="margin-top:10px">Laufzeit (bis 30.06.${endYear+1})</label>${seg('negSet','years',N.years,yearOpts)}
         <label class="f" style="margin-top:10px">Gehalt brutto pro Monat</label>
-        <div class="row"><button class="btn sm" data-act="negWageStep" data-v="-1">−</button><b class="nval ${over?'bad':''}">${money(N.mw)}</b><button class="btn sm" data-act="negWageStep" data-v="1">+</button><button class="btn sm" data-act="negWageSet">An Forderung anpassen</button></div>
+        <div class="row"><button class="btn sm" data-act="negWageStep" data-v="-1">−</button>${amtInput('mw',N.mw,'big'+(over?' bad':''))}<button class="btn sm" data-act="negWageStep" data-v="1">+</button><button class="btn sm" data-act="negWageSet">An Forderung anpassen</button></div>
+        <div class="small muted" style="margin-top:4px">Betrag direkt eintippen, z. B. <i>85.000</i>, <i>85 Tsd</i> oder <i>1,2 Mio</i> – mit Enter bestätigen.</div>
         <div class="small" style="margin-top:6px">Netto ca. <b>${money(nt.net/12)}</b>/Monat · Abzüge ${Math.round(nt.rate*100)} % <span class="muted">(${esc(nt.lbl)})</span></div>
         <div class="small ${over?'bad':'muted'}">Gehaltsbudget frei: ${money(mon(free))}/Monat${over?' – zu wenig! Budget unter Finanzen umschichten.':''}</div>
         <h3 style="margin-top:14px">Gehaltsanpassungen</h3>${adjRows}
@@ -816,7 +830,7 @@ const ACT={
   tfTab:d=>{UI.tf.tab=d.v;render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
   negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years')N.years=+d.v;else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else N[d.k]=d.v;N.msg=null;render()},
-  negLv:d=>{const N=UI.neg;N.lv[d.k]=+d.v;N.msg=null;render()},
+  negLv:d=>{const N=UI.neg;N.b[d.k]=+d.v;N.msg=null;render()},
   negAdj:d=>{const N=UI.neg;N[d.k]=+d.v;N.msg=null;render()},
   negRc:d=>{const N=UI.neg,p=S.players[N.pid];const st=nice(Math.max(p.val*.1,5e4));N.rc=Math.max(1e5,nice(N.rc+st*(+d.v)));N.msg=null;render()},
   negRcMul:d=>{const N=UI.neg,p=S.players[N.pid];N.rc=Math.max(1e5,nice(Math.max(p.val,1e5)*(+d.v)));N.msg=null;render()},
@@ -843,6 +857,10 @@ const ACT={
   doImport:()=>{const t=document.getElementById('impTxt').value.trim();if(!t)return toast('Kein Text');try{applySave(JSON.parse(t));UI.modal=null;UI.setup=null;UI.view='home';render();toast('Spielstand geladen')}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Ungültiger Spielstand')}},
 };
 const CHG={
+  negAmt:el=>{const N=UI.neg;if(!N)return;const v=parseMoney(el.value),k=el.dataset.k;
+    if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}
+    if(k==='mw')N.mw=Math.max(100,Math.round(v));else if(k==='rc')N.rc=Math.max(1e5,Math.round(v));else N.b[k]=Math.round(v);
+    N.msg=null;const id=el.dataset.k;render();},
   assocQ:el=>{UI.setup.q=el.value;UI.setup.name=(document.getElementById('mgrName')||{}).value||UI.setup.name;render();const e=document.querySelector('[data-chg=assocQ]');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},
   actToggle:el=>{const st=UI.setup;if(el.checked)st.active.add(el.dataset.v);else st.active.delete(el.dataset.v);render()},
   tableLeague:el=>{UI.tableLeague=+el.value;render()},

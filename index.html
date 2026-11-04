@@ -254,6 +254,16 @@ optgroup{color:#000}
 .cclause.on{border-color:var(--gold)}
 .cclause>span{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .cclause>b{font-family:var(--display);font-size:28px;font-weight:700}.cclause small{font-size:12.5px;color:var(--muted)}
+.minp{display:inline-flex;align-items:center;gap:4px;background:var(--night2);border:1px solid var(--line2);border-radius:10px;padding:0 10px 0 2px;transition:border-color .15s}
+.minp:focus-within{border-color:var(--accent)}
+.minp input{border:0;background:transparent;width:118px;text-align:right;padding:7px 4px;font-family:var(--display);font-size:17px;font-weight:600}
+.minp span{color:var(--muted);font-size:13px}
+.minp.big input{width:150px;font-size:22px}.minp.bad input{color:var(--bad)}
+.nhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.chipsel{display:flex;flex-wrap:wrap;gap:5px}
+.chipsel button{background:transparent;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted);font-weight:600}
+.chipsel button:hover{color:var(--text);border-color:var(--line2)}.chipsel button.on{background:var(--panel3);color:var(--text);border-color:var(--line2)}
+@media (max-width:520px){.minp input{width:96px;font-size:15px}.minp.big input{width:120px;font-size:19px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
