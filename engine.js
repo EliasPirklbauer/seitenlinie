@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.11.2';
+const APP_VERSION='0.12.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -731,9 +731,7 @@ function aiTransfer(c){
   const {p,price}=cands[Math.min(cands.length-1,Math.floor(rnd()*Math.min(3,cands.length)))];
   if(p.club===S.user){
     const bf=buyFee(p,c),u=userClub();
-    if(bf.clause&&bf.fee<=max){const will=clamp(.3+(c.rep-u.rep)/40+at(p,'amb')/50,.05,.95);
-      if(rnd()<will){const nm=fullname(p);doTransfer(p,c,bf.fee);trimSquad(c);
-        addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(c.name)} (${esc(leagueName(c))}) zahlt die festgeschriebene Ablöse von <b>${money(bf.fee)}</b>. Der Spieler wechselt sofort – du kannst den Transfer nicht verhindern.`);return}}
+    if(bf.clause&&bf.fee<=max){if(startClauseTalk(p,c,bf.fee))return}
     if(S.offers.some(o=>o.pid===p.id))return;if(!p.listed&&rnd()<.5)return;
     const fee=Math.round(p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5)/5000)*5000;if(fee>max)return;
     S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee,w:S.week});
@@ -798,7 +796,7 @@ function nextUserMatch(){
 function playWeek(){
   RNG=S.rng||RNG;resetCache();
   for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+10+at(p,'nat')/4,0,100)}
-  aiWeekly();clauseWatch();
+  aiWeekly();clauseWatch();clauseTalksWeekly();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
   for(const L of S.leagues){
@@ -943,7 +941,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];resetCache();
+  S.season++;S.week=0;S.offers=[];S.talks=[];resetCache();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};

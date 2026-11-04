@@ -182,7 +182,12 @@ function renderHome(){
     <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
     <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${co.desc}</span></div>`;
   }
-  const offers=S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
+  const talks=(S.talks||[]).filter(t=>t.st==='open').map(t=>{const p=S.players[t.pid],fc=club(t.from);if(!p||!fc)return '';const ch=talkChance(t);
+    return `<div class="news t-offer"><b>⚡ ${esc(fc.name)}</b> verhandelt über die Ausstiegsklausel (${money(t.fee)}) mit ${esc(fullname(p))} ${ovrTag(ovr(p))}
+      <div class="small" style="margin-top:4px">Angebot an den Spieler: ca. <b>${money(mon(t.wage))}</b> brutto/Monat als ${ROLES[t.role].label} · bei dir: ${money(mon(p.wage))} · Entscheidung bis Woche ${t.dec+1}</div>
+      <div class="small" style="margin-top:2px">Stimmung laut Berater: <b class="${ch>=.6?'bad':ch>=.35?'gold':'good'}">${ch>=.6?'Er tendiert zum Wechsel':ch>=.35?'Er ist unentschlossen':'Er tendiert zum Bleiben'}</b></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">Vertrag nachbessern</button><button class="btn sm" data-act="player" data-id="${p.id}">Spielerprofil</button></div></div>`}).join('');
+  const offers=talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> bietet <b>${money(o.fee)}</b> für ${esc(fullname(p))} ${ovrTag(ovr(p))} <span class="muted small">(Marktwert ${money(p.val)})</span><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button><button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div></div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
   return `<div class="grid home-grid">
@@ -279,7 +284,7 @@ function playerModal(pid){
           ct.up?`<div class="crow"><span>Erhöhung bei Aufstieg<small>ab der neuen Saison</small></span><b class="good">+${ct.up} %</b></div>`:'',
           ct.dn?`<div class="crow"><span>Kürzung bei Abstieg<small>ab der neuen Saison</small></span><b class="bad">−${ct.dn} %</b></div>`:''].join('');
         const appl=!mine&&ct.rc&&clauseApplies(p,u,ct);
-        const clause=ct.rc?`<div class="cclause ${appl?'on':''}"><span>Ausstiegsklausel</span><b>${money(ct.rc)}</b><small>gilt für: ${CLAUSE_TYPES[ct.rt||'all']} · Gültigkeit: ${clauseWindowText(ct)}${(()=>{const st=clauseState(ct);return st==='pre'?` · <b class="gold">noch nicht aktiv</b>`:st==='post'?` · <b class="muted">verstrichen</b>`:(ct.rf||ct.ru)?` · <b class="good">aktiv</b>`:''})()}${mine?'':appl?' · <b class="good">gilt für deinen Verein – der Verein kann den Wechsel nicht verhindern</b>':' · gilt nicht für deinen Verein'}</small></div>`:`<div class="cclause"><span>Ausstiegsklausel</span><b class="muted" style="font-size:22px">keine</b><small>Ein Wechsel ist nur mit Zustimmung des Vereins möglich.</small></div>`;
+        const clause=ct.rc?`<div class="cclause ${appl?'on':''}"><span>Ausstiegsklausel</span><b>${money(ct.rc)}</b><small>gilt für: ${CLAUSE_TYPES[ct.rt||'all']} · Gültigkeit: ${clauseWindowText(ct)}${(()=>{const st=clauseState(ct);return st==='pre'?` · <b class="gold">noch nicht aktiv</b>`:st==='post'?` · <b class="muted">verstrichen</b>`:(ct.rf||ct.ru)?` · <b class="good">aktiv</b>`:''})()}${mine&&activeTalk(p.id)?` · <b class="bad">${esc(club(activeTalk(p.id).from).name)} verhandelt gerade mit ihm – Entscheidung bis Woche ${activeTalk(p.id).dec+1}</b>`:''}${mine?'':appl?' · <b class="good">gilt für deinen Verein – der Verein kann den Wechsel nicht verhindern</b>':' · gilt nicht für deinen Verein'}</small></div>`:`<div class="cclause"><span>Ausstiegsklausel</span><b class="muted" style="font-size:22px">keine</b><small>Ein Wechsel ist nur mit Zustimmung des Vereins möglich.</small></div>`;
         body=`<div class="cbig">
           <div><span>Gehalt brutto</span><b>${money(mon(p.wage))}<em>/Monat</em></b><small>${money(p.wage*52)} brutto pro Jahr</small></div>
           <div><span>Gehalt netto (geschätzt)</span><b>${money(nt.net/12)}<em>/Monat</em></b><small>${money(nt.net)} pro Jahr · Abzüge ${Math.round(nt.rate*100)} % (${esc(natName(code))}: ${esc(nt.lbl)})</small></div>
@@ -332,11 +337,12 @@ function playerModal(pid){
 
 /* ---------- Vertragsverhandlung ---------- */
 function negCt(N,p,u){
-  const W=wk(N.mw),ct={};
+  const W=wk(N.mw),ct={},lock=N.mode==='extend'&&activeTalk(p.id);
   for(const b of BONUS){const v=N.b[b.k]||0;if(v>0&&bonusApplies(b,p,u))ct[b.k]=Math.round(v)}
   if(N.ri)ct.ri=RAISE.ri[N.ri];if(N.ar)ct.ar=RAISE.ar[N.ar].slice();
   const L=league(u);if(N.up&&L&&L.tier>1)ct.up=RAISE.up[N.up];if(N.dn&&L&&L.down)ct.dn=RAISE.dn[N.dn];
-  if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt;if((N.rw==='from'||N.rw==='range')&&N.rf)ct.rf=N.rf;if((N.rw==='until'||N.rw==='range')&&N.ru)ct.ru=N.ru}
+  if(lock){const cur=contractOf(p);for(const k of ['rc','rt','rf','ru'])if(cur[k]!==undefined)ct[k]=cur[k]}
+  else if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt;if((N.rw==='from'||N.rw==='range')&&N.rf)ct.rf=N.rf;if((N.rw==='until'||N.rw==='range')&&N.ru)ct.ru=N.ru}
   return ct;
 }
 function negYears(N,p){return N.years===0?Math.max(1,p.until-S.season+(S.week<winterStart()?1:.5)):N.years}
@@ -407,12 +413,13 @@ function negModal(){
       ${N.rw==='from'||N.rw==='range'?`<div class="drow"><span>gültig ab</span>${dIn('rf',N.rf)}</div>${chips('rf',fromL,N.rf)}`:''}
       ${N.rw==='until'||N.rw==='range'?`<div class="drow"><span>gültig bis</span>${dIn('ru',N.ru,N.rw==='range'&&N.rf?N.rf:today)}</div>${chips('ru',untilL,N.ru)}`:''}
       <div class="small muted" style="margin-top:6px">${N.rw==='always'?'Die Klausel gilt bis zum Vertragsende am '+fmtDate(cEnd)+'.':`Die Klausel gilt in ${Math.round(wShare*100)} % der Restlaufzeit – je kürzer, desto weniger ist sie dem Spieler wert. Heute im Spiel: ${fmtDate(today)}.`}</div></div>`;
-    const clauseRow=`<div class="nrow col"><div><b>Ausstiegsklausel</b>${star('rc')}<small>Fester Ablösebetrag, bei dem der Spieler wechseln darf</small></div>${seg('negSet','rt',N.rt,types)}
+    const talk=!buy&&activeTalk(p.id);
+    const clauseRow=talk?`<div class="nrow col"><div><b>Ausstiegsklausel</b><small>${esc(club(talk.from).name)} verhandelt gerade über die Klausel (${money(talk.fee)}) – sie kann jetzt nicht geändert werden. Ein besserer Vertrag (Gehalt, Rolle, Prämien) senkt aber die Chance, dass er wechselt.</small></div></div>`:`<div class="nrow col"><div><b>Ausstiegsklausel</b>${star('rc')}<small>Fester Ablösebetrag, bei dem der Spieler wechseln darf</small></div>${seg('negSet','rt',N.rt,types)}
       ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button>${amtInput('rc',N.rc)}<button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>${clauseWin}`:''}</div>`;
     const sat=clamp(E.ratio*100,0,130),satCls=E.ratio>=1?'good':E.ratio>=.9?'gold':'bad';
     return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
      <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
-     ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?(bf.clause?`⚡ <b>Ausstiegsklausel:</b> Für <b>${money(fee)}</b> darf ${esc(pname(p))} wechseln – ${esc(club(p.club).name)} kann nicht ablehnen.`:`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`):'Vereinslos: keine Ablöse, aber '+money(hand)+' Handgeld.'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
+     ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?(bf.clause?`⚡ <b>Ausstiegsklausel:</b> Für <b>${money(fee)}</b> darf ${esc(pname(p))} wechseln – ${esc(club(p.club).name)} kann nicht ablehnen. Zuerst musst du dich aber mit dem Spieler auf einen Vertrag einigen; erst dann wird die Klausel gezogen und die Ablöse überwiesen.`:`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`):'Vereinslos: keine Ablöse, aber '+money(hand)+' Handgeld.'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
      ${wi.length?`<div class="small" style="margin-top:8px">Wünsche des Beraters: ${wi.map(k=>`<span class="pill gold">★ ${WISH_LABEL[k]}</span>`).join(' ')}</div>`:''}
      <div class="neggrid">
       <div class="card"><h3>Grunddaten</h3>
