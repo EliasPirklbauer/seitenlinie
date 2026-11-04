@@ -254,6 +254,7 @@ function finishComp(C,def,winnerId){
   w.rep=clamp(w.rep+(def.level===1?3:2),5,99);
   (S.compHist[def.key]=S.compHist[def.key]||[]).unshift({season:S.season,winner:w.name,assoc:w.assoc});
   if(S.compHist[def.key].length>15)S.compHist[def.key].length=15;
+  if(winnerId===S.user)teamBonus('cu',def.name);
   if(winnerId===S.user)addNews('board',`🏆 ${def.name} gewonnen!`,`Dein ${esc(w.name)} holt den Titel! Prämie: ${money(def.prize.champ)}.`);
   else if(C.teams.includes(S.user)||def.confed===ASSOC[userClub().assoc].confed)addNews('info',`${esc(w.name)} gewinnt die ${def.name}`,`Saison ${S.season}/${(S.season+1)%100}.`);
 }

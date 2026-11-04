@@ -191,7 +191,7 @@ function renderHome(){
      <div class="row" style="gap:26px"><div><div class="small muted">Platz</div><div class="kpi">${rank}.</div></div><div><div class="small muted">Punkte</div><div class="kpi">${me.pts}</div></div><div><div class="small muted">Tore</div><div class="kpi">${me.tf}:${me.ta}</div></div></div>
      <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
      <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
-     <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(wageBill(c))} / ${money(c.wBudget)} pro Woche</div>
+     <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(mon(wageBill(c)))} / ${money(mon(c.wBudget))} pro Monat</div>
      ${userSupercup()?`<div class="small" style="margin-top:4px">🛡️ ${esc(userSupercup().name)}: <b>${userSupercup().winner===S.user?'🏆 gewonnen':userSupercup().winner!==null?'verloren':'Woche '+(userSupercup().rounds[0].w+1)}</b></div>`:''}
      ${userNatCup()?`<div class="small" style="margin-top:4px">🏆 <a data-act="openNatCup" style="color:var(--text);cursor:pointer;text-decoration:underline">${esc(userNatCup().name)}</a>: <b>${natCupStatus(userNatCup(),S.user)}</b></div>`:''}
      ${userComps().map(C=>`<div class="small" style="margin-top:4px">🏅 <a class="click" data-act="openComp" data-v="${C.key}" style="color:var(--text);cursor:pointer;text-decoration:underline">${COMP[C.key].name}</a>: <b>${compStatus(C,S.user)}</b></div>`).join('')}
@@ -204,14 +204,14 @@ function renderHome(){
 const POS_ORDER=Object.fromEntries(POS_LIST.map((p,i)=>[p,i]));
 function playerRow(p,c,extra){
   const inXI=c&&c.lineup.includes(p.id);
-  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.inj?' <span class="bad small">🩹'+p.inj+'</span>':''}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(p.wage)}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
+  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.inj?' <span class="bad small">🩹'+p.inj+'</span>':''}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(mon(p.wage))}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
 }
-const PH='<th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Pot.</th><th class="n">Fit</th><th class="n">Moral</th><th class="n">Sp.</th><th class="n">Tore</th><th class="n">Marktwert</th><th class="n">Gehalt/Wo.</th><th>Rolle</th><th class="n">Vertrag</th>';
+const PH='<th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Pot.</th><th class="n">Fit</th><th class="n">Moral</th><th class="n">Sp.</th><th class="n">Tore</th><th class="n">Marktwert</th><th class="n">Gehalt/M.</th><th>Rolle</th><th class="n">Vertrag</th>';
 function renderSquad(){
   const c=userClub();let ps=squadOf(c);const k=UI.sortK;
   ps.sort(k==='ovr'?(a,b)=>ovr(b)-ovr(a):k==='age'?(a,b)=>a.age-b.age:k==='val'?(a,b)=>b.val-a.val:(a,b)=>POS_ORDER[a.pos]-POS_ORDER[b.pos]||ovr(b)-ovr(a));
   const sb=(key,l)=>`<button class="${k===key?'on':''}" data-act="sort" data-k="${key}">${l}</button>`;
-  return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Kader <span class="muted small">${ps.length} Spieler · Gehälter ${money(wageBill(c))} von ${money(c.wBudget)}/Woche</span></h2><div class="seg">${sb('pos','Position')}${sb('ovr','Stärke')}${sb('age','Alter')}${sb('val','Wert')}</div></div>
+  return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Kader <span class="muted small">${ps.length} Spieler · Gehälter ${money(mon(wageBill(c)))} von ${money(mon(c.wBudget))}/Monat</span></h2><div class="seg">${sb('pos','Position')}${sb('ovr','Stärke')}${sb('age','Alter')}${sb('val','Wert')}</div></div>
   <div class="tw"><table><thead><tr>${PH}</tr></thead><tbody>${ps.map(p=>playerRow(p,c)).join('')}</tbody></table></div>
   <p class="small muted">● = Startelf · <span class="gold">Vertrag gelb</span> = läuft am Saisonende aus · 🏷️ = auf der Transferliste · Tippe auf einen Spieler für Details und Vertragsgespräche.</p>`;
 }
@@ -261,33 +261,46 @@ function playerModal(pid){
       <div class="grid g2" style="margin-top:14px"><div><h3>Positionen</h3><div class="minipitch">${dots}</div></div><div class="acol" style="align-self:start"><h3>Vertrautheit</h3>${posList}</div></div>`;
     }
     else if(tab==='vertrag'){
+      const u=userClub(),ct=c?contractOf(p):{},code=c?c.assoc:u.assoc;
       if(!c){
-        const u=userClub(),r=suggestRole(p,u),dem=wageDemand(p,u,r,2);
+        const r=suggestRole(p,u),dem=wageDemand(p,u,r,2),nt=netOf(dem*52,code);
         body=`<div class="cbig"><div><span>Status</span><b class="gold">Vereinslos</b><small>Kann jederzeit ablösefrei verpflichtet werden (im Transferfenster).</small></div>
-          <div><span>Gehaltsforderung (ca.)</span><b>${money(dem)}<em>/Woche</em></b><small>${money(dem*52)} pro Jahr · als ${ROLES[r].label}</small></div>
-          <div><span>Handgeld</span><b>${money(dem*6)}</b><small>6 Wochengehälter</small></div></div>`;
+          <div><span>Gehaltsforderung (brutto)</span><b>${money(mon(dem))}<em>/Monat</em></b><small>netto ca. ${money(nt.net/12)}/Monat · als ${ROLES[r].label}</small></div>
+          <div><span>Handgeld</span><b>${money(dem*6)}</b><small>rund 1,4 Monatsgehälter</small></div></div>`;
       }else{
         const end=p.until+1,elapsed=S.week/Math.max(S.weeks,1)*11,leftM=Math.max(0,Math.round((end-S.season)*12-1-elapsed));
         const since=V.since!==null&&V.since!==undefined?V.since:S.season,totalM=Math.max(1,(end-since)*12),pct=clamp(100-leftM/totalM*100,0,100);
         const leftTxt=leftM>=12?`${Math.floor(leftM/12)} ${Math.floor(leftM/12)===1?'Jahr':'Jahre'}${leftM%12?`, ${leftM%12} Mon.`:''}`:`${leftM} ${leftM===1?'Monat':'Monate'}`;
-        const yrs=S.season-since,price=askPrice(p),warn=p.until<=S.season;
+        const yrs=S.season-since,bf=mine?{fee:askPrice(p)}:buyFee(p,u),warn=p.until<=S.season,nt=netOf(p.wage*52,code);
         const bill=mine?wageBill(c):0;
+        const bon=BONUS.filter(b=>ct[b.k]).map(b=>`<div class="crow"><span>${b.lbl}<small>${b.unit}</small></span><b>${money(ct[b.k])}</b></div>`).join('');
+        const adj=[ct.ri?`<div class="crow"><span>Jährliche Gehaltssteigerung<small>zum 1. Juli jedes Vertragsjahres</small></span><b class="good">+${ct.ri} %</b></div>`:'',
+          ct.ar?`<div class="crow"><span>Erhöhung nach ${ct.ar[0]} Pflichtspielen<small>${ct.ad?'bereits erreicht':mine?`bisher ${ct.n||0} von ${ct.ar[0]} Spielen`:'einmalig'}</small></span><b class="${ct.ad?'muted':'good'}">+${ct.ar[1]} %</b></div>`:'',
+          ct.up?`<div class="crow"><span>Erhöhung bei Aufstieg<small>ab der neuen Saison</small></span><b class="good">+${ct.up} %</b></div>`:'',
+          ct.dn?`<div class="crow"><span>Kürzung bei Abstieg<small>ab der neuen Saison</small></span><b class="bad">−${ct.dn} %</b></div>`:''].join('');
+        const appl=!mine&&ct.rc&&clauseApplies(p,u,ct);
+        const clause=ct.rc?`<div class="cclause ${appl?'on':''}"><span>Ausstiegsklausel</span><b>${money(ct.rc)}</b><small>gilt für: ${CLAUSE_TYPES[ct.rt||'all']}${mine?'':appl?' · <b class="good">gilt für deinen Verein – der Verein kann den Wechsel nicht verhindern</b>':' · gilt nicht für deinen Verein'}</small></div>`:`<div class="cclause"><span>Ausstiegsklausel</span><b class="muted" style="font-size:22px">keine</b><small>Ein Wechsel ist nur mit Zustimmung des Vereins möglich.</small></div>`;
         body=`<div class="cbig">
-          <div><span>Gehalt</span><b>${money(p.wage)}<em>/Woche</em></b><small>${money(p.wage*52)} pro Jahr</small></div>
+          <div><span>Gehalt brutto</span><b>${money(mon(p.wage))}<em>/Monat</em></b><small>${money(p.wage*52)} brutto pro Jahr</small></div>
+          <div><span>Gehalt netto (geschätzt)</span><b>${money(nt.net/12)}<em>/Monat</em></b><small>${money(nt.net)} pro Jahr · Abzüge ${Math.round(nt.rate*100)} % (${esc(natName(code))}: ${esc(nt.lbl)})</small></div>
           <div><span>Vertrag bis</span><b class="${warn?'gold':''}">30.06.${end}</b><small>${warn?'⚠️ Läuft zum Saisonende aus':'Restlaufzeit: '+leftTxt}</small></div></div>
         <div class="cline"><div class="row" style="justify-content:space-between"><span class="small muted">Seit ${since<S.season?'Juli '+since:'dieser Saison'}</span><span class="small muted">30.06.${end}</span></div><div class="cbar"><i style="width:${pct}%"></i></div></div>
         <div class="ptiles">
           ${tile('Rolle im Kader',ROLES[p.role].label,`erwartet ca. ${Math.round(ROLES[p.role].exp*100)}% der Spiele`)}
           ${tile('Im Verein seit',seasonLbl(since),yrs>0?`${yrs} ${yrs===1?'Saison':'Saisons'} beim ${esc(c.short)}`:'erste Saison')}
           ${tile('Marktwert',money(p.val))}
-          ${tile(mine?'Interne Ablöse-Vorstellung':'Geforderte Ablöse',price?money(price):'ablösefrei',p.listed?'🏷️ steht auf der Transferliste':mine?'nicht auf der Transferliste':isWindow()?'Transferfenster offen':'Transferfenster geschlossen')}
-          ${mine?tile('Anteil Gehaltsbudget',Math.round(p.wage/Math.max(1,c.wBudget)*100)+' %',`Gesamt: ${money(bill)} von ${money(c.wBudget)}/Wo.`):''}
+          ${tile(mine?'Interne Ablöse-Vorstellung':bf.clause?'Ablöse (Klausel)':'Geforderte Ablöse',bf.fee?money(bf.fee):'ablösefrei',p.listed?'🏷️ steht auf der Transferliste':mine?'nicht auf der Transferliste':isWindow()?'Transferfenster offen':'Transferfenster geschlossen')}
+          ${mine?tile('Anteil Gehaltsbudget',Math.round(p.wage/Math.max(1,c.wBudget)*100)+' %',`Gesamt: ${money(mon(bill))} von ${money(mon(c.wBudget))}/Monat`):''}
           ${mine?tile('Freistellung kostet',money(releaseCost(p)),'50 % der Restgehälter'):''}
+        </div>
+        <div class="grid g2" style="margin-top:14px">
+          <div class="clist"><h3>Prämien</h3>${bon||'<p class="small muted">Keine Prämien vereinbart.</p>'}${mine&&p.ct?`<div class="small muted" style="margin-top:8px">In dieser Saison ausgezahlt: <b style="color:var(--text)">${money(p.ct.pd||0)}</b></div>`:''}</div>
+          <div><div class="clist"><h3>Gehaltsanpassungen</h3>${adj||'<p class="small muted">Keine Anpassungen vereinbart – das Gehalt bleibt bis Vertragsende gleich.</p>'}</div>${clause}</div>
         </div>`;
       }
       let actions='';
-      if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
-      else{const price=askPrice(p);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>Verhandeln: ${price?money(price)+' Ablöse':'ablösefrei'}</button>${isWindow()?'':'<div class="small muted" style="margin-top:4px">Transferfenster geschlossen.</div>'}</div>`}
+      if(mine)actions=`<div class="row"><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="extend">✍️ Vertrag anpassen / verlängern</button><button class="btn" data-act="listToggle" data-id="${p.id}">${p.listed?'Von Transferliste nehmen':'🏷️ Auf Transferliste'}</button><button class="btn warn" data-act="release" data-id="${p.id}">Freistellen</button></div>`;
+      else{const bf=buyFee(p,u);actions=`<div><button class="btn pri" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${isWindow()?'':'disabled'}>${bf.clause?'⚡ Ausstiegsklausel ziehen: '+money(bf.fee):'Verhandeln: '+(bf.fee?money(bf.fee)+' Ablöse':'ablösefrei')}</button>${isWindow()?'':'<div class="small muted" style="margin-top:4px">Transferfenster geschlossen.</div>'}</div>`}
       body+=`<div style="margin-top:14px">${actions}</div>`;
     }
     else{
@@ -318,56 +331,124 @@ function playerModal(pid){
 }
 
 /* ---------- Vertragsverhandlung ---------- */
+function negCt(N,p,u){
+  const W=wk(N.mw),ct={};
+  for(const b of BONUS){const l=N.lv[b.k]||0;if(l&&bonusApplies(b,p,u))ct[b.k]=bonusAmount(b,l,W)}
+  if(N.ri)ct.ri=RAISE.ri[N.ri];if(N.ar)ct.ar=RAISE.ar[N.ar].slice();
+  const L=league(u);if(N.up&&L&&L.tier>1)ct.up=RAISE.up[N.up];if(N.dn&&L&&L.down)ct.dn=RAISE.dn[N.dn];
+  if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt}
+  return ct;
+}
+function negYears(N,p){return N.years===0?Math.max(1,p.until-S.season+(S.week<winterStart()?1:.5)):N.years}
+function negDemand(N,p,u){
+  if(N.years===0){const cur=p.ct||contractOf(p);return ctValue(p,u,cur,p.wage,negYears(N,p),p.role)}
+  return wageDemand(p,u,N.role,N.years);
+}
+function negEval(N,p,u){
+  const ct=negCt(N,p,u),W=wk(N.mw),yrs=negYears(N,p),role=N.years===0?p.role:N.role;
+  const val=ctValue(p,u,ct,W,yrs,role),dem=negDemand(N,p,u);return {ct,W,yrs,role,val,dem,ratio:val/Math.max(1,dem)};
+}
+function negInit(p,u,mode){
+  const role=suggestRole(p,u),keep=mode==='extend'&&p.until>S.season,years=keep?0:p.age>=31?1:p.age<=23?4:3;
+  const N={pid:p.id,mode,role:keep?p.role:role,years,mw:0,lv:{},ri:0,ar:0,up:0,dn:0,rt:'none',rc:0,msg:null};
+  const cur=mode==='extend'?(p.ct||contractOf(p)):{};
+  const W0=mode==='extend'?p.wage:wageDemand(p,u,role,years||1);
+  for(const b of BONUS){
+    if(mode==='extend'){const v=cur[b.k]||0;let best=0,bd=Infinity;b.lv.forEach((_,l)=>{const d=Math.abs(bonusAmount(b,l,W0)-v);if(d<bd){bd=d;best=l}});N.lv[b.k]=v?Math.max(1,best):0}
+    else N.lv[b.k]=(b.k==='ap'||b.k==='gl')&&bonusApplies(b,p,u)?1:0;
+  }
+  if(mode==='extend'){const ix=(arr,v)=>Math.max(0,arr.findIndex(x=>JSON.stringify(x)===JSON.stringify(v)));
+    N.ri=cur.ri?Math.max(1,ix(RAISE.ri,cur.ri)):0;N.ar=cur.ar?Math.max(1,RAISE.ar.findIndex(x=>x&&x[0]===cur.ar[0])):0;N.up=cur.up?Math.max(1,ix(RAISE.up,cur.up)):0;N.dn=cur.dn?Math.max(1,ix(RAISE.dn,cur.dn)):0;
+    if(cur.rc){N.rt=cur.rt||'all';N.rc=cur.rc}}
+  N.mw=Math.round(mon(W0)/100)*100;
+  if(mode==='buy')negMatchDemand(N,p,u);
+  return N;
+}
+function negMatchDemand(N,p,u){
+  for(let i=0;i<3;i++){const e=negEval(N,p,u);N.mw=Math.max(100,Math.round(N.mw*e.dem/e.val/100)*100)}
+}
 function negModal(){
   return ()=>{
     const N=UI.neg,p=S.players[N.pid],u=userClub();if(!p)return '';
-    const buy=N.mode==='buy',fee=buy?askPrice(p):0,demand=wageDemand(p,u,N.role,N.years);
-    const bill=wageBill(u)-(buy?0:p.wage),free=u.wBudget-bill,sign=buy&&p.club===null?N.wage*6:0;
-    const sugg=suggestRole(p,u),endYear=buy?S.season+N.years-(S.week<winterStart()?1:0):S.season+N.years;
-    const seg=(k,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${String(N[k])===String(v)?'on':''}" data-act="negSet" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
-    const roles=ROLE_ORDER.filter(r=>r!=='perspektive'||p.age<=21).map(r=>[r,ROLES[r].short]);const over=N.wage>free;
-    return `<h2 style="margin-bottom:2px">${buy?'Transfer':'Vertragsverlängerung'}: ${esc(fullname(p))}</h2>
-     <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(p.wage)}/Wo.${p.club!==null?' bis '+contractEnd(p):''}</div>
-     ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`:'Vereinslos: keine Ablöse, aber '+money(sign)+' Handgeld (6 Wochengehälter).'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
-     <label class="f" style="margin-top:12px">Rolle im Kader <span class="muted">(Empfehlung: ${ROLES[sugg].short})</span></label>${seg('role',roles)}
-     <label class="f" style="margin-top:12px">Laufzeit (bis 06/${String((endYear+1)%100).padStart(2,'0')})</label>${seg('years',[[1,'1 J.'],[2,'2 J.'],[3,'3 J.'],[4,'4 J.'],[5,'5 J.']])}
-     <label class="f" style="margin-top:12px">Gehaltsangebot pro Woche</label>
-     <div class="row"><button class="btn sm" data-act="negWageStep" data-v="-1">−</button><b style="font-size:20px;min-width:120px;text-align:center" class="${over?'bad':''}">${money(N.wage)}</b><button class="btn sm" data-act="negWageStep" data-v="1">+</button><button class="btn sm" data-act="negWageSet">Forderung übernehmen</button></div>
-     <div class="small" style="margin-top:8px">Forderung des Beraters: <b>${money(demand)}</b>/Woche ${N.wage<demand?'<span class="muted">– darunter riskierst du eine Ablehnung</span>':''}</div>
-     <div class="small ${over?'bad':'muted'}">Gehaltsbudget frei: ${money(free)}/Woche${over?' – zu wenig! Budget unter Finanzen umschichten.':''}</div>
+    const buy=N.mode==='buy',bf=buy?buyFee(p,u):{fee:0},fee=bf.fee,E=negEval(N,p,u),L=league(u);
+    const bill=wageBill(u)-(buy?0:p.wage),free=u.wBudget-bill,hand=buy&&p.club===null?E.W*6:0,si=E.ct.si||0;
+    const sugg=suggestRole(p,u),endYear=N.years===0?p.until:buy?S.season+N.years-(S.week<winterStart()?1:0):S.season+N.years;
+    const seg=(act,k,cur,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${String(cur)===String(v)?'on':''}" data-act="${act}" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const roles=ROLE_ORDER.filter(r=>r!=='perspektive'||p.age<=21).map(r=>[r,ROLES[r].short]),over=E.W>free;
+    const wi=wishes(p),star=k=>wi.includes(k)?' <span class="gold" title="Wunsch des Beraters">★</span>':'';
+    const nt=netOf(E.W*52,u.assoc),cost=ctCostSeason(p,u,E.ct,E.W,E.role);
+    const yearOpts=[[1,'1 J.'],[2,'2 J.'],[3,'3 J.'],[4,'4 J.'],[5,'5 J.']];if(!buy&&p.until>S.season)yearOpts.unshift([0,'unverändert']);
+    const bonusRows=BONUS.filter(b=>bonusApplies(b,p,u)).map(b=>`<div class="nrow"><div><b>${b.lbl}</b>${star(b.k)}<small>${b.unit}</small></div>${seg('negLv',b.k,N.lv[b.k]||0,b.lv.map((_,l)=>[l,l?money(bonusAmount(b,l,E.W)):'–']))}</div>`).join('');
+    const pctL=a=>a.map((v,i)=>[i,i?(v>0?'+':'')+v+' %':'–']);
+    const adjRows=`<div class="nrow"><div><b>Jährliche Steigerung</b><small>pro Vertragsjahr</small></div>${seg('negAdj','ri',N.ri,pctL(RAISE.ri))}</div>
+      <div class="nrow"><div><b>Erhöhung nach Einsätzen</b>${star('ar')}<small>einmalig, nach X Pflichtspielen</small></div>${seg('negAdj','ar',N.ar,RAISE.ar.map((v,i)=>[i,v?`${v[0]} Sp. +${v[1]} %`:'–']))}</div>
+      ${L&&L.tier>1?`<div class="nrow"><div><b>Erhöhung bei Aufstieg</b><small>ab der neuen Saison</small></div>${seg('negAdj','up',N.up,pctL(RAISE.up))}</div>`:''}
+      ${L&&L.down?`<div class="nrow"><div><b>Kürzung bei Abstieg</b><small>spart Kosten, mag kein Spieler</small></div>${seg('negAdj','dn',N.dn,RAISE.dn.map((v,i)=>[i,i?'−'+v+' %':'–']))}</div>`:''}`;
+    const types=[['none','Keine'],...Object.entries(CLAUSE_TYPES).filter(([k])=>!(k==='higher'&&(!L||L.tier===1))&&!(k==='releg'&&(!L||!L.down)))];
+    const clauseRow=`<div class="nrow col"><div><b>Ausstiegsklausel</b>${star('rc')}<small>Fester Ablösebetrag, bei dem der Spieler wechseln darf</small></div>${seg('negSet','rt',N.rt,types)}
+      ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button><b class="nval">${money(N.rc)}</b><button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>`:''}</div>`;
+    const sat=clamp(E.ratio*100,0,130),satCls=E.ratio>=1?'good':E.ratio>=.9?'gold':'bad';
+    return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
+     <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
+     ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?(bf.clause?`⚡ <b>Ausstiegsklausel:</b> Für <b>${money(fee)}</b> darf ${esc(pname(p))} wechseln – ${esc(club(p.club).name)} kann nicht ablehnen.`:`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`):'Vereinslos: keine Ablöse, aber '+money(hand)+' Handgeld.'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
+     ${wi.length?`<div class="small" style="margin-top:8px">Wünsche des Beraters: ${wi.map(k=>`<span class="pill gold">★ ${WISH_LABEL[k]}</span>`).join(' ')}</div>`:''}
+     <div class="neggrid">
+      <div class="card"><h3>Grunddaten</h3>
+        <label class="f">Rolle im Kader <span class="muted">(Empfehlung: ${ROLES[sugg].short})</span></label>${N.years===0?`<div class="small muted">${ROLES[p.role].label} (bleibt unverändert)</div>`:seg('negSet','role',N.role,roles)}
+        <label class="f" style="margin-top:10px">Laufzeit (bis 30.06.${endYear+1})</label>${seg('negSet','years',N.years,yearOpts)}
+        <label class="f" style="margin-top:10px">Gehalt brutto pro Monat</label>
+        <div class="row"><button class="btn sm" data-act="negWageStep" data-v="-1">−</button><b class="nval ${over?'bad':''}">${money(N.mw)}</b><button class="btn sm" data-act="negWageStep" data-v="1">+</button><button class="btn sm" data-act="negWageSet">An Forderung anpassen</button></div>
+        <div class="small" style="margin-top:6px">Netto ca. <b>${money(nt.net/12)}</b>/Monat · Abzüge ${Math.round(nt.rate*100)} % <span class="muted">(${esc(nt.lbl)})</span></div>
+        <div class="small ${over?'bad':'muted'}">Gehaltsbudget frei: ${money(mon(free))}/Monat${over?' – zu wenig! Budget unter Finanzen umschichten.':''}</div>
+        <h3 style="margin-top:14px">Gehaltsanpassungen</h3>${adjRows}
+        <h3 style="margin-top:14px">Klauseln</h3>${clauseRow}
+      </div>
+      <div class="card"><h3>Prämien</h3>${bonusRows}</div>
+     </div>
+     <div class="card nsum">
+       <div class="nsat"><div class="row" style="justify-content:space-between"><b>Zufriedenheit des Beraters</b><b class="${satCls}">${Math.round(E.ratio*100)} %</b></div><div class="cbar"><i style="width:${sat/1.3}%;background:var(--${satCls==='gold'?'gold':satCls})"></i></div>
+         <div class="small muted" style="margin-top:4px">${N.years===0?'Bewertet gegen den aktuellen Vertrag. Ab 100 % stimmt er der Anpassung zu.':'Ab 100 % unterschreibt er sicher, knapp darunter vielleicht.'} Prämien zählen für Spieler weniger als festes Gehalt.</div></div>
+       <div class="nkpi"><div><span>Gehalt / Saison</span><b>${money(cost.wage)}</b></div><div><span>Erw. Prämien / Saison</span><b>${money(cost.bonus)}</b></div><div><span>Einmalig</span><b>${money(fee+hand+si)}</b></div><div><span>Gesamtvolumen</span><b>${money(fee+hand+si+(cost.wage+cost.bonus)*E.yrs)}</b></div></div>
+     </div>
      <div class="small muted">Versuche übrig: ${Math.max(0,3-(p.negTries||0))}</div>
      ${N.msg?`<div class="news ${N.ok?'t-transfer':'t-coach'}" style="margin-top:10px">${N.msg}</div>`:''}
-     <div class="row" style="margin-top:14px;justify-content:space-between"><button class="btn pri" data-act="negSubmit" ${over||(p.negTries||0)>=3?'disabled':''}>Angebot abgeben</button><button class="btn" data-act="closeModal">Schließen</button></div>`;
+     <div class="row" style="margin-top:14px;justify-content:space-between"><button class="btn pri" data-act="negSubmit" ${over||(p.negTries||0)>=3?'disabled':''}>Angebot abgeben</button><button class="btn" data-act="closeModal">Schließen</button></div></div>`;
   };
 }
 function negSubmit(){
   const N=UI.neg,p=S.players[N.pid],u=userClub(),buy=N.mode==='buy';
   const fail=m=>{N.msg=m;N.ok=false;render()};
   if((p.negTries||0)>=3)return fail('Der Berater hat die Gespräche für diese Saison abgebrochen.');
+  const bf=buy?buyFee(p,u):{fee:0,clause:false};
   if(buy){
     if(!isWindow())return fail('Das Transferfenster ist geschlossen.');
     if(p.club===S.user)return fail('Spieler gehört schon dir.');
     if(u.players.length>=32)return fail('Dein Kader ist voll (max. 32).');
-    if(p.club!==null&&club(p.club).players.length<=19)return fail(`${esc(club(p.club).name)} gibt keine Spieler mehr ab – Kader zu klein.`);
+    if(p.club!==null&&!bf.clause&&club(p.club).players.length<=19)return fail(`${esc(club(p.club).name)} gibt keine Spieler mehr ab – Kader zu klein.`);
     if(p.club!==null&&club(p.club).rep-u.rep>22&&ovr(p)>=clubAvg(club(p.club))-2)return fail(`${esc(pname(p))} hat kein Interesse – ${esc(club(p.club).name)} ist ihm sportlich zu weit voraus.`);
   }
-  const fee=buy?askPrice(p):0,sign=buy&&p.club===null?N.wage*6:0;
-  if(buy&&u.tBudget<fee+sign)return fail(`Nicht genug Transferbudget (nötig: ${money(fee+sign)}).`);
-  const free=u.wBudget-(wageBill(u)-(buy?0:p.wage));if(N.wage>free)return fail('Das Gehalt sprengt dein Gehaltsbudget.');
-  const sugg=suggestRole(p,u),gap=ROLE_ORDER.indexOf(N.role)-ROLE_ORDER.indexOf(sugg);
-  if(gap>=2){p.negTries=(p.negTries||0)+1;return fail(`Als ${ROLES[N.role].label} will er nicht unterschreiben – er sieht sich mindestens als ${ROLES[ROLE_ORDER[ROLE_ORDER.indexOf(sugg)+1]].label}.`)}
-  const demand=wageDemand(p,u,N.role,N.years),ratio=N.wage/demand;
-  const accept=ratio>=1||rnd()<clamp((ratio-.85)/.15,0,1)*.8;
-  if(!accept){p.negTries=(p.negTries||0)+1;p.mor=clamp(p.mor-2,15,100);return fail(ratio>=.92?`Knapp! Der Berater besteht auf ${money(demand)}/Woche.`:`Abgelehnt – das Angebot liegt deutlich unter der Forderung von ${money(demand)}/Woche.`)}
+  const E=negEval(N,p,u),fee=bf.fee,hand=buy&&p.club===null?E.W*6:0,si=E.ct.si||0;
+  if(buy&&u.tBudget<fee+hand+si)return fail(`Nicht genug Transferbudget (nötig: ${money(fee+hand+si)}).`);
+  if(!buy&&si&&u.budget<si)return fail('Für die Unterschriftsprämie ist nicht genug Geld auf dem Konto.');
+  const free=u.wBudget-(wageBill(u)-(buy?0:p.wage));if(E.W>free)return fail('Das Gehalt sprengt dein Gehaltsbudget.');
+  if(N.years!==0){const sugg=suggestRole(p,u),gap=ROLE_ORDER.indexOf(N.role)-ROLE_ORDER.indexOf(sugg);
+    if(gap>=2){p.negTries=(p.negTries||0)+1;return fail(`Als ${ROLES[N.role].label} will er nicht unterschreiben – er sieht sich mindestens als ${ROLES[ROLE_ORDER[ROLE_ORDER.indexOf(sugg)+1]].label}.`)}}
+  const accept=E.ratio>=1||(N.years!==0&&rnd()<clamp((E.ratio-.85)/.15,0,1)*.8);
+  if(!accept){p.negTries=(p.negTries||0)+1;p.mor=clamp(p.mor-2,15,100);
+    return fail(E.ratio>=.92?`Knapp! Das Paket erreicht ${Math.round(E.ratio*100)} % seiner Vorstellung – etwas mehr Gehalt oder eine Prämie, die er sich wünscht, könnte reichen.`:`Abgelehnt – das Paket liegt bei nur ${Math.round(E.ratio*100)} % seiner Vorstellung (entspricht ca. ${money(mon(E.dem))} brutto/Monat).`)}
   if(buy){
     const until=S.season+N.years-(S.week<winterStart()?1:0),fromName=p.club!==null?club(p.club).name:'vereinslos';
-    doTransfer(p,u,fee,{wage:N.wage,until,role:N.role});
-    addNews('transfer',`Neuzugang: ${fullname(p)}`,`Von ${esc(fromName)} für ${fee?money(fee):'ablösefrei'} · ${money(N.wage)}/Wo. bis ${contractEnd(p)} · ${ROLES[N.role].label}.`);
+    doTransfer(p,u,fee,{wage:E.W,until,role:N.role,ct:E.ct});
+    if(si){payBonus(si,'si');u.tBudget=Math.max(0,u.tBudget-si)}
+    addNews('transfer',`Neuzugang: ${fullname(p)}`,`Von ${esc(fromName)} für ${fee?money(fee):'ablösefrei'}${bf.clause?' (Ausstiegsklausel)':''} · ${money(N.mw)} brutto/Monat bis ${contractEnd(p)} · ${ROLES[N.role].label}${si?` · Unterschriftsprämie ${money(si)}`:''}.`);
   }else{
-    p.wage=N.wage;p.until=S.season+N.years;p.role=N.role;p.negTries=0;p.mor=clamp(p.mor+8,15,100);p.unhappy=false;
-    addNews('transfer',`${fullname(p)} verlängert`,`Neuer Vertrag bis ${contractEnd(p)} · ${money(N.wage)}/Woche · ${ROLES[N.role].label}.`);
+    const pd=p.ct?p.ct.pd||0:0;
+    if(N.years!==0){p.until=S.season+N.years;p.role=N.role}
+    p.wage=E.W;p.ct=Object.assign({},E.ct,{n:0,pd});p.negTries=0;p.mor=clamp(p.mor+(E.ratio>1.05?10:6),15,100);p.unhappy=false;
+    if(si)payBonus(si,'si');
+    addNews('transfer',`${fullname(p)}: ${N.years===0?'Vertrag angepasst':'verlängert'}`,`Vertrag bis ${contractEnd(p)} · ${money(N.mw)} brutto/Monat · ${ROLES[p.role].label}${si?` · Unterschriftsprämie ${money(si)}`:''}.`);
   }
-  UI.modal=null;UI.neg=null;S.rng=RNG;save();toast(buy?`${fullname(p)} unterschreibt!`:'Vertrag verlängert!');
+  UI.modal=null;UI.neg=null;S.rng=RNG;save();toast(buy?`${fullname(p)} unterschreibt!`:'Vertrag unterschrieben!');
 }
 
 /* ---------- Taktik ---------- */
@@ -449,7 +530,7 @@ function renderTransfers(){
   if(f.free)ps=ps.filter(p=>p.club===null);
   if(f.young)ps=ps.filter(p=>p.age<=21);
   if(f.exp)ps=ps.filter(p=>p.club!==null&&p.until<=S.season);
-  const max=parseFloat(f.max)*1e6;if(f.max!==''&&max>=0)ps=ps.filter(p=>askPrice(p)<=max);
+  const max=parseFloat(f.max)*1e6;if(f.max!==''&&max>=0)ps=ps.filter(p=>buyFee(p,c).fee<=max);
   ps.sort((a,b)=>ovr(b)-ovr(a));const total=ps.length;ps=ps.slice(0,80);
   return `<h2>Transfers</h2>${tabs}
   <div class="card" style="margin-bottom:12px"><div class="row">
@@ -460,28 +541,29 @@ function renderTransfers(){
    <label class="small"><input type="checkbox" data-chg="tfFree" ${f.free?'checked':''}> vereinslos</label>
    <label class="small"><input type="checkbox" data-chg="tfYoung" ${f.young?'checked':''}> U21</label>
    <label class="small"><input type="checkbox" data-chg="tfExp" ${f.exp?'checked':''}> Vertrag läuft aus</label>
-  </div><div class="small muted" style="margin-top:8px">Transferbudget: <b style="color:var(--text)">${money(c.tBudget)}</b> · Gehaltsbudget frei: <b style="color:var(--text)">${money(c.wBudget-wageBill(c))}</b>/Wo. · Fenster: ${isWindow()?'<span class="good">offen</span>':'<span class="bad">geschlossen</span>'} · ${total} Treffer${total>80?' (Top 80)':''}</div></div>
+  </div><div class="small muted" style="margin-top:8px">Transferbudget: <b style="color:var(--text)">${money(c.tBudget)}</b> · Gehaltsbudget frei: <b style="color:var(--text)">${money(mon(c.wBudget-wageBill(c)))}</b>/Monat · Fenster: ${isWindow()?'<span class="good">offen</span>':'<span class="bad">geschlossen</span>'} · ${total} Treffer${total>80?' (Top 80)':''}</div></div>
   <div class="tw"><table><thead><tr>${PH}<th>Verein</th><th class="n">Preis</th></tr></thead><tbody>
-  ${ps.map(p=>playerRow(p,null,`<td>${p.club!==null?esc(club(p.club).name):'<span class="muted">frei</span>'}</td><td class="n"><b>${p.club!==null?money(askPrice(p)):'frei'}</b></td>`)).join('')}</tbody></table></div>`;
+  ${ps.map(p=>playerRow(p,null,`<td>${p.club!==null?esc(club(p.club).name):'<span class="muted">frei</span>'}</td><td class="n"><b>${p.club!==null?(()=>{const bf=buyFee(p,c);return money(bf.fee)+(bf.clause?' <span class="pill gold" title="Ausstiegsklausel" style="font-size:10px;padding:0 6px">AK</span>':'')})():'frei'}</b></td>`)).join('')}</tbody></table></div>`;
 }
 
 /* ---------- Finanzen ---------- */
 const WAGE_RATE=40;
 function renderFinance(){
   const c=userClub(),f=S.fin,wages=wageBill(c),step=rw(Math.max(1000,c.wBudget*.05));
-  const inc=f.tv+f.tickets+f.prize+(f.cups||0),exp=f.wages;
+  const inc=f.tv+f.tickets+f.prize+(f.cups||0),exp=f.wages+(f.bonus||0);
   const line=(l,v,cls)=>`<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)"><span>${l}</span><b class="${cls||''}">${money(v)}</b></div>`;
   return `<h2>Finanzen</h2><div class="grid g2">
-   <div class="card"><h3>Kontostand</h3><div style="font-size:30px;font-weight:800" class="${c.budget<0?'bad':''}">${money(c.budget)}</div><div class="small muted">Gehälter aktuell ${money(wages)} pro Woche (${money(wages*52)} pro Jahr)</div>
+   <div class="card"><h3>Kontostand</h3><div style="font-size:30px;font-weight:800" class="${c.budget<0?'bad':''}">${money(c.budget)}</div><div class="small muted">Gehälter aktuell ${money(mon(wages))} pro Monat (${money(wages*52)} pro Jahr)</div>
      <div class="small muted" style="margin-top:6px">Wirtschaftskraft der ${esc(league(c).name)}: <b>${Math.round(c.econ*100)} %</b> der stärksten Liga. Danach richten sich TV-Gelder, Ticketpreise und Gehälter.</div>
      <div class="small muted" style="margin-top:6px">Präsident ${esc(c.staff.pres.name)} (${PRES[c.staff.pres.trait].label}) gibt ${Math.round(PRES[c.staff.pres.trait].tShare*100)} % des Kontostands als Transferbudget frei und lässt dir ${Math.round(PRES[c.staff.pres.trait].saleBack*100)} % der Verkaufserlöse.</div></div>
    <div class="card"><h3>Budgets vom Vorstand</h3>
      <div class="row" style="justify-content:space-between"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>
-     <div class="row" style="justify-content:space-between;margin-top:6px"><span>Gehaltsbudget</span><b>${money(wages)} / ${money(c.wBudget)} pro Woche</b></div>
+     <div class="row" style="justify-content:space-between;margin-top:6px"><span>Gehaltsbudget</span><b>${money(mon(wages))} / ${money(mon(c.wBudget))} pro Monat</b></div>
      <div class="bar" style="margin-top:6px"><i style="width:${clamp(wages/c.wBudget*100,0,100)}%;background:${wages>c.wBudget*.95?'var(--bad)':wages>c.wBudget*.85?'var(--gold)':'var(--accent)'}"></i></div>
-     <label class="f" style="margin-top:12px">Budget umschichten (1 € pro Woche = ${WAGE_RATE} € Transferbudget)</label>
-     <div class="row"><button class="btn sm" data-act="shift" data-v="${step}">+${money(step)}/Wo. Gehalt <span class="muted">(−${money(step*WAGE_RATE)})</span></button><button class="btn sm" data-act="shift" data-v="-${step}">−${money(step)}/Wo. Gehalt <span class="muted">(+${money(step*WAGE_RATE)})</span></button></div></div>
-   <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Liga-Prämien',f.prize,'good')}${line('Internationale Wettbewerbe',f.cups||0,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-exp,'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
+     <label class="f" style="margin-top:12px">Budget umschichten (1 € Monatsgehalt = ${(WAGE_RATE*12/52).toLocaleString('de-DE',{maximumFractionDigits:1})} € Transferbudget)</label>
+     <div class="row"><button class="btn sm" data-act="shift" data-v="${step}">+${money(mon(step))}/Monat Gehalt <span class="muted">(−${money(step*WAGE_RATE)})</span></button><button class="btn sm" data-act="shift" data-v="-${step}">−${money(mon(step))}/Monat Gehalt <span class="muted">(+${money(step*WAGE_RATE)})</span></button></div></div>
+   <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Liga-Prämien',f.prize,'good')}${line('Internationale Wettbewerbe',f.cups||0,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-f.wages,'bad')}${line('Prämien',-(f.bonus||0),'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
+   <div class="card"><h3>Prämien diese Saison</h3>${BONUS.filter(b=>(f.bon||{})[b.k]).map(b=>line(b.lbl,-(f.bon[b.k]),'bad')).join('')||'<p class="small muted">Noch keine Prämien ausgezahlt.</p>'}<div class="small muted" style="margin-top:8px">Erwartet für die ganze Saison: <b style="color:var(--text)">${money(squadOf(c).reduce((t,p)=>{if(!p.ct)return t;const e=bonusEV(p,c,p.ct,p.role);for(const k in e)t+=e[k];return t},0))}</b> (laut Vertragsklauseln deines Kaders)</div></div>
    <div class="card" style="grid-column:1/-1"><h3>Wochenverlauf</h3><div class="tw"><table><thead><tr><th>Woche</th><th class="n">TV</th><th class="n">Tickets</th><th class="n">Gehälter</th><th class="n">Kontostand</th></tr></thead><tbody>${f.log.map(l=>`<tr><td>${l.w}.</td><td class="n">${money(l.tv)}</td><td class="n">${l.tickets?money(l.tickets):'–'}</td><td class="n bad">-${money(l.wages)}</td><td class="n"><b>${money(l.bal)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Wochen gespielt.</td></tr>'}</tbody></table></div></div>
   </div>`;
 }
@@ -732,11 +814,14 @@ const ACT={
   worldAssoc:d=>{UI.world.assoc=d.v;window.scrollTo(0,0);render()},
   worldBack:()=>{UI.world.assoc=null;render()},
   tfTab:d=>{UI.tf.tab=d.v;render()},
-  negOpen:d=>{const p=S.players[d.id],u=userClub();const role=suggestRole(p,u),years=p.age>=31?1:p.age<=23?4:3;
-    UI.neg={pid:p.id,mode:d.mode,role,years,wage:wageDemand(p,u,role,years),msg:null};UI.modal=negModal();render()},
-  negSet:d=>{const N=UI.neg;if(!N)return;N[d.k]=d.k==='years'?+d.v:d.v;N.msg=null;render()},
-  negWageStep:d=>{const N=UI.neg;const step=N.wage>=50000?2500:N.wage>=10000?1000:N.wage>=2000?250:100;N.wage=Math.max(100,N.wage+step*(+d.v));N.msg=null;render()},
-  negWageSet:()=>{const N=UI.neg,p=S.players[N.pid];N.wage=wageDemand(p,userClub(),N.role,N.years);N.msg=null;render()},
+  negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
+  negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years')N.years=+d.v;else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else N[d.k]=d.v;N.msg=null;render()},
+  negLv:d=>{const N=UI.neg;N.lv[d.k]=+d.v;N.msg=null;render()},
+  negAdj:d=>{const N=UI.neg;N[d.k]=+d.v;N.msg=null;render()},
+  negRc:d=>{const N=UI.neg,p=S.players[N.pid];const st=nice(Math.max(p.val*.1,5e4));N.rc=Math.max(1e5,nice(N.rc+st*(+d.v)));N.msg=null;render()},
+  negRcMul:d=>{const N=UI.neg,p=S.players[N.pid];N.rc=Math.max(1e5,nice(Math.max(p.val,1e5)*(+d.v)));N.msg=null;render()},
+  negWageStep:d=>{const N=UI.neg;const step=N.mw>=500000?10000:N.mw>=100000?5000:N.mw>=20000?1000:N.mw>=5000?250:100;N.mw=Math.max(100,N.mw+step*(+d.v));N.msg=null;render()},
+  negWageSet:()=>{const N=UI.neg;negMatchDemand(N,S.players[N.pid],userClub());N.msg=null;render()},
   negSubmit:()=>negSubmit(),
   listToggle:d=>{const p=S.players[d.id];p.listed=!p.listed;save();toast(p.listed?'Auf die Transferliste gesetzt':'Von der Transferliste genommen')},
   shift:d=>{const u=userClub(),v=+d.v,cost=v*WAGE_RATE;

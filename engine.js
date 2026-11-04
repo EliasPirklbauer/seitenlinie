@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=8;
-const APP_VERSION='0.10.0';
+const VERSION=9;
+const APP_VERSION='0.11.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -339,7 +339,8 @@ function refillFreeAgents(){
 function startCareer(manager){
   const c=userClub();
   c.staff.coach={name:manager,trait:null};c.autoXI=true;
-  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,log:[]};
+  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,bonus:0,bon:{},log:[]};
+  squadOf(c).forEach(materializeContract);
   addNews('board',`Willkommen beim ${c.name}!`,`Der Vorstand um Präsident ${esc(c.staff.pres.name)} (${PRES[c.staff.pres.trait].label}) erwartet in dieser Saison: <b>${c.target.t}</b> in der ${esc(league(c).name)}. Transferbudget: <b>${money(c.tBudget)}</b>, Gehaltsbudget: <b>${money(c.wBudget)}/Woche</b>.`);
   addNews('info','Transferfenster geöffnet',`Bis Woche 4 kannst du Spieler kaufen. Das Winterfenster öffnet in Woche ${winterStart()+1}. Simuliert werden ${S.active.length} Länder mit ${S.leagues.length} Ligen.`);
   S.fin.cups=userComps().reduce((t,C)=>t+COMP[C.key].prize.base,0);
@@ -495,7 +496,7 @@ function careerView(p){
   return {rows,moves,since,youth:H.youth};
 }
 function freeAgent(p){
-  closeRow(p);  if(p.club!==null){const c=club(p.club);c.players=c.players.filter(x=>x!==p.id);c.lineup=c.lineup.map(x=>x===p.id?null:x)}
+  closeRow(p);delete p.ct;  if(p.club!==null){const c=club(p.club);c.players=c.players.filter(x=>x!==p.id);c.lineup=c.lineup.map(x=>x===p.id?null:x)}
   p.club=null;p.role='rotation';p.listed=false;p.wage=rw(calcWage(p)*.5);
 }
 function aiKeeps(p,c){
@@ -611,6 +612,7 @@ function simMatch(hc,ac,detail,neutral){
       let r=6.45+clamp((gf-ga)*.18,-.6,.6)+x.g*.95+x.a*.5-x.y*.3+(ga===0&&def?(pos==='TW'?.55:.3):0)-(def?Math.max(0,ga-1)*(pos==='TW'?.25:.12):0)+((rateAt(p,pos)||ovr(p))-avg)*.025+gauss()*.42;
       r=clamp(Math.round(r*10)/10,3.5,10);p.rs=(p.rs||0)+Math.round(r*10);p.rn=(p.rn||0)+1;
       if(detail){res.rt=res.rt||{};res.rt[id]=r}});
+    matchBonuses(c,res,ga);
   }
   res.end=95;
   return res;
@@ -683,6 +685,7 @@ function doTransfer(p,to,fee,contract){
   const sign=signingFee(p,ct.wage);
   if(from){from.players=from.players.filter(x=>x!==p.id);from.lineup=from.lineup.map(x=>x===p.id?null:x);from.budget+=fee;from.tBudget=(from.tBudget||0)+fee*PRES[from.staff.pres.trait].saleBack}
   to.players.push(p.id);to.budget-=fee+sign;to.tBudget=Math.max(0,(to.tBudget||0)-fee-sign);
+  if(to.id===S.user){p.ct=Object.assign({},ct.ct||{});p.ct.n=0;delete p.ct.ad;p.ct.pd=0}else delete p.ct;
   closeRow(p);p.tr=p.tr||[];p.tr.push([S.season,S.week,from?from.id:-1,to.id,fee]);if(p.tr.length>12)p.tr.shift();p.since=S.season;
   p.club=to.id;p.mor=78;p.wage=ct.wage;p.until=ct.until;p.role=ct.role;p.listed=false;p.negTries=0;
   if(from&&from.id===S.user)S.fin.tOut+=fee;
@@ -713,8 +716,9 @@ function aiTransfer(c){
     if(p.club===c.id||p.inj>0)continue;
     if(dir==='jugend'&&(p.age>23||p.pot<need.level+4))continue;
     if(dir==='erfahrung'&&p.age<26)continue;
-    if(p.club!==null){const sc=S.clubs[p.club];if(sc.guest||sc.players.length<=19||sc.rep-c.rep>22)continue}
-    const price=askPrice(p),wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max)continue;
+    const bf=buyFee(p,c);
+    if(p.club!==null){const sc=S.clubs[p.club];if(sc.guest||sc.players.length<=19||(sc.rep-c.rep>22&&!bf.clause))continue}
+    const price=bf.fee,wage=aiWageFor(p,c),total=price+(p.club===null?wage*6:0);if(total>max)continue;
     if(bill+wage>c.wBudget)continue;
     const o=ovr(p);
     if(dir==='jugend'){if(p.age>23||p.pot<need.level+4)continue}else if(o<need.level+2)continue;
@@ -726,6 +730,10 @@ function aiTransfer(c){
   cands.sort((x,y)=>y.score-x.score);
   const {p,price}=cands[Math.min(cands.length-1,Math.floor(rnd()*Math.min(3,cands.length)))];
   if(p.club===S.user){
+    const bf=buyFee(p,c),u=userClub();
+    if(bf.clause&&bf.fee<=max){const will=clamp(.3+(c.rep-u.rep)/40+at(p,'amb')/50,.05,.95);
+      if(rnd()<will){const nm=fullname(p);doTransfer(p,c,bf.fee);trimSquad(c);
+        addNews('offer',`Ausstiegsklausel gezogen: ${nm}`,`${esc(c.name)} (${esc(leagueName(c))}) zahlt die festgeschriebene Ablöse von <b>${money(bf.fee)}</b>. Der Spieler wechselt sofort – du kannst den Transfer nicht verhindern.`);return}}
     if(S.offers.some(o=>o.pid===p.id))return;if(!p.listed&&rnd()<.5)return;
     const fee=Math.round(p.val*(p.listed?.85+rnd()*.3:1+rnd()*.5)/5000)*5000;if(fee>max)return;
     S.offers.push({id:'o'+(S.nextId++),from:c.id,pid:p.id,fee,w:S.week});
@@ -892,12 +900,14 @@ function seasonEnd(){
   for(const mv of moves){
     mv.up.clubs=mv.up.clubs.filter(id=>!mv.down.includes(id)).concat(mv.prom);
     mv.lo.clubs=mv.lo.clubs.filter(id=>!mv.prom.includes(id)).concat(mv.down);
-    mv.down.forEach(id=>{const c=club(id);c.league=mv.lo.id;c.econ=econOf(c.assoc,mv.lo.tier);c.rep=clamp(c.rep-3,5,99)});
+    mv.down.forEach(id=>{const c=club(id);c.relegS=S.season+1;c.league=mv.lo.id;c.econ=econOf(c.assoc,mv.lo.tier);c.rep=clamp(c.rep-3,5,99)});
     mv.prom.forEach(id=>{const c=club(id);c.league=mv.up.id;c.econ=econOf(c.assoc,mv.up.tier);c.rep=clamp(c.rep+3,5,99)});
     if(mv.down.includes(S.user))addNews('board','Abstieg 😞',`Dein ${esc(u.name)} steigt in die ${esc(mv.lo.name)} ab. Einnahmen und Budgets sinken deutlich.`);
     if(mv.prom.includes(S.user))addNews('board','AUFSTIEG! 🎉',`Dein ${esc(u.name)} steigt in die ${esc(mv.up.name)} auf!`);
     if(uL.assoc===mv.up.assoc)addNews('info',`Auf- und Abstieg ${esc(mv.up.name)}`,`Absteiger: ${mv.down.map(id=>esc(club(id).name)).join(', ')} · Aufsteiger: ${mv.prom.map(id=>esc(club(id).name)).join(', ')}.`);
   }
+  // Vertragsprämien & Gehaltsanpassungen
+  seasonContracts({champ:uRank===1,promo:moves.some(mv=>mv.prom.includes(S.user)),releg:moves.some(mv=>mv.down.includes(S.user))});
   // Karrierezeilen der Saison abschließen
   for(const p of Object.values(S.players))closeRow(p);
   // Vertragsenden
@@ -925,7 +935,7 @@ function seasonEnd(){
   for(const c of S.clubs){
     if(c.guest)continue;
     const yj=c.staff.dir.trait==='jugend',n=yj?3:2,names=[];
-    for(let i=0;i<n;i++){const q=36+c.rep*.3+(yj?5:0);const p=genPlayer(pick(POS_LIST),q,ri(16,18),c.assoc);p.pot=clamp(p.pot+(yj?6:0),0,96);p.club=c.id;p.until=S.season+3;p.role='perspektive';p.wage=rw(calcWage(p)*.8*c.econ);S.players[p.id]=p;c.players.push(p.id);names.push(`${fullname(p)} (${p.pos}, Pot. ${p.pot})`)}
+    for(let i=0;i<n;i++){const q=36+c.rep*.3+(yj?5:0);const p=genPlayer(pick(POS_LIST),q,ri(16,18),c.assoc);p.pot=clamp(p.pot+(yj?6:0),0,96);p.club=c.id;p.until=S.season+3;p.role='perspektive';p.wage=rw(calcWage(p)*.8*c.econ);S.players[p.id]=p;c.players.push(p.id);if(c.id===S.user)materializeContract(p);names.push(`${fullname(p)} (${p.pos}, Pot. ${p.pot})`)}
     if(c.id===S.user)addNews('transfer','Neue Jugendspieler',`Aus der Akademie rücken auf: ${names.map(esc).join(', ')}.`);
   }
   refillFreeAgents();
@@ -936,11 +946,12 @@ function seasonEnd(){
   S.season++;S.week=0;S.offers=[];resetCache();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
-  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,log:[]};
+  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};
   for(const c of S.clubs){if(c.guest)continue;if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
   fixLineup(u);
   setupComps();setupSupercups();setupNatCups();
-  const uc=userComps();if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein spielt in dieser Saison: ${uc.map(C=>COMP[C.key].name).join(', ')}. Denk an Rotation – unter der Woche kommen zusätzliche Spiele dazu.`);
+  const uc=userComps();if(uc.length)teamBonus('ic','Qualifikation für '+uc.map(C=>COMP[C.key].name).join(', '));
+  if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein spielt in dieser Saison: ${uc.map(C=>COMP[C.key].name).join(', ')}. Denk an Rotation – unter der Woche kommen zusätzliche Spiele dazu.`);
   addNews('board',`Saison ${S.season}/${(S.season+1)%100}: Neue Ziele`,`Liga: ${esc(league(u).name)}. Der Vorstand erwartet: <b>${u.target.t}</b>. Transferbudget: ${money(u.tBudget)}, Gehaltsbudget: ${money(u.wBudget)}/Woche.`);
   S.rng=RNG;save();
 }
@@ -1008,6 +1019,11 @@ function applySave(obj){
     S.statsFrom=S.season;
     addNews('info','Neu: Ausführliche Spielerprofile','Spielerkarten zeigen jetzt Steckbrief, Vertragsdetails und die komplette Karriere mit allen Stationen. Vorlagen, Karten, weiße Westen und Spielnoten werden ab sofort erfasst.');
     S.v=8;
+  }
+  if(S.v<9){
+    squadOf(userClub()).forEach(materializeContract);S.fin.bonus=S.fin.bonus||0;S.fin.bon=S.fin.bon||{};
+    addNews('info','Neu: Vertragspakete','Verträge enthalten jetzt Prämien, Gehaltsanpassungen und Ausstiegsklauseln. Gehälter werden pro Monat angezeigt – brutto und netto. Die bestehenden Verträge deiner Spieler wurden mit ihren Standardklauseln übernommen.');
+    S.v=9;
   }
   save();
 }

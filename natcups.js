@@ -181,6 +181,7 @@ function playNatCupWeek(userList){
 }
 function finishNatCup(cup,id){
   cup.winner=id;const c=club(id);natPrize(c,0,true);c.rep=clamp(c.rep+1,5,99);
+  if(id===S.user)teamBonus('cu',NATCUP_NAMES[cup.code]||'Pokalsieg');
   S.cupWinners[cup.code]={id};S.prevCup=S.prevCup||{};S.prevCup[cup.code]={winner:id,runner:cup.runner};
   (S.natHist[cup.code]=S.natHist[cup.code]||[]).unshift({season:S.season,winner:c.name});if(S.natHist[cup.code].length>15)S.natHist[cup.code].length=15;
   if(id===S.user)addNews('board',`🏆 ${cup.name} gewonnen!`,`Dein ${esc(c.name)} holt den Pokal – und damit einen internationalen Startplatz.`);
