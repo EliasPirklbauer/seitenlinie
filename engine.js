@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.11.1';
+const APP_VERSION='0.11.2';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -798,7 +798,7 @@ function nextUserMatch(){
 function playWeek(){
   RNG=S.rng||RNG;resetCache();
   for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+10+at(p,'nat')/4,0,100)}
-  aiWeekly();
+  aiWeekly();clauseWatch();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
   for(const L of S.leagues){

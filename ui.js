@@ -279,7 +279,7 @@ function playerModal(pid){
           ct.up?`<div class="crow"><span>Erhöhung bei Aufstieg<small>ab der neuen Saison</small></span><b class="good">+${ct.up} %</b></div>`:'',
           ct.dn?`<div class="crow"><span>Kürzung bei Abstieg<small>ab der neuen Saison</small></span><b class="bad">−${ct.dn} %</b></div>`:''].join('');
         const appl=!mine&&ct.rc&&clauseApplies(p,u,ct);
-        const clause=ct.rc?`<div class="cclause ${appl?'on':''}"><span>Ausstiegsklausel</span><b>${money(ct.rc)}</b><small>gilt für: ${CLAUSE_TYPES[ct.rt||'all']}${mine?'':appl?' · <b class="good">gilt für deinen Verein – der Verein kann den Wechsel nicht verhindern</b>':' · gilt nicht für deinen Verein'}</small></div>`:`<div class="cclause"><span>Ausstiegsklausel</span><b class="muted" style="font-size:22px">keine</b><small>Ein Wechsel ist nur mit Zustimmung des Vereins möglich.</small></div>`;
+        const clause=ct.rc?`<div class="cclause ${appl?'on':''}"><span>Ausstiegsklausel</span><b>${money(ct.rc)}</b><small>gilt für: ${CLAUSE_TYPES[ct.rt||'all']} · Gültigkeit: ${clauseWindowText(ct)}${(()=>{const st=clauseState(ct);return st==='pre'?` · <b class="gold">noch nicht aktiv</b>`:st==='post'?` · <b class="muted">verstrichen</b>`:(ct.rf||ct.ru)?` · <b class="good">aktiv</b>`:''})()}${mine?'':appl?' · <b class="good">gilt für deinen Verein – der Verein kann den Wechsel nicht verhindern</b>':' · gilt nicht für deinen Verein'}</small></div>`:`<div class="cclause"><span>Ausstiegsklausel</span><b class="muted" style="font-size:22px">keine</b><small>Ein Wechsel ist nur mit Zustimmung des Vereins möglich.</small></div>`;
         body=`<div class="cbig">
           <div><span>Gehalt brutto</span><b>${money(mon(p.wage))}<em>/Monat</em></b><small>${money(p.wage*52)} brutto pro Jahr</small></div>
           <div><span>Gehalt netto (geschätzt)</span><b>${money(nt.net/12)}<em>/Monat</em></b><small>${money(nt.net)} pro Jahr · Abzüge ${Math.round(nt.rate*100)} % (${esc(natName(code))}: ${esc(nt.lbl)})</small></div>
@@ -336,7 +336,7 @@ function negCt(N,p,u){
   for(const b of BONUS){const v=N.b[b.k]||0;if(v>0&&bonusApplies(b,p,u))ct[b.k]=Math.round(v)}
   if(N.ri)ct.ri=RAISE.ri[N.ri];if(N.ar)ct.ar=RAISE.ar[N.ar].slice();
   const L=league(u);if(N.up&&L&&L.tier>1)ct.up=RAISE.up[N.up];if(N.dn&&L&&L.down)ct.dn=RAISE.dn[N.dn];
-  if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt}
+  if(N.rt!=='none'&&N.rc>0){ct.rc=N.rc;ct.rt=N.rt;if((N.rw==='from'||N.rw==='range')&&N.rf)ct.rf=N.rf;if((N.rw==='until'||N.rw==='range')&&N.ru)ct.ru=N.ru}
   return ct;
 }
 function negYears(N,p){return N.years===0?Math.max(1,p.until-S.season+(S.week<winterStart()?1:.5)):N.years}
@@ -350,7 +350,7 @@ function negEval(N,p,u){
 }
 function negInit(p,u,mode){
   const role=suggestRole(p,u),keep=mode==='extend'&&p.until>S.season,years=keep?0:p.age>=31?1:p.age<=23?4:3;
-  const N={pid:p.id,mode,role:keep?p.role:role,years,mw:0,b:{},ri:0,ar:0,up:0,dn:0,rt:'none',rc:0,msg:null};
+  const N={pid:p.id,mode,role:keep?p.role:role,years,mw:0,b:{},ri:0,ar:0,up:0,dn:0,rt:'none',rc:0,rw:'always',rf:'',ru:'',msg:null};
   const cur=mode==='extend'?(p.ct||contractOf(p)):{};
   const W0=mode==='extend'?p.wage:wageDemand(p,u,role,years||1);
   for(const b of BONUS){
@@ -359,7 +359,7 @@ function negInit(p,u,mode){
   }
   if(mode==='extend'){const ix=(arr,v)=>Math.max(0,arr.findIndex(x=>JSON.stringify(x)===JSON.stringify(v)));
     N.ri=cur.ri?Math.max(1,ix(RAISE.ri,cur.ri)):0;N.ar=cur.ar?Math.max(1,RAISE.ar.findIndex(x=>x&&x[0]===cur.ar[0])):0;N.up=cur.up?Math.max(1,ix(RAISE.up,cur.up)):0;N.dn=cur.dn?Math.max(1,ix(RAISE.dn,cur.dn)):0;
-    if(cur.rc){N.rt=cur.rt||'all';N.rc=cur.rc}}
+    if(cur.rc){N.rt=cur.rt||'all';N.rc=cur.rc;N.rf=cur.rf||'';N.ru=cur.ru||'';N.rw=cur.rf&&cur.ru?'range':cur.rf?'from':cur.ru?'until':'always'}}
   N.mw=Math.round(mon(W0)/100)*100;
   if(mode==='buy')negMatchDemand(N,p,u);
   return N;
@@ -398,8 +398,17 @@ function negModal(){
       ${L&&L.tier>1?`<div class="nrow"><div><b>Erhöhung bei Aufstieg</b><small>ab der neuen Saison</small></div>${seg('negAdj','up',N.up,pctL(RAISE.up))}</div>`:''}
       ${L&&L.down?`<div class="nrow"><div><b>Kürzung bei Abstieg</b><small>spart Kosten, mag kein Spieler</small></div>${seg('negAdj','dn',N.dn,RAISE.dn.map((v,i)=>[i,i?'−'+v+' %':'–']))}</div>`:''}`;
     const types=[['none','Keine'],...Object.entries(CLAUSE_TYPES).filter(([k])=>!(k==='higher'&&(!L||L.tier===1))&&!(k==='releg'&&(!L||!L.down)))];
+    const cEnd=`${endYear+1}-06-30`,today=gameDate(),yrsL=[];for(let y=S.season;y<=endYear;y++)yrsL.push(y);
+    const dIn=(k,v,min)=>`<label class="minp dinp"><input type="date" data-chg="negDate" data-k="${k}" value="${v||''}" min="${min||today}" max="${cEnd}"></label>`;
+    const chips=(k,list,cur)=>`<div class="chipsel" style="margin-top:6px">${list.map(([v,l])=>`<button class="${cur===v?'on':''}" data-act="negDatePick" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const fromL=yrsL.slice(1).map(y=>[`${y}-07-01`,`ab 01.07.${y}`]),untilL=yrsL.flatMap(y=>[[`${y}-08-31`,`bis 31.08.${y}`],[`${y+1}-01-31`,`bis 31.01.${y+1}`]]).filter(([v])=>v>=today&&v<=cEnd).slice(0,5);
+    const wShare=clauseShare({rf:(N.rw==='from'||N.rw==='range')?N.rf:'',ru:(N.rw==='until'||N.rw==='range')?N.ru:''},today,cEnd);
+    const clauseWin=`<div style="margin-top:10px"><b class="small">Gültigkeit</b>${seg('negSet','rw',N.rw,[['always','Ganze Laufzeit'],['from','Erst ab …'],['until','Verstreicht am …'],['range','Zeitraum']])}
+      ${N.rw==='from'||N.rw==='range'?`<div class="drow"><span>gültig ab</span>${dIn('rf',N.rf)}</div>${chips('rf',fromL,N.rf)}`:''}
+      ${N.rw==='until'||N.rw==='range'?`<div class="drow"><span>gültig bis</span>${dIn('ru',N.ru,N.rw==='range'&&N.rf?N.rf:today)}</div>${chips('ru',untilL,N.ru)}`:''}
+      <div class="small muted" style="margin-top:6px">${N.rw==='always'?'Die Klausel gilt bis zum Vertragsende am '+fmtDate(cEnd)+'.':`Die Klausel gilt in ${Math.round(wShare*100)} % der Restlaufzeit – je kürzer, desto weniger ist sie dem Spieler wert. Heute im Spiel: ${fmtDate(today)}.`}</div></div>`;
     const clauseRow=`<div class="nrow col"><div><b>Ausstiegsklausel</b>${star('rc')}<small>Fester Ablösebetrag, bei dem der Spieler wechseln darf</small></div>${seg('negSet','rt',N.rt,types)}
-      ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button>${amtInput('rc',N.rc)}<button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>`:''}</div>`;
+      ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button>${amtInput('rc',N.rc)}<button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>${clauseWin}`:''}</div>`;
     const sat=clamp(E.ratio*100,0,130),satCls=E.ratio>=1?'good':E.ratio>=.9?'gold':'bad';
     return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
      <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
@@ -829,7 +838,8 @@ const ACT={
   worldBack:()=>{UI.world.assoc=null;render()},
   tfTab:d=>{UI.tf.tab=d.v;render()},
   negOpen:d=>{const p=S.players[d.id],u=userClub();UI.neg=negInit(p,u,d.mode);UI.modal=negModal();render()},
-  negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years')N.years=+d.v;else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else N[d.k]=d.v;N.msg=null;render()},
+  negSet:d=>{const N=UI.neg,p=S.players[N.pid];if(!N)return;if(d.k==='years'){N.years=+d.v;negDateFix(N)}else if(d.k==='rt'){N.rt=d.v;if(d.v!=='none'&&!N.rc)N.rc=nice(Math.max(p.val,1e5)*2)}else if(d.k==='rw'){N.rw=d.v;if((d.v==='from'||d.v==='range')&&!N.rf)N.rf=`${S.season+1}-07-01`;if((d.v==='until'||d.v==='range')&&!N.ru)N.ru=`${S.season+1}-06-30`;negDateFix(N)}else N[d.k]=d.v;N.msg=null;render()},
+  negDatePick:d=>{const N=UI.neg;N[d.k]=d.v;negDateFix(N);N.msg=null;render()},
   negLv:d=>{const N=UI.neg;N.b[d.k]=+d.v;N.msg=null;render()},
   negAdj:d=>{const N=UI.neg;N[d.k]=+d.v;N.msg=null;render()},
   negRc:d=>{const N=UI.neg,p=S.players[N.pid];const st=nice(Math.max(p.val*.1,5e4));N.rc=Math.max(1e5,nice(N.rc+st*(+d.v)));N.msg=null;render()},
@@ -856,7 +866,11 @@ const ACT={
   copyExp:()=>{const t=exportText();try{navigator.clipboard.writeText(t).then(()=>toast('Kopiert!'),()=>toast('Kopieren nicht erlaubt – bitte Datei nutzen'))}catch(e){toast('Kopieren nicht möglich')}},
   doImport:()=>{const t=document.getElementById('impTxt').value.trim();if(!t)return toast('Kein Text');try{applySave(JSON.parse(t));UI.modal=null;UI.setup=null;UI.view='home';render();toast('Spielstand geladen')}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Ungültiger Spielstand')}},
 };
+function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.season+N.years,cEnd=`${endY+1}-06-30`,t=gameDate();
+  for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
+  if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  negDate:el=>{const N=UI.neg;if(!N)return;if(/^\d{4}-\d{2}-\d{2}$/.test(el.value)){N[el.dataset.k]=el.value;negDateFix(N)}N.msg=null;render()},
   negAmt:el=>{const N=UI.neg;if(!N)return;const v=parseMoney(el.value),k=el.dataset.k;
     if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}
     if(k==='mw')N.mw=Math.max(100,Math.round(v));else if(k==='rc')N.rc=Math.max(1e5,Math.round(v));else N.b[k]=Math.round(v);

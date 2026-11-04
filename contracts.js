@@ -63,16 +63,36 @@ function aiContract(p){
   // Spanien: Ausstiegsklausel gesetzlich üblich (cláusula de rescisión), sonst gelegentlich
   if(c.assoc==='ESP'){ct.rc=nice(Math.max(p.val,5e5)*(3+R()*7));ct.rt='all'}
   else if(R()<.2){const ty=['all','all','foreign','higher','intl','releg'][Math.floor(R()*6)];
-    ct.rt=ty==='higher'&&(!L||L.tier===1)?'foreign':ty==='releg'&&(!L||!L.down)?'all':ty;ct.rc=nice(Math.max(p.val,2e5)*(ct.rt==='releg'?.8+R():1.5+R()*3))}
+    ct.rt=ty==='higher'&&(!L||L.tier===1)?'foreign':ty==='releg'&&(!L||!L.down)?'all':ty;ct.rc=nice(Math.max(p.val,2e5)*(ct.rt==='releg'?.8+R():1.5+R()*3));
+    const w=R();if(ct.rt!=='releg'&&w<.2)ct.rf=`${p.until}-07-01`;else if(ct.rt!=='releg'&&w<.35)ct.ru=`${p.until-1}-08-31`}
   return ct;
 }
 function contractOf(p){return p.ct||aiContract(p)}
 function materializeContract(p){if(!p.ct)p.ct=aiContract(p);p.ct.n=p.ct.n||0;return p.ct}
 
+/* ---------- Spielkalender: Woche → Datum (Saison läuft vom 15.07. bis ca. 31.05.) ---------- */
+function gameDate(week){const d=new Date(Date.UTC(S.season,6,15));d.setUTCDate(d.getUTCDate()+Math.round((week===undefined?S.week:week)*320/Math.max(S.weeks,1)));return d.toISOString().slice(0,10)}
+const fmtDate=iso=>iso?iso.split('-').reverse().join('.'):'';
+const isoDays=iso=>Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))/864e5;
+function addDaysIso(iso,n){const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)));d.setUTCDate(d.getUTCDate()+Math.round(n));return d.toISOString().slice(0,10)}
+// Gültigkeit der Ausstiegsklausel: rf = gültig ab, ru = gültig bis (jeweils inklusive, ISO-Datum)
+function clauseState(ct,date){date=date||gameDate();if(ct.rf&&date<ct.rf)return 'pre';if(ct.ru&&date>ct.ru)return 'post';return 'on'}
+function clauseWindowText(ct){return ct.rf&&ct.ru?`${fmtDate(ct.rf)} – ${fmtDate(ct.ru)}`:ct.rf?`ab ${fmtDate(ct.rf)}`:ct.ru?`bis ${fmtDate(ct.ru)}`:'gesamte Vertragslaufzeit'}
+// Anteil der Restlaufzeit, in dem die Klausel gilt
+function clauseShare(ct,start,end){const a=isoDays(start),b=isoDays(end);if(b<=a)return 0;const x=Math.max(a,ct.rf?isoDays(ct.rf):a),y=Math.min(b,ct.ru?isoDays(ct.ru):b);return clamp((y-x)/(b-a),0,1)}
+function clauseWatch(){
+  const u=userClub();if(!u)return;
+  for(const p of squadOf(u)){const ct=p.ct;if(!ct||!ct.rc||(!ct.rf&&!ct.ru))continue;const st=clauseState(ct);
+    if(ct.cst&&ct.cst!==st){
+      if(st==='on')addNews('transfer',`Ausstiegsklausel aktiv: ${fullname(p)}`,`Ab sofort darf ${esc(pname(p))} für <b>${money(ct.rc)}</b> wechseln (${CLAUSE_TYPES[ct.rt||'all']}, ${clauseWindowText(ct)}).`);
+      if(st==='post')addNews('transfer',`Ausstiegsklausel verstrichen: ${fullname(p)}`,`Die Klausel über ${money(ct.rc)} ist am ${fmtDate(ct.ru)} abgelaufen – ein Wechsel geht jetzt nur noch mit deiner Zustimmung.`);
+    }ct.cst=st}
+}
+
 /* ---------- Ausstiegsklausel ---------- */
 function inIntlComp(c){return (S.comps||[]).some(C=>!C.bg&&(C.teams||[]).includes(c.id))}
 function clauseApplies(p,buyer,ct){
-  ct=ct||contractOf(p);if(!ct.rc||p.club===null)return false;const s=club(p.club);if(!s||!buyer||buyer.id===s.id)return false;
+  ct=ct||contractOf(p);if(!ct.rc||p.club===null||clauseState(ct)!=='on')return false;const s=club(p.club);if(!s||!buyer||buyer.id===s.id)return false;
   const Ls=league(s),Lb=league(buyer);
   switch(ct.rt){
     case 'foreign':return buyer.assoc!==s.assoc;
@@ -110,11 +130,11 @@ function bonusEV(p,c,ct,role){
   const E=expStats(p,c,role),O=clubOdds(c);
   return {ap:(ct.ap||0)*E.apps,gl:(ct.gl||0)*E.g,as:(ct.as||0)*E.a,cs:(ct.cs||0)*E.cs,ti:(ct.ti||0)*O.title,cu:(ct.cu||0)*O.cup,pr:(ct.pr||0)*O.promo,ic:(ct.ic||0)*O.intl,lo:ct.lo||0};
 }
-function clauseWorth(p,c,ct){
-  if(!ct.rc)return 0;const O=clubOdds(c),L=league(c);
+function clauseWorth(p,c,ct,years){
+  if(!ct.rc)return 0;const now=gameDate(),share=clauseShare(ct,now,addDaysIso(now,Math.max(.25,years||1)*365));const O=clubOdds(c),L=league(c);
   const cheap=1-clamp((ct.rc/Math.max(p.val,1e5)-1)/4,0,1);
   const typeF={all:1,foreign:.6,higher:L&&L.tier>1?.7:.05,intl:.7,releg:clamp(O.releg*2.5,0,1)*.5}[ct.rt||'all'];
-  return (at(p,'amb')/20)*.12*cheap*typeF;
+  return (at(p,'amb')/20)*.12*cheap*typeF*(.25+.75*share)*(share>0?1:0);
 }
 // Wert des Pakets aus Sicht des Spielers, umgerechnet in garantiertes Wochengehalt
 function ctValue(p,c,ct,W,years,role){
@@ -125,7 +145,7 @@ function ctValue(p,c,ct,W,years,role){
   if(ct.ar){const tot=E.apps*years,frac=tot>ct.ar[0]?1-ct.ar[0]/tot:0;v+=W*ct.ar[1]/100*frac*.85*(wi.includes('ar')?1.3:1)}
   if(ct.up)v+=W*ct.up/100*O.promo*.8;
   if(ct.dn)v-=W*ct.dn/100*O.releg*1.25;
-  v+=W*clauseWorth(p,c,ct)*(wi.includes('rc')?1.5:1);
+  v+=W*clauseWorth(p,c,ct,years)*(wi.includes('rc')?1.5:1);
   return v;
 }
 function ctCostSeason(p,c,ct,W,role){const ev=bonusEV(p,c,ct,role);let b=0;for(const k in ev)b+=ev[k];return {wage:W*52,bonus:b}}
