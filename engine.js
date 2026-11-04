@@ -5,8 +5,8 @@
 const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
-const VERSION=5;
-const APP_VERSION='0.6.0';
+const VERSION=6;
+const APP_VERSION='0.7.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -228,7 +228,7 @@ function schedule(){
 }
 function newWorld(seed,activeCodes,sel,manager){
   RNG=seed>>>0;resetCache();
-  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},ncups:[],cupWinners:{},natHist:{},coefHist:null,coefSeason:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
+  S={v:VERSION,seed,nextId:1,comps:[],compHist:{},guests:{},ncups:[],cupWinners:{},natHist:{},coefHist:null,coefSeason:{},supercups:[],scHist:{},prevTables:null,prevCup:{},season:2026,week:0,weeks:0,user:null,manager,active:activeCodes.slice(),clubs:[],players:{},leagues:[],news:[],offers:[],transfers:[],history:[],fin:null,bg:{},rng:0};
   for(const code of activeCodes){
     const st=assocStructure(code,seed);const ids=[];
     st.forEach(lt=>{const L={id:S.leagues.length,assoc:code,tier:lt.tier,name:lt.name,clubs:[],up:0,down:0,champs:[]};S.leagues.push(L);ids.push(L);
@@ -239,7 +239,7 @@ function newWorld(seed,activeCodes,sel,manager){
   schedule();
   S.clubs.forEach(c=>{autoLineup(c);c.target=boardTarget(c)});
   S.comps=[];S.compHist={};S.guests={};S.qualOrder=null;S.coefHist=initCoef();
-  setupComps();setupNatCups();
+  setupComps();setupSupercups();setupNatCups();
   return S;
 }
 function refillFreeAgents(){
@@ -262,7 +262,7 @@ function startCareer(manager){
 const club=id=>S.clubs[id];
 const userClub=()=>S.clubs[S.user];
 const league=c=>c.league===null?null:S.leagues[c.league];
-function leagueName(c){return c.guest?natName(c.assoc)+' · Gastverein':league(c).name}
+function leagueName(c){return c.amateur?natName(c.assoc)+' · Amateurverein':c.guest?natName(c.assoc)+' · Gastverein':league(c).name}
 function money(v){const s=v<0?'-':'';v=Math.abs(v);if(v>=1e6)return s+(v/1e6).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mio. €';if(v>=1e3)return s+Math.round(v/1e3).toLocaleString('de-DE')+' Tsd. €';return s+Math.round(v)+' €'}
 function winterStart(){return Math.floor(S.weeks*.47)}
 function isWindow(){return S.week<4||(S.week>=winterStart()&&S.week<winterStart()+3)}
@@ -384,8 +384,7 @@ function pickScorer(c){
 function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.players[pick(ids)]:null}
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
-function simMatch(hc,ac,detail,neutral){
-  prepareAI(hc,ac);prepareAI(ac,hc);
+function matchRates(hc,ac,neutral){
   const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
   const pH=Math.pow(H.M,2.2)/(Math.pow(H.M,2.2)+Math.pow(A.M,2.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
@@ -393,24 +392,72 @@ function simMatch(hc,ac,detail,neutral){
   if(hc.tactic.style==='ballbesitz')rH*=.95;if(ac.tactic.style==='ballbesitz')rA*=.95;
   let cH=clamp(.1*Math.pow(H.A/A.D,2),.03,.3),cA=clamp(.1*Math.pow(A.A/H.D,2),.03,.3);
   if(hc.tactic.style==='konter'&&pH<.5)cH*=1.15;if(ac.tactic.style==='konter'&&pH>.5)cA*=1.15;
-  const ev=[];let hg=0,ag=0,sh=0,sa=0;const end=90+ri(1,4);
-  for(let m=1;m<=end;m++){
-    if(rnd()<rH){sh++;if(rnd()<cH){const p=pickScorer(hc);hg++;if(p)p.goals++;if(detail)ev.push({m:Math.min(m,90),side:'h',type:'goal',t:pick(TXT_GOAL).replace('{p}',p?pname(p):'?').replace('{c}',hc.short)})}
-      else if(detail&&rnd()<.35){const p=pickScorer(hc)||pickAny(hc);ev.push({m:Math.min(m,90),side:'h',type:'chance',t:pick(TXT_CHANCE).replace('{p}',p?pname(p):'?')})}}
-    if(rnd()<rA){sa++;if(rnd()<cA){const p=pickScorer(ac);ag++;if(p)p.goals++;if(detail)ev.push({m:Math.min(m,90),side:'a',type:'goal',t:pick(TXT_GOAL).replace('{p}',p?pname(p):'?').replace('{c}',ac.short)})}
-      else if(detail&&rnd()<.35){const p=pickScorer(ac)||pickAny(ac);ev.push({m:Math.min(m,90),side:'a',type:'chance',t:pick(TXT_CHANCE).replace('{p}',p?pname(p):'?')})}}
+  return {pH,rH,rA,cH,cA};
+}
+function simPeriod(hc,ac,R,from,to,detail,res,cap){
+  for(let m=from;m<=to;m++){
+    const mm=cap?Math.min(m,cap):m;
+    for(const side of ['h','a']){
+      const c=side==='h'?hc:ac,rate=side==='h'?R.rH:R.rA,conv=side==='h'?R.cH:R.cA;
+      if(rnd()<rate){side==='h'?res.sh++:res.sa++;
+        if(rnd()<conv){const p=pickScorer(c);side==='h'?res.hg++:res.ag++;if(p)p.goals++;if(detail)res.ev.push({m:mm,side,type:'goal',t:pick(TXT_GOAL).replace('{p}',p?pname(p):'?').replace('{c}',c.short)})}
+        else if(detail&&rnd()<.35){const p=pickScorer(c)||pickAny(c);res.ev.push({m:mm,side,type:'chance',t:pick(TXT_CHANCE).replace('{p}',p?pname(p):'?')})}}
+    }
   }
+}
+function scoreEvents(ev){ev.sort((x,y)=>x.m-y.m||(x.type==='goal'?1:-1));let h=0,a=0,ph=0,pa=0;for(const e of ev){if(e.type==='goal'){e.side==='h'?h++:a++;e.score=h+':'+a}if(e.type==='pen'&&e.ok){e.side==='h'?ph++:pa++}if(e.type==='pen'||e.type==='penmiss')e.score=ph+':'+pa}}
+function simMatch(hc,ac,detail,neutral){
+  prepareAI(hc,ac);prepareAI(ac,hc);
+  const R=matchRates(hc,ac,neutral);
+  const res={hg:0,ag:0,ev:[],poss:Math.round(R.pH*100),sh:0,sa:0,et:false,pen:null};
+  simPeriod(hc,ac,R,1,90+ri(1,4),detail,res,90);
   for(const [side,c] of [['h',hc],['a',ac]]){
-    if(detail){const nc=ri(0,3);for(let i=0;i<nc;i++){const p=pickAny(c);if(p)ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}
-    if(rnd()<.11){const p=pickAny(c);if(p){p.inj=ri(1,5);if(detail)ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
+    if(detail){const nc=ri(0,3);for(let i=0;i<nc;i++){const p=pickAny(c);if(p)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}
+    if(rnd()<.11){const p=pickAny(c);if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
   }
-  if(detail){ev.sort((x,y)=>x.m-y.m||(x.type==='goal'?1:-1));let h2=0,a2=0;for(const e of ev)if(e.type==='goal'){e.side==='h'?h2++:a2++;e.score=h2+':'+a2}}
-  for(const [c,gf,ga] of [[hc,hg,ag],[ac,ag,hg]]){
+  if(detail)scoreEvents(res.ev);
+  for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
     const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
     for(const id of c.lineup){if(!id)continue;const p=S.players[id];if(!p)continue;p.apps++;p.fit=clamp(p.fit-loss*(1.25-p.a.aus/200)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100)}
   }
-  return {hg,ag,ev,poss:Math.round(pH*100),sh,sa};
+  res.end=95;
+  return res;
 }
+/* Verlängerung: 2 x 15 Minuten, müde Beine = etwas weniger Torchancen */
+function extraTime(hc,ac,res,detail,neutral){
+  const R=matchRates(hc,ac,neutral);R.rH*=.9;R.rA*=.9;
+  if(detail)res.ev.push({m:91,side:'h',type:'info',t:'Verlängerung! Es geht in die 30 Zusatzminuten.'});
+  simPeriod(hc,ac,R,91,120,detail,res,0);
+  for(const c of [hc,ac])for(const id of c.lineup){const p=id&&S.players[id];if(p)p.fit=clamp(p.fit-5,30,100)}
+  res.et=true;res.end=122;if(detail)scoreEvents(res.ev);
+}
+/* Elfmeterschießen: 5 Schützen je Team, danach K.-o.-Modus */
+function shootout(hc,ac,res,detail){
+  const kickers=c=>{const ids=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(p=>p&&p.pos!=='TW');ids.sort((a,b)=>(b.a.abs+b.a.tec)-(a.a.abs+a.a.tec));return ids.length?ids:[null]};
+  const keeper=c=>{const id=c.lineup[0];const p=id&&S.players[id];return p?p.a.tor:50};
+  const kh=kickers(hc),ka=kickers(ac),gh=keeper(hc),ga=keeper(ac);
+  const prob=(p,gk)=>clamp(.76+((p?(p.a.abs*.6+p.a.tec*.4):55)-62)/200-(gk-62)/260,.55,.93);
+  let ph=0,pa=0,k=0,min=121,done=false;
+  if(detail)res.ev.push({m:min,side:'h',type:'info',t:'Elfmeterschießen!'});
+  const kick=(side,r)=>{const ks=side==='h'?kh:ka,gk=side==='h'?ga:gh,p=ks[r%ks.length],ok=rnd()<prob(p,gk);if(ok){side==='h'?ph++:pa++}
+    if(detail)res.ev.push({m:min+1+k,side,type:ok?'pen':'penmiss',ok,t:`${p?pname(p):'?'} ${ok?'verwandelt sicher.':pick(['scheitert am Torwart!','setzt den Ball neben das Tor!','trifft nur den Pfosten!'])}`});k++};
+  for(let r=0;r<5&&!done;r++){
+    kick('h',r);if(ph>pa+(5-r)||pa>ph+(4-r)){done=true;break}
+    kick('a',r);if(ph>pa+(4-r)||pa>ph+(4-r)){done=true;break}
+  }
+  let r=5;while(!done&&ph===pa&&r<40){kick('h',r);kick('a',r);r++}
+  if(ph===pa)ph++;
+  res.pen={h:ph,a:pa};res.end=min+2+k;if(detail)scoreEvents(res.ev);
+}
+/* K.-o.-Entscheidung: agg = Tore beider Teams aus vorherigen Spielen (bezogen auf m.h/m.a) */
+function resolveKO(m,res,detail,neutral,agg,allowET){
+  const hc=club(m.h),ac=club(m.a);agg=agg||{h:0,a:0};
+  const tot=()=>[agg.h+res.hg,agg.a+res.ag];let [x,y]=tot();
+  if(x!==y){m.win=x>y?m.h:m.a;return}
+  if(allowET){extraTime(hc,ac,res,detail,neutral);m.hg=res.hg;m.ag=res.ag;m.et=true;[x,y]=tot();if(x!==y){m.win=x>y?m.h:m.a;return}}
+  shootout(hc,ac,res,detail);m.pen=true;m.ph=res.pen.h;m.pa=res.pen.a;m.win=res.pen.h>res.pen.a?m.h:m.a;
+}
+function resultText(m){if(m.hg===null)return '-:-';let s=m.hg+':'+m.ag;if(m.et&&!m.pen)s+=' n.V.';if(m.pen)s+=(m.et?' n.V.':'')+', '+m.ph+':'+m.pa+' i.E.';return s}
 
 /* ---------- Tabellen ---------- */
 function tableOf(L){
@@ -563,6 +610,7 @@ function playWeek(){
     }
   }
   const userList=userRes?[userRes]:[];
+  playSupercupWeek(userList);
   playCompWeek(userList);
   playNatCupWeek(userList);
   CACHE.tables={};
@@ -606,6 +654,7 @@ function seasonEnd(){
   RNG=S.rng||RNG;resetCache();
   closeComps();closeNatCups();finalizeCoef();
   S.qualOrder={};for(const L of S.leagues)if(L.tier===1)S.qualOrder[L.assoc]=tableOf(L).map(r=>r.id);
+  S.prevTables={};for(const L of S.leagues)S.prevTables[L.id]=tableOf(L).map(r=>r.id);
   const u=userClub(),uL=league(u),uTab=tableOf(uL),uRank=uTab.findIndex(r=>r.id===S.user)+1;
   // Prämien, Ruf, Meister
   for(const L of S.leagues){
@@ -677,7 +726,7 @@ function seasonEnd(){
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,log:[]};
   for(const c of S.clubs){if(c.guest)continue;if(c.id!==S.user){trimSquad(c);assignRoles(c)}initBudgets(c);autoLineup(c);c.target=boardTarget(c)}
   fixLineup(u);
-  setupComps();setupNatCups();
+  setupComps();setupSupercups();setupNatCups();
   const uc=userComps();if(uc.length)addNews('board','Internationale Wettbewerbe',`Dein Verein spielt in dieser Saison: ${uc.map(C=>COMP[C.key].name).join(', ')}. Denk an Rotation – unter der Woche kommen zusätzliche Spiele dazu.`);
   addNews('board',`Saison ${S.season}/${(S.season+1)%100}: Neue Ziele`,`Liga: ${esc(league(u).name)}. Der Vorstand erwartet: <b>${u.target.t}</b>. Transferbudget: ${money(u.tBudget)}, Gehaltsbudget: ${money(u.wBudget)}/Woche.`);
   S.rng=RNG;save();
@@ -717,7 +766,13 @@ function applySave(obj){
       if(C.bg&&C.slots&&!C.entries)C.entries=C.slots.map(x=>{const L=assocStructure(x.code,S.seed)[0];return L&&L.clubs[x.pos]?{code:x.code,name:L.clubs[x.pos],rep:repFor(ASSOC[x.code],1,x.pos,L.clubs.length)}:null}).filter(Boolean);
       const list=C.bg?(C.entries||[]).map(e=>e.code):(C.teams||[]).map(id=>club(id).assoc);list.forEach(code=>{coefClub(code);coefAdd(code,COEF_BONUS[COMP[C.key].level]||0)});
     }
-    S.v=5;addNews('info','Neu: Nationale Pokale & Fünfjahreswertung','Die Pokale starten ab der nächsten Saison. Die Fünfjahreswertung läuft ab sofort mit – sie bestimmt künftig die internationalen Startplätze.');
+    S.v=5;S.migratedTo5=true;addNews('info','Neu: Nationale Pokale & Fünfjahreswertung','Die Pokale starten ab der nächsten Saison. Die Fünfjahreswertung läuft ab sofort mit – sie bestimmt künftig die internationalen Startplätze.');
+  }
+  if(S.v<6){
+    S.supercups=[];S.scHist={};S.prevTables=null;S.prevCup={};
+    if((S.ncups||[]).some(c=>!c.spec)){S.ncups=[];addNews('info','Neu: Pokale mit Amateuren, Verlängerung & Supercups','Die Pokale starten im neuen Format (mit Amateurvereinen und echten Länderregeln) ab der nächsten Saison. Supercups folgen, sobald Meister und Pokalsieger einer Saison feststehen.')}
+    else addNews('info','Neu: Amateure im Pokal, Verlängerung & Supercups','Ab sofort gibt es in allen K.-o.-Spielen Verlängerung vor dem Elfmeterschießen. Supercups starten, sobald Meister und Pokalsieger feststehen.');
+    S.v=6;
   }
   save();
 }

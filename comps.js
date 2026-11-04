@@ -192,6 +192,9 @@ function playCompWeek(userList){
       for(const m of r.matches){
         const isU=m.h===S.user||m.a===S.user;
         const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
+        if(r.stage==='ko'){const st=C.ko[r.ko];if(st.legs===1||r.leg===st.legs-1){
+          const agg={h:0,a:0};for(const ri of st.rounds){const pr=C.rounds[ri];if(pr===r)continue;const pm=pr.matches[m.tie];if(pm.hg===null)continue;if(pm.h===m.h){agg.h+=pm.hg;agg.a+=pm.ag}else{agg.h+=pm.ag;agg.a+=pm.hg}}
+          resolveKO(m,res,isU,r.neutral,agg,true)}}
         for(const [id,gf,ga] of [[m.h,m.hg,m.ag],[m.a,m.ag,m.hg]]){if(r.stage!=='ko')payPrize(club(id),gf>ga?def.prize.win:gf===ga?def.prize.draw:0,C);coefAdd(club(id).assoc,gf>ga?2:gf===ga?1:0)}
         if(isU)userList.push({m,r:res,round:r,comp:C,label:`${def.name} · ${r.label}`});
       }
@@ -204,8 +207,9 @@ function decideTie(C,def,stage,t){
   // Gesamtergebnis
   let ga=0,gb=0;for(const ri of stage.rounds){const m=C.rounds[ri].matches[stage.ties.indexOf(t)];if(m.h===t.a){ga+=m.hg;gb+=m.ag}else{ga+=m.ag;gb+=m.hg}}
   t.ga=ga;t.gb=gb;
-  if(ga!==gb)t.winner=ga>gb?t.a:t.b;
-  else{t.pen=true;const sa=clubAvg(club(t.a)),sb=clubAvg(club(t.b));t.winner=rnd()<clamp(.5+(sa-sb)*.01,.3,.7)?t.a:t.b}
+  const last=C.rounds[stage.rounds[stage.rounds.length-1]].matches[stage.ties.indexOf(t)];
+  t.et=!!last.et;t.pen=!!last.pen;
+  if(last.win!==undefined&&last.win!==null)t.winner=last.win;else t.winner=ga>=gb?t.a:t.b;
   const loser=t.winner===t.a?t.b:t.a;C.elim[loser]=stage.name;
 }
 function advanceComp(C,def,r){
