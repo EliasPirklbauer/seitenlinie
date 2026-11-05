@@ -168,3 +168,32 @@ function whenOf(kind,obj,r,m){
 }
 function fmtWhenShort(x){if(!x)return '';const [y,mo,d]=x.d.split('-');return `${WDAYS[wdayIso(x.d)]} ${d}.${mo}.`}
 function fmtWhenLong(x){if(!x)return '';const [y,mo,d]=x.d.split('-');return `${WDAY_LONG[wdayIso(x.d)]}, ${+d}. ${MONTHS[+mo-1]} ${y}`}
+// Geplante, noch nicht ausgeloste K.-o.-Runden eines Kontinentalwettbewerbs mit Terminen
+function compPlanList(C,def){
+  const out=[];const plan=C.plan||(C.stage!=='ko'?koPlan(def,16,compWeeks(def).koStart,!!def.playoff):null);if(!plan)return out;
+  const from=C.plan?(C.koIdx||0)+1:0;
+  plan.slice(from).forEach((pl,j)=>{const nm=C.plan||j>0||!def.playoff?KO_NAME(pl.size):'Playoffs';
+    pl.weeks.forEach((w,l)=>{const r={w,label:pl.legs===2?`${nm} · ${l?'Rückspiel':'Hinspiel'}`:nm,matches:[],ko:1};const n=Math.max(1,pl.size/2);
+      const sl=isFinal(r.label)?compRoundSlots(C,{...r,matches:[{}]}):compRoundSlots(C,{...r,matches:Array.from({length:n},()=>({}))});
+      out.push({label:r.label,sl,n:isFinal(r.label)?1:n})})});
+  return out;
+}
+function compPlanHtml(C,def){
+  const l=compPlanList(C,def);if(!l.length)return '';
+  return `<h3 style="margin-top:16px">Kommende Runden <span class="small muted">Auslosung folgt</span></h3><div class="tw"><table class="fxtab"><tbody>${l.map(x=>{const byDay={};x.sl.forEach(s=>{const k=s.d;(byDay[k]=byDay[k]||[]).push(s.t)});
+    return `<tr><td><b>${esc(x.label)}</b><div class="small muted">${x.n} ${x.n===1?'Spiel':'Spiele'}</div></td><td>${Object.entries(byDay).sort().map(([d,ts])=>{const c={};ts.forEach(t=>c[t]=(c[t]||0)+1);return `<div>${fmtWhenShort({d})} <span class="muted small">${Object.entries(c).sort().map(([t,n])=>n>1?`${n}× ${t}`:t).join(', ')} Uhr</span></div>`}).join('')}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+// Geplante, noch nicht ausgeloste Pokalrunden mit Terminen
+function cupPlanHtml(cup){
+  if(cup.winner!==null&&cup.winner!==undefined)return '';
+  const out=[];let used=cup.rounds.length,si=cup.stages.length;
+  const last=cup.rounds[cup.rounds.length-1];let teams=last?last.matches.length:0;
+  for(;si<cup.spec.length;si++){const sp=cup.spec[si];teams+=(sp.add||[]).length;const n=Math.max(1,Math.floor(teams/2));
+    for(let l=0;l<sp.legs;l++){const w=cup.slots[used]!==undefined?cup.slots[used]:S.weeks-2;used++;
+      const r={w,label:sp.legs===2?`${sp.name} · ${l?'Rückspiel':'Hinspiel'}`:sp.name};const sl=cupRoundSlots(cup,r,si,isFinal(r.label)?1:n);
+      out.push({label:r.label,sl,n:isFinal(r.label)?1:n})}
+    teams=n;}
+  if(!out.length)return '';
+  return `<div class="card" style="margin-bottom:10px"><h3>Kommende Runden <span class="small muted">Auslosung folgt</span></h3><div class="tw"><table class="fxtab"><tbody>${out.map(x=>{const byDay={};x.sl.forEach(s=>{(byDay[s.d]=byDay[s.d]||[]).push(s.t)});
+    return `<tr><td><b>${esc(x.label)}</b><div class="small muted">${x.n} ${x.n===1?'Spiel':'Spiele'}</div></td><td>${Object.entries(byDay).sort().map(([d,ts])=>{const c={};ts.forEach(t=>c[t]=(c[t]||0)+1);return `<div>${fmtWhenShort({d})} <span class="muted small">${Object.entries(c).sort().map(([t,n])=>n>1?`${n}× ${t}`:t).join(', ')} Uhr</span></div>`}).join('')}</td></tr>`}).join('')}</tbody></table></div></div>`;
+}
