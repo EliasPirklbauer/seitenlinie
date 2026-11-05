@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.21.0';
+const APP_VERSION='0.22.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -517,7 +517,7 @@ function aiKeeps(p,c){
 function autoLineup(c){
   const slots=slotsOf(c);
   const co=c.staff.coach.trait&&COACH[c.staff.coach.trait];const fitW=co&&co.rotate?.8:.4;
-  const avail=squadOf(c).filter(p=>p.inj===0);
+  const avail=squadOf(c).filter(p=>p.inj===0&&!p.sus);
   const used=new Set(),lu=new Array(11).fill(null);
   const val=(p,pos)=>rateAt(p,pos)*((1-fitW)+fitW*p.fit/100);
   slots.forEach((pos,i)=>{let best=null,bv=-1;for(const p of avail){if(used.has(p.id)||p.pos!==pos)continue;const v=val(p,pos);if(v>bv){bv=v;best=p}}if(best&&best.fit>=55){used.add(best.id);lu[i]=best.id}});
@@ -528,10 +528,10 @@ function autoLineup(c){
 function fixLineup(c){
   const slots=slotsOf(c);const changed=[];
   if(c.lineup.length!==11)c.lineup=new Array(11).fill(null).map((_,i)=>c.lineup[i]||null);
-  const used=new Set(c.lineup.filter(id=>id&&S.players[id]&&S.players[id].inj===0&&S.players[id].club===c.id));
+  const used=new Set(c.lineup.filter(id=>id&&S.players[id]&&S.players[id].inj===0&&!S.players[id].sus&&S.players[id].club===c.id));
   slots.forEach((pos,i)=>{
-    const id=c.lineup[i],p=id&&S.players[id];if(p&&p.inj===0&&p.club===c.id)return;
-    let best=null,bv=-1;for(const q of squadOf(c)){if(q.inj||used.has(q.id))continue;const v=rateAt(q,pos)*(.6+.4*q.fit/100);if(v>bv){bv=v;best=q}}
+    const id=c.lineup[i],p=id&&S.players[id];if(p&&p.inj===0&&!p.sus&&p.club===c.id)return;
+    let best=null,bv=-1;for(const q of squadOf(c)){if(q.inj||q.sus||used.has(q.id))continue;const v=rateAt(q,pos)*(.6+.4*q.fit/100);if(v>bv){bv=v;best=q}}
     c.lineup[i]=best?best.id:null;if(best){used.add(best.id);changed.push(pname(best))}
   });
   return changed;
@@ -751,7 +751,7 @@ function nextUserMatch(){
   return null;
 }
 function playWeek(){
-  RNG=S.rng||RNG;resetCache();
+  RNG=S.rng||RNG;resetCache();UMI=0;
   for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+10+at(p,'nat')/4,0,100)}
   aiWeekly();clauseWatch();clauseTalksWeekly();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);

@@ -57,7 +57,7 @@ function liveState(L){
 /* ---------- Steuerung ---------- */
 function startLive(res){
   const prev=UI.live;
-  UI.live={m:res.m,r:res.r,round:res.round,L:res.L,label:res.label||null,speed:(prev&&prev.speed)||'norm',tab:(prev&&prev.tab)||(innerWidth<900?'ticker':'lineup'),bi:0,beats:buildBeats(res.r),paused:false,done:false};
+  UI.live={k:Math.max(0,(UI.liveAll||[]).indexOf(res)),m:res.m,r:res.r,round:res.round,L:res.L,label:res.label||null,speed:(prev&&prev.speed)||'norm',tab:(prev&&prev.tab)||(innerWidth<900?'ticker':'lineup'),bi:0,beats:buildBeats(res.r),paused:false,done:false};
   UI.view='live';render();tickLive();
 }
 function tickLive(){
@@ -78,8 +78,8 @@ function tickLive(){
 }
 Object.assign(ACT,{
   liveSkip:()=>{const L=UI.live;clearTimeout(tickLive.t);L.bi=L.beats.length;L.done=true;L.paused=false;render()},
-  livePause:()=>{const L=UI.live;if(L.done)return;L.paused=L.paused?false:'user';render();if(!L.paused)tickLive()},
-  liveGo:()=>{const L=UI.live;L.paused=false;render();tickLive()},
+  livePause:()=>{const L=UI.live;if(L.done)return;L.paused=L.paused?false:'user';if(!L.paused)L.ivOpen=false;render();if(!L.paused)tickLive()},
+  liveGo:()=>{const L=UI.live;L.paused=false;L.ivOpen=false;render();tickLive()},
   speed:d=>{const L=UI.live;L.speed=d.v;render();if(!L.paused)tickLive()},
   liveTab:d=>{UI.live.tab=d.v;render()}
 });
@@ -109,8 +109,8 @@ function renderLive(){
   const total=r.et?(r.t120||r.end):(r.t90||r.end);
   const prog=Math.min(1,st.t/Math.max(1,total));
   const ctrl=L.done?`<button class="btn pri" data-act="liveDone">${UI.liveQueue&&UI.liveQueue.length?'Nächstes Spiel ▶':'Weiter zu den Ergebnissen ▶'}</button>`
-    :L.paused&&L.paused!=='user'?`<button class="btn pri" data-act="liveGo">${L.paused==='ht'?'2. Halbzeit anpfeifen ▶':L.paused==='et'?'Verlängerung anpfeifen ▶':L.paused==='et1'?'Weiter ▶':'Zum Elfmeterschießen ▶'}</button><button class="btn" data-act="liveSkip">Zum Ergebnis ⏭</button>`
-    :`<div class="seg">${LSPEED.map(([k,l])=>`<button class="${L.speed===k?'on':''}" data-act="speed" data-v="${k}">${l}</button>`).join('')}</div><button class="btn sm" data-act="livePause">${L.paused?'▶ Weiter':'⏸ Pause'}</button><button class="btn sm" data-act="liveSkip">Zum Ergebnis ⏭</button>`;
+    :L.paused&&L.paused!=='user'?`<button class="btn pri" data-act="liveGo">${L.paused==='ht'?'2. Halbzeit anpfeifen ▶':L.paused==='et'?'Verlängerung anpfeifen ▶':L.paused==='et1'?'Weiter ▶':'Zum Elfmeterschießen ▶'}</button>${canIv(L,st)?`<button class="btn" data-act="ivOpen">🔁 Wechsel & Taktik</button>`:''}<button class="btn" data-act="liveSkip">Zum Ergebnis ⏭</button>`
+    :`<div class="seg">${LSPEED.map(([k,l])=>`<button class="${L.speed===k?'on':''}" data-act="speed" data-v="${k}">${l}</button>`).join('')}</div><button class="btn sm" data-act="livePause">${L.paused?'▶ Weiter':'⏸ Pause'}</button>${canIv(L,st)?`<button class="btn sm" data-act="ivOpen">🔁 Eingreifen</button>`:''}<button class="btn sm" data-act="liveSkip">Zum Ergebnis ⏭</button>`;
   const head=`<div class="card lscore">
     <div class="small muted" style="text-align:center;margin-bottom:6px">${L.label?esc(L.label):esc(L.L.name)+' · '+(L.round+1)+'. Spieltag'}${r.ref?' · Schiedsrichter '+esc(r.ref):''}</div>
     <div class="score">
@@ -122,7 +122,7 @@ function renderLive(){
     ${momentumSvg(r,st,col,total)}
     <div class="row" style="justify-content:center;margin-top:10px">${ctrl}</div>
     ${L.done?matchVerdict(L,st,hc,ac):''}
-  </div>`;
+  </div>${L.ivOpen&&canIv(L,st)?ivPanel(L,st,hc,ac):''}`;
   const tab=L.tab,rt=tab==='ticker'?'lineup':tab;
   const tabs=`<div class="seg ltabs">${[['ticker','Ticker'],['lineup','Aufstellungen'],['stats','Statistik'],['players','Spieler']].map(([k,l])=>`<button class="${k===tab?'on-m':''} ${k===rt?'on-d':''} ${k==='ticker'?'tk-only':''}" data-act="liveTab" data-v="${k}">${l}</button>`).join('')}</div>`;
   const right=rt==='lineup'?lineupPane(L,st,hc,ac):rt==='stats'?statsPane(L,st,hc,ac,col):playersPane(L,hc,ac);
@@ -221,3 +221,72 @@ function playersPane(L,hc,ac){
     return `<h3 style="margin:4px 0 6px">${badge(c,20)} ${esc(c.name)}</h3><div class="tw" style="margin-bottom:12px"><table><thead><tr><th>Pos</th><th>Spieler</th><th class="n">Min</th><th class="n">Note</th><th class="n">T</th><th class="n">V</th><th class="n">Schüsse</th><th class="n">xG</th><th class="n">xA</th><th class="n">Key</th><th class="n">Pässe</th><th class="n">Ballgew.</th><th class="n">Dribbl.</th><th class="n">Paraden</th></tr></thead><tbody>${rows}</tbody></table></div>`};
   return `<div class="card">${team('h',hc)}${team('a',ac)}<p class="small muted" style="margin:0">Schüsse (aufs Tor) · xA = Qualität der Chancen, die der Spieler aufgelegt hat · Key = Schlüsselpässe · Ballgew. = Tacklings + abgefangene Bälle</p></div>`;
 }
+
+/* ---------- Eingreifen: Wechsel & Taktik während des Spiels ---------- */
+function userSide(L){return L.m.h===S.user?'h':'a'}
+function canIv(L,st){return !L.done&&!!UI.weekSnap&&st.t>0&&tickInfo(L.r,st.t).ph<5&&L.paused!=='pens'&&!(st.pens)}
+function liveTactic(L,st){
+  const s=userSide(L),c=club(s==='h'?L.m.h:L.m.a);const t={men:c.tactic.men,press:c.tactic.press,style:c.tactic.style};
+  for(const iv of (UI.weekIv||[]))if(iv.k===L.k&&iv.t<=st.t+1&&iv.tac)Object.assign(t,iv.tac);
+  return t;
+}
+function ivState(L,st){
+  const s=userSide(L),r=L.r,c=club(s==='h'?L.m.h:L.m.a);
+  const used=r.subs.filter(x=>x.side===s&&x.t<=st.t);
+  const lu=curLineup(L,st,s),reds=new Set(st.reds[s].map(x=>x.id));
+  const gone=new Set(used.map(x=>x.out));
+  const injNow=new Set(r.ev.filter(e=>e.type==='injury'&&e.t<=st.t&&e.side===s).map(e=>e.pid));
+  const onField=lu.map((id,i)=>({id,i})).filter(x=>x.id&&!reds.has(x.id));
+  const bench=r.bench[s].filter(id=>!used.some(x=>x.in===id)&&!gone.has(id));
+  return {s,c,used,onField,bench,left:5-used.length,injNow};
+}
+function ivPanel(L,st,hc,ac){
+  const I=ivState(L,st),D=L.draft,sl=slotsOf(I.c),tot=90+(L.r.s1||0)+(L.r.s2||0);
+  const outSel=new Set(D.subs.map(x=>x[0])),inSel=new Set(D.subs.map(x=>x[1]));
+  const played=id=>{const sub=L.r.subs.find(x=>x.in===id&&x.t<=st.t);return st.t-(sub?sub.t:0)};
+  const field=I.onField.map(x=>{const p=S.players[x.id];const f=Math.round(liveFit(I.c,p,played(x.id),tot));const pos=sl[x.i];const inj=I.injNow.has(x.id);
+    return `<button class="ivp ${D.out===x.id?'sel':''} ${outSel.has(x.id)?'gone':''}" data-act="ivOut" data-id="${x.id}" ${outSel.has(x.id)?'disabled':''}><span class="pill" style="font-size:10.5px;border-color:${GROUP_COLOR[GROUP[pos]]}88">${pos}</span><span class="nm">${esc(pname(p))}${st.yel[x.id]?' 🟨':''}${inj?' 🩹':''}</span><span class="fitb"><i style="width:${f}%;background:${f>=75?'var(--good)':f>=60?'var(--gold)':'var(--bad)'}"></i></span><small>${f}%</small></button>`}).join('');
+  const bench=I.bench.map(id=>{const p=S.players[id];if(!p)return '';const r=D.out?Math.round(rateAt(p,sl[I.onField.find(x=>x.id===D.out)?I.onField.find(x=>x.id===D.out).i:0])):ovr(p);
+    return `<button class="ivp ${inSel.has(id)?'gone':''}" data-act="ivIn" data-id="${id}" ${inSel.has(id)||!D.out||I.left-D.subs.length<=0?'disabled':''}><span class="pill" style="font-size:10.5px;border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span><span class="nm">${esc(pname(p))}</span><b class="small">${r}</b></button>`}).join('');
+  const pairs=D.subs.map((x,j)=>`<div class="ivpair">🔽 ${esc(pname(S.players[x[0]]))} <span class="muted">→</span> 🔼 ${esc(pname(S.players[x[1]]))}<button class="btn sm" data-act="ivDel" data-i="${j}">✕</button></div>`).join('');
+  const seg=(k,opts)=>`<div class="seg">${Object.entries(opts).map(([v,l])=>`<button class="${D.tac[k]===v?'on':''}" data-act="ivTac" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const leftNow=I.left-D.subs.length;
+  return `<div class="card ivpanel"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Eingreifen · ${esc(I.c.name)}</h3><span class="small muted">Wechsel übrig: <b>${leftNow}</b> von 5</span></div>
+    <p class="small muted" style="margin:6px 0 10px">Wähle links den Spieler, der raus soll, dann rechts den Einwechselspieler. Die Prozentzahl zeigt die aktuelle Frische – müde Spieler bauen im Spiel ab. Änderungen gelten ab der nächsten Minute.</p>
+    <div class="ivgrid"><div><h3>Auf dem Platz</h3><div class="ivlist">${field}</div></div><div><h3>Ersatzbank${D.out?` <span class="small muted">für ${esc(pname(S.players[D.out]))} (Wert auf der Position)</span>`:''}</h3><div class="ivlist">${bench||'<span class="small muted">Keine Wechselspieler mehr.</span>'}</div></div></div>
+    ${pairs?`<div class="ivpairs">${pairs}</div>`:''}
+    <div class="ivtac"><div><label class="f">Mentalität</label>${seg('men',MENTALITY)}</div><div><label class="f">Pressing</label>${seg('press',PRESSING)}</div><div><label class="f">Spielstil</label>${seg('style',STYLE)}</div></div>
+    <label class="small" style="display:block;margin-top:10px"><input type="checkbox" data-act="ivAuto" ${D.auto?'checked':''}> Restliche Wechsel darf der Co-Trainer übernehmen</label>
+    <div class="row" style="margin-top:12px"><button class="btn pri" data-act="ivApply">Übernehmen & weiterspielen ▶</button><button class="btn" data-act="ivClose">Abbrechen</button></div></div>`;
+}
+function replayWeek(){
+  clearTimeout(tickLive.t);
+  const L=UI.live;
+  S=JSON.parse(UI.weekSnap);RNG=S.rng;resetCache();
+  LIVE_IV=UI.weekIv;let res;try{res=playWeek()}finally{LIVE_IV=[]}
+  UI.weekRes=res;UI.liveAll=res.userList;
+  const it=res.userList[L.k];if(!it)return;
+  L.m=it.m;L.r=it.r;L.round=it.round;L.L=it.L;L.label=it.label||L.label;
+  const bi=L.bi;L.beats=buildBeats(L.r);L.bi=Math.min(bi,L.beats.length);
+  UI.liveQueue=res.userList.slice(L.k+1);
+}
+Object.assign(ACT,{
+  ivOpen:()=>{const L=UI.live;if(!L.paused)L.paused='user';const st=liveState(L);L.draft={subs:[],out:null,tac:liveTactic(L,st),auto:true};L.ivOpen=true;clearTimeout(tickLive.t);render();setTimeout(()=>{const e=document.querySelector('.ivpanel');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})},30)},
+  ivClose:()=>{UI.live.ivOpen=false;render()},
+  ivOut:d=>{const D=UI.live.draft;D.out=D.out===d.id?null:d.id;render()},
+  ivIn:d=>{const D=UI.live.draft;if(!D.out)return;D.subs.push([D.out,d.id]);D.out=null;render()},
+  ivDel:d=>{UI.live.draft.subs.splice(+d.i,1);render()},
+  ivTac:d=>{UI.live.draft.tac[d.k]=d.v;render()},
+  ivAuto:()=>{const D=UI.live.draft;D.auto=!D.auto;render()},
+  ivApply:()=>{
+    const L=UI.live,st=liveState(L),D=L.draft,cur=liveTactic(L,st),tac={};
+    for(const k of ['men','press','style'])if(D.tac[k]!==cur[k])tac[k]=D.tac[k];
+    if(!D.subs.length&&!Object.keys(tac).length&&D.auto){L.ivOpen=false;render();return}
+    UI.weekIv.push({k:L.k,t:st.t+1,side:userSide(L),subs:D.subs.slice(),tac,auto:D.auto});
+    replayWeek();
+    L.ivOpen=false;L.draft=null;
+    if(L.paused==='user'||L.paused==='ht'||L.paused==='et'||L.paused==='et1')L.paused=false;
+    toast(D.subs.length?`${D.subs.length} Wechsel – gilt ab der nächsten Minute`:'Taktik umgestellt');
+    render();tickLive();
+  }
+});

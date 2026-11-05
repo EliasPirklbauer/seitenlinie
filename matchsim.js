@@ -14,15 +14,18 @@ const TS_KEYS=['mp','g','ga','xg','xga','sh','sha','sot','sota','bc','bca','poss
 function teamSS(c){if(!c.ss||c.ss.season!==S.season){c.ss={season:S.season};for(const k of TS_KEYS)c.ss[k]=0}return c.ss}
 function mts0(){return {sh:0,sot:0,xg:0,bc:0,cor:0,fls:0,yc:0,rc:0,off:0,pas:0,pcm:0,tck:0,int:0,drb:0,sav:0}}
 
+/* ---------- Eingriffe ins laufende Spiel (Wechsel/Taktik des Nutzers) ---------- */
+let LIVE_IV=[],UMI=0;
+
 /* ---------- Hilfen ---------- */
 const SIDES=['h','a'];
 const OTHER={h:'a',a:'h'};
-const RATE_ADJ=1.01;   // gleicht die längere Nachspielzeit aus (Torquote bleibt gleich)
+let RATE_ADJ=1.01;   // gleicht die längere Nachspielzeit aus (Torquote bleibt gleich)
 function keeperOf(c){const sl=slotsOf(c);const i=sl.indexOf('TW');const id=c.lineup[i>=0?i:0];return id?S.players[id]:null}
 function onPitch(c){const sl=slotsOf(c);return c.lineup.map((id,i)=>({p:id&&S.players[id],pos:sl[i],i})).filter(x=>x.p)}
 function benchOf(c,n){
   const inXI=new Set(c.lineup.filter(Boolean));
-  const avail=squadOf(c).filter(p=>p.inj===0&&!inXI.has(p.id));
+  const avail=squadOf(c).filter(p=>p.inj===0&&!p.sus&&!inXI.has(p.id));
   const out=[];const gk=avail.filter(p=>p.pos==='TW').sort((a,b)=>ovr(b)-ovr(a))[0];if(gk)out.push(gk);
   const val=p=>ovr(p)*(.75+.25*p.fit/100);
   // je Mannschaftsteil mindestens ein Spieler, dann nach Stärke
@@ -115,6 +118,8 @@ function simMatch(hc,ac,detail,neutral){
   const M={R,res,detail,c:{h:hc,a:ac},pH,t:0,m:0,x:0,ph:1,lastVis:0,atk:{h:1,a:1},cv:{h:1,a:1},used:{h:new Set(),a:new Set()},subsLeft:{h:5,a:5},windows:{h:0,a:0},
     plan:{h:planSubs(),a:planSubs()},iv:{},recent:[],goalsBy:{},behind:{h:false,a:false}};
   res.M=M;
+  M.k=detail?UMI++:-1;M.ivs=detail?LIVE_IV.filter(x=>x.k===M.k):[];M.ivDone=new Set();M.manual={h:false,a:false};
+  M.susPrev=[...squadOf(hc),...squadOf(ac)].filter(p=>p&&p.sus>0).map(p=>p.id);
   for(const s of SIDES)res.xi[s].forEach((id,i)=>{if(id)M.iv[id]={side:s,from:0,to:null}});
   // Foul-, Abseits- und Verletzungsraten
   M.fr={},M.or={},M.ir={};
@@ -143,6 +148,7 @@ function runHalf(M,h){
   for(let k=1;k<=len;k++){
     M.t++;M.m=Math.min(base+k,base+45);M.x=Math.max(0,base+k-(base+45));
     if(h===2&&k===1&&M.detail)evPush(M,{side:'h',type:'info',k:'ht2',lines:[pick(TX.ht2)]});
+    applyIvs(M);
     minute(M);
     if(k===45&&M.detail){const n=h===1?res.s1:res.s2;evPush(M,{side:'h',type:'info',k:'stop',lines:[n?T(h===1?TX.stop1:TX.stop2,{n}):pick(TX.stop1z)]})}
   }
@@ -154,7 +160,7 @@ function runHalf(M,h){
 }
 function minute(M){
   const res=M.res;
-  if(M.ph===2&&M.x===0)for(const s of SIDES){const w=M.plan[s].find(w=>w.m===M.m&&!w.done);if(w){w.done=true;doSubs(M,s,w.n,'plan')}}
+  if(M.ph===2&&M.x===0)for(const s of SIDES){if(M.manual[s])continue;const w=M.plan[s].find(w=>w.m===M.m&&!w.done);if(w){w.done=true;doSubs(M,s,w.n,'plan')}}
   for(const s of SIDES){
     const o=OTHER[s];
     const rate=(s==='h'?M.R.rH:M.R.rA)*RATE_ADJ*M.atk[s];
@@ -267,18 +273,19 @@ function foul(M,side){
   const vs=onPitch(oc);const v=vs.length?wpick(vs,y=>y.pos==='ST'||y.pos==='FL'||y.pos==='OM'?2:1).p:null;
   const pc=.105*(at(p,'agg')+(21-at(p,'tmp')))/21*M.cardF[side];
   const d={fls:1};let type='foul',lines=null;const nv={p:pn(p),v:pn(v),c:c.short,o:oc.short};
-  if(rnd()<.0035){d.rc=1;type='red';lines=[T(TX.foulR,nv)];sendOff(M,side,p,x.i)}
+  if(rnd()<.0035){d.rc=1;type='red';lines=[T(TX.foulR,nv)];sendOff(M,side,p,x.i,'r')}
   else if(rnd()<pc){
-    if(res.yel[p.id]){d.rc=1;d.yc=1;type='red';lines=[T(TX.foulGR,nv)];sendOff(M,side,p,x.i)}
-    else{res.yel[p.id]=1;d.yc=1;type='card';res.ts[side].yc++;p.yc=(p.yc||0)+1;mst(res,p).y=1;lines=[T(TX.foulY,nv)]}
+    if(res.yel[p.id]){d.rc=1;d.yc=1;type='red';lines=[T(TX.foulGR,nv)];sendOff(M,side,p,x.i,'gr')}
+    else{res.yel[p.id]=1;d.yc=1;type='card';res.ts[side].yc++;p.yc=(p.yc||0)+1;mst(res,p).y=1;lines=[T(TX.foulY,nv)];if(p.yc%5===0){suspend(p,1,`${p.yc}. Gelben Karte`);lines[0]+=` Das ist seine ${p.yc}. Gelbe – er ist im nächsten Spiel gesperrt!`}}
   }
   if(!M.detail)return;
   if(lines)evPush(M,{side,type,lines,pid:p.id,d});
   else if(rnd()<.2)evPush(M,{side,type:'foul',lines:[T(TX.foul,nv)].concat(rnd()<.25?[T(TX.fkDanger,nv)]:[]),d});
   else evPush(M,{side,type:'stat',hid:true,d});
 }
-function sendOff(M,side,p,i){
-  const res=M.res,c=M.c[side];res.ts[side].rc++;res.reds.push({t:M.t,side,id:p.id});
+function sendOff(M,side,p,i,kind){
+  const res=M.res,c=M.c[side];res.ts[side].rc++;res.reds.push({t:M.t,side,id:p.id,kind});
+  suspend(p,kind==='gr'?1:ri(2,3),kind==='gr'?'Gelb-Roten Karte':'Roten Karte');
   const sx=sxOf(p);sx[SXI.rc]++;
   c.lineup[i]=null;if(M.iv[p.id])M.iv[p.id].to=M.t;
   M.atk[side]*=.74;M.atk[OTHER[side]]*=1.16;M.cv[OTHER[side]]*=1.06;
@@ -386,8 +393,10 @@ function finishRegular(M,hc,ac){
   // Minuten
   const t90=M.t;
   for(const [id,v] of Object.entries(M.iv)){const to=v.to===null?t90:v.to;res.min[id]=Math.max(1,Math.round((to-v.from)*90/t90))}
-  // Startelf wiederherstellen
+  // Startelf und Taktik wiederherstellen, Sperren absitzen
   hc.lineup=res.xi.h.slice();ac.lineup=res.xi.a.slice();
+  if(M.tac0)M.c[M.tacSide].tactic=M.tac0;
+  for(const id of M.susPrev){const p=S.players[id];if(p&&p.sus>0){p.sus--;if(!p.sus)delete p.sus}}
   for(const [c,gf,ga,s] of [[hc,res.hg,res.ag,'h'],[ac,res.ag,res.hg,'a']]){
     const loss=(c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11)*(c.tactic.ti&&c.tactic.ti.tempo==='high'?1.1:c.tactic.ti&&c.tactic.ti.tempo==='low'?.92:1)*(c.tactic.td&&c.tactic.td.trans==='press'?1.06:1);
     const sl=slotsOf(c),avg=clubAvg(c)||50;
@@ -420,13 +429,15 @@ function commitPlayerStats(M,mins){
 function extraTime(hc,ac,res,detail,neutral){
   const M=res.M;M.detail=detail;
   hc.lineup=M.cur.h.slice();ac.lineup=M.cur.a.slice();
+  if(M.tacLive)M.c[M.tacSide].tactic=M.tacLive;
   M.R.rH*=.9;M.R.rA*=.9;
   const t0=M.t;res.e1=ri(0,2);res.e2=ri(1,3);
   if(detail){const ft=res.ev.find(e=>e.k==='ft');if(ft)ft.lines=[`Ende der regulären Spielzeit – ${res.hg}:${res.ag}. Es gibt keinen Sieger!`];evPush(M,{side:'h',type:'whistle',k:'et',lines:['Verlängerung! Es geht in die 30 Zusatzminuten.']})}
   for(const [h,len,base] of [[3,15+res.e1,90],[4,15+res.e2,105]]){M.ph=h;
     if(h===4&&detail){M.t++;M.m=106;M.x=0;evPush(M,{side:'h',type:'info',k:'ht2',lines:['Seitenwechsel – die zweite Hälfte der Verlängerung läuft.']});M.t--}
     for(let k=1;k<=len;k++){M.t++;M.m=Math.min(base+k,base+15);M.x=Math.max(0,base+k-(base+15));
-      if(h===4&&k===1&&M.x===0){for(const s of SIDES)if(M.subsLeft[s]>0&&rnd()<.6)doSubs(M,s,1,'plan')}
+      applyIvs(M);
+      if(h===4&&k===1&&M.x===0){for(const s of SIDES)if(!M.manual[s]&&M.subsLeft[s]>0&&rnd()<.6)doSubs(M,s,1,'plan')}
       minute(M)}
     if(detail&&h===3)evPush(M,{side:'h',type:'whistle',k:'et1',lines:[`Halbzeit in der Verlängerung. Es steht ${res.hg}:${res.ag}.`]});
   }
@@ -443,6 +454,7 @@ function extraTime(hc,ac,res,detail,neutral){
   for(const id in etMins){res.min[id]=(res.min[id]||0)+etMins[id];const p=S.players[id];if(!p)continue;const a=sxOf(p),ps=etPs[id]||{};a[SXI.min]+=etMins[id];for(const k of ['sh','sot','kp','pas','pcm','tck','int','drb','fls','sav','bc','ga'])a[SXI[k]]+=ps[k]||0;a[SXI.xg]+=Math.round((ps.xg||0)*100);a[SXI.xa]+=Math.round((ps.xa||0)*100);p.fit=clamp(p.fit-5,30,100)}
   M.cur={h:hc.lineup.slice(),a:ac.lineup.slice()};
   hc.lineup=res.xi.h.slice();ac.lineup=res.xi.a.slice();
+  if(M.tac0)M.c[M.tacSide].tactic=M.tac0;
   res.et=true;res.t120=M.t;res.end=M.t+1;
 }
 
@@ -488,4 +500,48 @@ function saveUserReport(item){
   S.ureps.push({s:S.season,w:S.week,lbl:item.label||(item.L?item.L.name+' · '+(item.round+1)+'. ST':''),opp:home?m.a:m.h,home,gf:home?m.hg:m.ag,ga:home?m.ag:m.hg,
     xf:Math.round((home?r.ts.h.xg:r.ts.a.xg)*100)/100,xa:Math.round((home?r.ts.a.xg:r.ts.h.xg)*100)/100,poss:home?r.poss:100-r.poss,sh:home?r.sh:r.sa,sha:home?r.sa:r.sh,res:resultText(m)});
   if(S.ureps.length>120)S.ureps=S.ureps.slice(-120);
+}
+
+/* ---------- Sperren ---------- */
+function suspend(p,n,why){
+  p.sus=(p.sus||0)+n;
+  if(p.club===S.user)addNews('board',`Sperre: ${fullname(p)}`,`${esc(fullname(p))} ist nach der ${why} für ${n===1?'das nächste Pflichtspiel':'die nächsten '+n+' Pflichtspiele'} gesperrt.`);
+}
+
+/* ---------- Eingriffe des Nutzers ---------- */
+function applyIvs(M){
+  for(let j=0;j<M.ivs.length;j++){const iv=M.ivs[j];if(iv.t!==M.t||M.ivDone.has(j))continue;M.ivDone.add(j);applyIv(M,iv)}
+}
+function applyIv(M,iv){
+  const s=iv.side,c=M.c[s],res=M.res;
+  for(const [o,i] of iv.subs||[])manualSub(M,s,o,i);
+  if(iv.auto===false||(iv.subs&&iv.subs.length&&iv.auto!==true))M.manual[s]=true;
+  if(iv.tac&&Object.keys(iv.tac).length){
+    if(!M.tac0){M.tac0=JSON.parse(JSON.stringify(c.tactic));M.tacSide=s}
+    Object.assign(c.tactic,iv.tac);M.tacLive=c.tactic;
+    const t=c.tactic;
+    if(M.detail)evPush(M,{side:s,type:'info',k:'tac',big:true,lines:[`Taktische Umstellung bei ${c.short}: ${MENTALITY[t.men]} · ${PRESSING[t.press]} · ${STYLE[t.style]||t.style}.`,pick(['Mal sehen, ob das greift.','Der Trainer gestikuliert wild an der Seitenlinie.','Ein deutliches Signal an die Mannschaft.'])]});
+  }
+  recalcRates(M);
+}
+function manualSub(M,s,o,i){
+  const res=M.res,c=M.c[s],slot=c.lineup.indexOf(o),inP=S.players[i],op=S.players[o];
+  if(slot<0||!inP||!op||M.subsLeft[s]<=0||M.used[s].has(i)||M.iv[i]||inP.inj>0||inP.sus)return false;
+  c.lineup[slot]=i;M.used[s].add(i);M.used[s].add(o);M.subsLeft[s]--;
+  if(M.iv[o])M.iv[o].to=M.t;M.iv[i]={side:s,from:M.t,to:null,sub:true};
+  res.subs.push({t:M.t,m:M.m,x:M.x,side:s,out:o,in:i,slot,manual:true});
+  if(M.detail)evPush(M,{side:s,type:'sub',lines:[`Wechsel bei ${c.short} – deine Entscheidung: ${pn(inP)} kommt für ${pn(op)}.`],pin:i,pout:o});
+  return true;
+}
+function liveFit(c,p,played,tot){
+  const t=c.tactic,loss=(t.press==='hoch'?14:t.press==='niedrig'?8:11)*(t.ti&&t.ti.tempo==='high'?1.1:t.ti&&t.ti.tempo==='low'?.92:1)*(t.td&&t.td.trans==='press'?1.06:1);
+  return clamp(p.fit-loss*Math.min(1.35,played/tot)*(1.3-at(p,'sta')/40),30,100);
+}
+function recalcRates(M){
+  const tot=90+M.res.s1+M.res.s2,saved=[];
+  for(const s of SIDES){const c=M.c[s];for(const id of c.lineup){if(!id)continue;const p=S.players[id],v=M.iv[id];if(!p||!v)continue;saved.push([p,p.fit]);p.fit=liveFit(c,p,M.t-v.from,tot)}}
+  const R=matchRates(M.c.h,M.c.a,M.res.neutral);
+  for(const [p,f] of saved)p.fit=f;
+  if(M.ph>=3){R.rH*=.9;R.rA*=.9}
+  M.R=R;
 }
