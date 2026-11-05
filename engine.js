@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.28.0';
+const APP_VERSION='0.29.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -786,7 +786,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();boardWeekly({userList});
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
@@ -908,7 +908,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();crewSeason();
+  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();orgSeasonEnd();crewSeason();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};

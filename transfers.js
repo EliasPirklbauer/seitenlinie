@@ -69,10 +69,10 @@ function sellerJudge(p,b){
 function bidNow(b){return b.feeD?0:(b.fee||0)}
 function bidLater(b){return (b.feeD?b.fee:0)+planSum(b)}
 // Wie viel ein KI-Käufer insgesamt stemmen kann (sofort + Raten)
-function aiMax(c){const dir=c.staff.dir.trait;return Math.min(c.tBudget||0,Math.max(0,c.budget))*(dir==='star'?.9:.6)}
+function aiMax(c){if(c.id===S.user)return Math.min(c.tBudget||0,Math.max(0,c.budget))*.95;const dir=c.staff.dir.trait;return Math.min(c.tBudget||0,Math.max(0,c.budget))*(dir==='star'?.9:.6)}
 function aiFinance(c){const m=aiMax(c);return {now:m,inst:c.budget>0?m*1.2:0}}
 function aiMakeBid(p,c,T){
-  const F=aiFinance(c);let total=T*(.8+rnd()*.15);const b={fee:total,plan:[],ao:0,aoN:25,so:0};
+  const F=aiFinance(c);let total=T*(.8+rnd()*.15)*(c.id===S.user?1-.06*ownerK('buy'):1);const b={fee:total,plan:[],ao:0,aoN:25,so:0};
   if(total>F.now){b.fee=F.now*.95;const rest=total-b.fee;if(rest>F.inst)return null;planAdd(b,rest,ri(1,4),rnd()<.5?1:2)}
   else if(rnd()<.3){b.ao=nice(total*.12);b.aoN=pick(AO_N);b.fee=total-b.ao}
   if(rnd()<.2)b.so=pick([10,15,20]);

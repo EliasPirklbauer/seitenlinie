@@ -2,7 +2,7 @@
 /* =========================================================
    SEITENLINIE – Oberfläche
    ========================================================= */
-let UI={view:'home',modal:null,live:null,setup:null,tf:{pos:'',max:'',q:'',tab:'markt',nat:''},mdView:null,selSlot:null,toast:null,sortK:'pos',tableLeague:null,world:{confed:'UEFA',assoc:null},loading:null,meta:null,oldSave:false};
+let UI={view:'home',modal:null,live:null,setup:null,tf:{pos:'',max:'',q:'',tab:'plan',nat:''},mdView:null,selSlot:null,toast:null,sortK:'pos',tableLeague:null,world:{confed:'UEFA',assoc:null},loading:null,meta:null,oldSave:false};
 
 /* ---------- Installierbare Web-App (PWA) ---------- */
 const PWA={deferred:null,update:null,
@@ -206,7 +206,7 @@ function renderHome(){
     if(R.res==='loanyes'&&userLoanDeal(pid))return `<div class="news t-transfer"><b>✅ Leihe mit ${esc(sc.name)} vereinbart</b> für ${esc(fullname(p))}: ${loanText(R.t)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="loanClose" data-id="${pid}">🔁 Spieler fragen & abschließen</button></div></div>`;
     if(R.res==='loancounter')return `<div class="news t-offer"><b>↩️ Gegenvorschlag zur Leihe von ${esc(sc.name)}</b> für ${esc(fullname(p))}: ${loanText(R.t)}<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="loanOpen" data-id="${pid}">Ansehen / annehmen</button></div></div>`;
     return ''}).join('');
-  const offers=uq+lres+pend+res+talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> ${o.loan?'möchte':'bietet für'} ${esc(fullname(p))} ${ovrTag(ovr(p))}${o.loan?' ausleihen':''}: <b>${o.loan?loanText(o.loan):o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span>${o.wait?`<div class="small" style="margin-top:6px">📨 Dein Gegenangebot liegt bei ihnen – Antwort bis <b>${fmtDate(((S.pbids||[]).find(x=>x.oid===o.id)||{}).when)}</b></div>`:`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button>${o.loan?'':`<button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button>`}<button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div>`}</div>`}).join('');
+  const offers=orgHome()+uq+pend+res+talks+S.offers.map(o=>{const p=S.players[o.pid],fc=club(o.from);return `<div class="news t-offer"><b>${esc(fc.name)}</b> <span class="small muted">(${esc(leagueName(fc))})</span> ${o.loan?'möchte':'bietet für'} ${esc(fullname(p))} ${ovrTag(ovr(p))}${o.loan?' ausleihen':''}: <b>${o.loan?loanText(o.loan):o.bid?bidText(o.bid):money(o.fee)}</b> <span class="muted small">(Marktwert ${money(p.val)}${o.rounds?` · Runde ${o.rounds+1} von 3`:''})</span>${o.wait?`<div class="small" style="margin-top:6px">📨 Dein Gegenangebot liegt bei ihnen – Antwort bis <b>${fmtDate(((S.pbids||[]).find(x=>x.oid===o.id)||{}).when)}</b></div>`:orgOfferBtns(o,`<div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="offerYes" data-id="${o.id}">Annehmen</button>${o.loan?'':`<button class="btn sm" data-act="bidCounter" data-id="${o.id}">Gegenangebot</button>`}<button class="btn sm" data-act="offerNo" data-id="${o.id}">Ablehnen</button></div>`)}</div>`}).join('');
   const news=S.news.slice(0,14).map(n=>`<div class="news t-${n.type}"><b>${esc(n.title)}</b> <span class="small muted">· ${n.w?'Woche '+n.w:'Saisonstart'}</span><div class="small">${n.body}</div></div>`).join('');
   const last=[];for(let r=Math.min(L.fixtures.length-1,(nx?nx.r:L.fixtures.length)-1);r>=0&&last.length<5;r--){const m=L.fixtures[r].find(m=>m.h===S.user||m.a===S.user);if(m&&m.hg!==null)last.push(m)}
   return `<div class="grid home-grid">
@@ -214,7 +214,7 @@ function renderHome(){
    <div class="card"><h3>Saison · ${esc(L.name)}</h3>
      <div class="row" style="gap:26px"><div><div class="small muted">Platz</div><div class="kpi">${rank}.</div></div><div><div class="small muted">Punkte</div><div class="kpi">${me.pts}</div></div><div><div class="small muted">Tore</div><div class="kpi">${me.tf}:${me.ta}</div></div></div>
      <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
-     ${(()=>{const B=boardOf(),[ti,tl]=trustLbl(B.trust);return `<div class="small" style="margin-top:4px">${ti} Aufsichtsrat: <b>${Math.round(B.trust)}</b> – ${tl}${B.pending?' · <a data-act="bdOpen" style="color:var(--text);cursor:pointer;text-decoration:underline">Sitzung wartet</a>':''}</div>`})()}
+     ${(()=>{const B=boardOf(),[ti,tl]=trustLbl(B.trust);return `<div class="small" style="margin-top:4px">${ti} Rückhalt im Verein: <b>${Math.round(B.trust)}</b> – ${tl}${B.pending?' · <a data-act="bdOpen" style="color:var(--text);cursor:pointer;text-decoration:underline">Vorstand bittet zum Gespräch</a>':''}</div>`})()}
      <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
      <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(mon(wageBill(c)))} / ${money(mon(c.wBudget))} pro Monat</div>
      ${userSupercup()?`<div class="small" style="margin-top:4px">🛡️ ${esc(userSupercup().name)}: <b>${userSupercup().winner===S.user?'🏆 gewonnen':userSupercup().winner!==null?'verloren':'Woche '+(userSupercup().rounds[0].w+1)}</b></div>`:''}
@@ -338,6 +338,7 @@ function playerModal(pid){
           :D?`<button class="btn" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>✍️ Vertragsformular</button><span class="small good">Ablöse vereinbart: ${bidText(D.bid)}</span>`
           :LD?`<button class="btn pri" data-act="loanClose" data-id="${p.id}" ${dis}>🔁 Leihe abschließen – Spieler fragen</button><span class="small good">${loanText(LD.t)}</span>`
           :`<button class="btn" data-act="inqOpen" data-id="${p.id}">🔎 Anfrage stellen</button><button class="btn" data-act="bidOpen" data-id="${p.id}" ${dis}>💶 Angebot schriftlich</button><button class="btn" data-act="loanOpen" data-id="${p.id}" ${dis}>🔁 Leihangebot</button>${bf.clause?`<button class="btn" data-act="negOpen" data-id="${p.id}" data-mode="buy" ${dis}>⚡ Ausstiegsklausel ziehen: ${money(bf.fee)}</button>`:''}`}</div>${w?'':`<div class="small muted" style="margin-top:4px">Transferfenster geschlossen – Anfragen sind trotzdem möglich, Angebote erst ${windowLabel()}.</div>`}`}
+      if(!LN)actions=orgActions(p,mine,actions);
       body+=`<div style="margin-top:14px">${actions}</div>`;
     }
     else{
@@ -830,11 +831,12 @@ function renderTable(){
 /* ---------- Transfers ---------- */
 function renderTransfers(){
   const f=UI.tf,c=userClub();
-  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='ticker'?'on':''}" data-act="tfTab" data-v="ticker">Transfer-Ticker</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
+  const tabs=`<div class="seg" style="margin-bottom:12px"><button class="${f.tab==='plan'?'on':''}" data-act="tfTab" data-v="plan">Kaderplanung</button><button class="${f.tab==='markt'?'on':''}" data-act="tfTab" data-v="markt">Transfermarkt</button><button class="${f.tab==='ticker'?'on':''}" data-act="tfTab" data-v="ticker">Transfer-Ticker</button><button class="${f.tab==='log'?'on':''}" data-act="tfTab" data-v="log">Letzte Wechsel</button></div>`;
   // Filter für Ticker & Wechsel: Land (tk.code) und Liga (tk.lg)
   const tk=UI.tk=UI.tk||{code:'',lg:'',q:'',type:''};
   const clubOk=id=>{const x=club(id);if(!x)return false;if(tk.lg!=='')return x.league===+tk.lg;if(tk.code)return x.assoc===tk.code;return true};
   const pairOk=ids=>ids.some(clubOk);
+  if(f.tab==='plan')return `<h2>Transfers</h2>${tabs}${orgPlanPage()}`;
   const filt=`<div class="row" style="gap:8px;margin-bottom:12px">
       <select data-chg="tkCode"><option value="">Alle Länder</option>${S.active.map(code=>`<option value="${code}" ${tk.code===code?'selected':''}>${esc(natName(code))}</option>`).join('')}</select>
       <select data-chg="tkLg"><option value="">Alle Ligen${tk.code?' in '+esc(natName(tk.code)):''}</option>${S.leagues.filter(L=>!tk.code||L.assoc===tk.code).sort((a,b)=>a.assoc.localeCompare(b.assoc)||a.tier-b.tier).map(L=>`<option value="${L.id}" ${String(L.id)===String(tk.lg)?'selected':''}>${esc(L.name)}${tk.code?'':' ('+L.assoc+')'}</option>`).join('')}</select>

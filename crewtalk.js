@@ -51,7 +51,11 @@ function crewAdvice(role){
       L.push(wageBill(u)>u.wBudget*.95?'Das Gehaltsbudget ist nahezu ausgereizt – bei Neuverpflichtungen müssen wir vorsichtig sein.':`Beim Gehalt haben wir noch Luft: ${spM(mon(u.wBudget-wageBill(u)))} im Monat.`);
       if(role==='ceo')L.push(`Unsere Sponsoren sind ${userForm()>0?'sehr zufrieden mit dem sportlichen Auftritt':'nervös – sie wollen Ergebnisse sehen'}.`);break}
     case 'mkt':L.push(`Zuletzt kamen ${u.lastAtt?u.lastAtt.toLocaleString('de-DE'):'–'} Zuschauer bei einer Kapazität von ${u.stadium.toLocaleString('de-DE')}.`);L.push(userForm()>0?'Die Trikots gehen weg wie warme Semmeln!':'Erfolg verkauft sich am besten – ein paar Siege würden helfen.');break;
-    case 'dirq':L.push(`Transferbudget: ${spM(u.tBudget)}. ${isWindow()?'Das Fenster ist offen – wenn wir etwas machen wollen, dann jetzt.':'Das Fenster ist zu, aber ich sondiere schon den Markt.'}`);L.push(`Am dringendsten wäre aus meiner Sicht die Position ${POS_LABEL[weakestPos(u).pos]}.`);break;
+    case 'kader':{const ex=sq.filter(p=>!p.loan&&p.until<=S.season).sort((a,b)=>ovr(b)-ovr(a));
+      L.push(ex.length?`Zum Saisonende laufen ${ex.length} Verträge aus, darunter ${ex.slice(0,3).map(p=>first(p)).join(', ')}. ${ex.some(p=>!p.rec)?'Mir fehlen noch deine Empfehlungen.':'Deine Empfehlungen habe ich.'}`:'Bei den Verträgen ist alles geregelt – niemand Wichtiges läuft aus.');
+      L.push(`Das Gehaltsbudget ist zu ${Math.round(wageBill(u)/u.wBudget*100)} % ausgeschöpft.`);break}
+    case 'media':{const f=userForm();L.push(f<-.3?'Die Presse schießt sich gerade auf uns ein. Ich halte dir den Rücken frei, aber wir brauchen Ergebnisse.':f>.3?'Die Berichterstattung ist durchweg positiv – das hilft uns auch beim Aufsichtsrat.':'Die Stimmung in den Medien ist neutral.');break}
+    case 'dirq':L.push(`Unser Verhältnis? ${relLbl(rel())[0].toUpperCase()+relLbl(rel()).slice(1)}, würde ich sagen.`);L.push(`Transferbudget: ${spM(u.tBudget)}. ${isWindow()?'Das Fenster ist offen – wenn wir etwas machen wollen, dann jetzt.':'Das Fenster ist zu, aber ich sondiere schon den Markt.'}`);L.push(`Am dringendsten wäre aus meiner Sicht die Position ${POS_LABEL[weakestPos(u).pos]}.`);break;
   }
   return L;
 }

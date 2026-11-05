@@ -2,7 +2,7 @@
 import re,pathlib,base64
 root=pathlib.Path(__file__).parent
 html=(root/'index.html').read_text()
-for name in ['world.js','engine.js','matchsim.js','atmo.js','comps.js','natcups.js','contracts.js','transfers.js','market.js','tactics.js','ui.js','calendar.js','live.js','view3d.js','stats.js','talk.js','room.js','crew.js','scouting.js','crewtalk.js','board.js']:
+for name in ['world.js','engine.js','matchsim.js','atmo.js','comps.js','natcups.js','contracts.js','transfers.js','market.js','tactics.js','ui.js','calendar.js','live.js','view3d.js','stats.js','talk.js','room.js','crew.js','scouting.js','crewtalk.js','board.js','org.js']:
     js=(root/name).read_text().replace('</script>','<\\/script>')
     html=html.replace(f'<script src="{name}"></script>',f'<script>\n{js}\n</script>')
 def font(m):
