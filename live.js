@@ -110,7 +110,7 @@ function renderLive(){
   const prog=Math.min(1,st.t/Math.max(1,total));
   const ctrl=L.done?`<button class="btn pri" data-act="liveDone">${UI.liveQueue&&UI.liveQueue.length?'Nächstes Spiel ▶':'Weiter zu den Ergebnissen ▶'}</button>`
     :L.paused&&L.paused!=='user'?`<button class="btn pri" data-act="liveGo">${L.paused==='ht'?'2. Halbzeit anpfeifen ▶':L.paused==='et'?'Verlängerung anpfeifen ▶':L.paused==='et1'?'Weiter ▶':'Zum Elfmeterschießen ▶'}</button>${canIv(L,st)?`<button class="btn" data-act="ivOpen">🔁 Wechsel & Taktik</button>`:''}<button class="btn" data-act="liveSkip">Zum Ergebnis ⏭</button>`
-    :`<div class="seg">${LSPEED.map(([k,l])=>`<button class="${L.speed===k?'on':''}" data-act="speed" data-v="${k}">${l}</button>`).join('')}</div><button class="btn sm" data-act="livePause">${L.paused?'▶ Weiter':'⏸ Pause'}</button>${canIv(L,st)?`<button class="btn sm" data-act="ivOpen">🔁 Eingreifen</button>`:''}<button class="btn sm" data-act="liveSkip">Zum Ergebnis ⏭</button>`;
+    :`<div class="seg">${LSPEED.map(([k,l])=>`<button class="${L.speed===k?'on':''}" data-act="speed" data-v="${k}">${l}</button>`).join('')}</div><button class="btn sm" data-act="livePause">${L.paused?'▶ Weiter':'⏸ Pause'}</button>${canIv(L,st)?`<button class="btn sm ${L.ivOpen?'pri':''}" data-act="ivOpen">🔁 Wechsel & Taktik</button>`:''}<button class="btn sm" data-act="liveSkip">Zum Ergebnis ⏭</button>`;
   const head=`<div class="card lscore">
     <div class="small muted" style="text-align:center;margin-bottom:6px">${L.label?esc(L.label):esc(L.L.name)+' · '+(L.round+1)+'. Spieltag'}${r.ref?' · Schiedsrichter '+esc(r.ref):''}</div>
     <div class="score">
@@ -121,6 +121,7 @@ function renderLive(){
     <div class="lprog"><i style="width:${prog*100}%"></i>${[45,90].map(x=>`<b style="left:${x/(r.et?120:90)*100}%"></b>`).join('')}</div>
     ${momentumSvg(r,st,col,total)}
     <div class="row" style="justify-content:center;margin-top:10px">${ctrl}</div>
+    ${canIv(L,st)?quickTac(L,st):''}
     ${L.done?matchVerdict(L,st,hc,ac):''}
   </div>${L.ivOpen&&canIv(L,st)?ivPanel(L,st,hc,ac):''}`;
   const tab=L.tab,rt=tab==='ticker'?'lineup':tab;
@@ -224,7 +225,7 @@ function playersPane(L,hc,ac){
 
 /* ---------- Eingreifen: Wechsel & Taktik während des Spiels ---------- */
 function userSide(L){return L.m.h===S.user?'h':'a'}
-function canIv(L,st){return !L.done&&!!UI.weekSnap&&st.t>0&&tickInfo(L.r,st.t).ph<5&&L.paused!=='pens'&&!(st.pens)}
+function canIv(L,st){return !L.done&&!!UI.weekSnap&&tickInfo(L.r,st.t).ph<5&&L.paused!=='pens'&&!(st.pens)}
 function liveTactic(L,st){
   const s=userSide(L),c=club(s==='h'?L.m.h:L.m.a);const t={men:c.tactic.men,press:c.tactic.press,style:c.tactic.style};
   for(const iv of (UI.weekIv||[]))if(iv.k===L.k&&iv.t<=st.t+1&&iv.tac)Object.assign(t,iv.tac);
@@ -241,7 +242,9 @@ function ivState(L,st){
   return {s,c,used,onField,bench,left:5-used.length,injNow};
 }
 function ivPanel(L,st,hc,ac){
-  const I=ivState(L,st),D=L.draft,sl=slotsOf(I.c),tot=90+(L.r.s1||0)+(L.r.s2||0);
+  const I0=ivState(L,st),D0=L.draft,onIds=new Set(I0.onField.map(x=>x.id));
+  D0.subs=D0.subs.filter(x=>onIds.has(x[0])&&I0.bench.includes(x[1]));if(D0.out&&!onIds.has(D0.out))D0.out=null;
+  const I=I0,D=D0,sl=slotsOf(I.c),tot=90+(L.r.s1||0)+(L.r.s2||0);
   const outSel=new Set(D.subs.map(x=>x[0])),inSel=new Set(D.subs.map(x=>x[1]));
   const played=id=>{const sub=L.r.subs.find(x=>x.in===id&&x.t<=st.t);return st.t-(sub?sub.t:0)};
   const field=I.onField.map(x=>{const p=S.players[x.id];const f=Math.round(liveFit(I.c,p,played(x.id),tot));const pos=sl[x.i];const inj=I.injNow.has(x.id);
@@ -252,7 +255,7 @@ function ivPanel(L,st,hc,ac){
   const seg=(k,opts)=>`<div class="seg">${Object.entries(opts).map(([v,l])=>`<button class="${D.tac[k]===v?'on':''}" data-act="ivTac" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
   const leftNow=I.left-D.subs.length;
   return `<div class="card ivpanel"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Eingreifen · ${esc(I.c.name)}</h3><span class="small muted">Wechsel übrig: <b>${leftNow}</b> von 5</span></div>
-    <p class="small muted" style="margin:6px 0 10px">Wähle links den Spieler, der raus soll, dann rechts den Einwechselspieler. Die Prozentzahl zeigt die aktuelle Frische – müde Spieler bauen im Spiel ab. Änderungen gelten ab der nächsten Minute.</p>
+    <p class="small muted" style="margin:6px 0 10px">Wähle links den Spieler, der raus soll, dann rechts den Einwechselspieler. Die Prozentzahl zeigt die aktuelle Frische – müde Spieler bauen im Spiel ab. Änderungen gelten ab der nächsten Minute.${L.paused?'':' <b>Das Spiel läuft weiter, während du planst.</b>'}</p>
     <div class="ivgrid"><div><h3>Auf dem Platz</h3><div class="ivlist">${field}</div></div><div><h3>Ersatzbank${D.out?` <span class="small muted">für ${esc(pname(S.players[D.out]))} (Wert auf der Position)</span>`:''}</h3><div class="ivlist">${bench||'<span class="small muted">Keine Wechselspieler mehr.</span>'}</div></div></div>
     ${pairs?`<div class="ivpairs">${pairs}</div>`:''}
     <div class="ivtac"><div><label class="f">Mentalität</label>${seg('men',MENTALITY)}</div><div><label class="f">Pressing</label>${seg('press',PRESSING)}</div><div><label class="f">Spielstil</label>${seg('style',STYLE)}</div></div>
@@ -271,7 +274,7 @@ function replayWeek(){
   UI.liveQueue=res.userList.slice(L.k+1);
 }
 Object.assign(ACT,{
-  ivOpen:()=>{const L=UI.live;if(!L.paused)L.paused='user';const st=liveState(L);L.draft={subs:[],out:null,tac:liveTactic(L,st),auto:true};L.ivOpen=true;clearTimeout(tickLive.t);render();setTimeout(()=>{const e=document.querySelector('.ivpanel');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})},30)},
+  ivOpen:()=>{const L=UI.live;if(L.ivOpen){L.ivOpen=false;render();return}const st=liveState(L);L.draft={subs:[],out:null,tac:liveTactic(L,st),auto:true};L.ivOpen=true;render();setTimeout(()=>{const e=document.querySelector('.ivpanel');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})},30)},
   ivClose:()=>{UI.live.ivOpen=false;render()},
   ivOut:d=>{const D=UI.live.draft;D.out=D.out===d.id?null:d.id;render()},
   ivIn:d=>{const D=UI.live.draft;if(!D.out)return;D.subs.push([D.out,d.id]);D.out=null;render()},
@@ -285,8 +288,21 @@ Object.assign(ACT,{
     UI.weekIv.push({k:L.k,t:st.t+1,side:userSide(L),subs:D.subs.slice(),tac,auto:D.auto});
     replayWeek();
     L.ivOpen=false;L.draft=null;
-    if(L.paused==='user'||L.paused==='ht'||L.paused==='et'||L.paused==='et1')L.paused=false;
     toast(D.subs.length?`${D.subs.length} Wechsel – gilt ab der nächsten Minute`:'Taktik umgestellt');
-    render();tickLive();
+    render();if(!L.paused)tickLive();
+  },
+  ivQuick:d=>{
+    const L=UI.live;if(L.done)return;const st=liveState(L);if(!canIv(L,st))return;
+    const cur=liveTactic(L,st);if(cur[d.k]===d.v)return;
+    UI.weekIv.push({k:L.k,t:st.t+1,side:userSide(L),subs:[],tac:{[d.k]:d.v},auto:true});
+    replayWeek();if(L.draft)L.draft.tac[d.k]=d.v;
+    toast('Umgestellt – gilt ab der nächsten Minute');render();if(!L.paused)tickLive();
   }
 });
+
+function quickTac(L,st){
+  const t=liveTactic(L,st);
+  const seg=(k,opts)=>`<div class="seg qseg">${Object.entries(opts).map(([v,l])=>`<button class="${t[k]===v?'on':''}" data-act="ivQuick" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const I=ivState(L,st);
+  return `<div class="qtac"><span class="small muted">Sofort umstellen:</span>${seg('men',MENTALITY)}${seg('press',{niedrig:'Tief',mittel:'Mittel',hoch:'Hoch'})}<span class="small muted">Wechsel übrig: <b>${I.left}</b></span></div>`;
+}
