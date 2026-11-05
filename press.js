@@ -22,7 +22,8 @@ function pkQuestions(kind){
       opt(fav>3?'Wir sind Favorit, aber das heißt nichts.':'Wir sind Außenseiter – ein Punkt wäre schon ein Erfolg.','humble',{team:fav>3?0:-1,board:fav>3?0:-1},fav>3?null:`${mgrLast()} tiefstapelt vor ${o.name}`),
       opt('Ehrlich gesagt mache ich mir um den Gegner keine großen Gedanken.','hot',{team:2,img:-3,mm:.01,claim:'win',risk:1},`Arrogant? ${mgrLast()} unterschätzt ${o.name}`)]});
     const coach=o.staff.coach.name;
-    if(R()<.4)Q.push({topic:'Gegnertrainer',q:`${coach} hat gesagt, Ihre Mannschaft sei „leicht auszurechnen“. Ihre Antwort?`,opts:[
+    const OQ=S.oppQuote&&S.oppQuote.s===S.season&&S.oppQuote.w===S.week&&S.oppQuote.cid===o.id?S.oppQuote:null;
+    if(OQ||R()<.3)Q.push({topic:'Gegnertrainer',q:OQ?`${coach} hat gesagt: „${OQ.q}“ Was entgegnen Sie?`:`${coach} hat gesagt, Ihre Mannschaft sei „leicht auszurechnen“. Ihre Antwort?`,opts:[
       opt('Ich lasse lieber meine Mannschaft auf dem Platz antworten.','calm',{img:2,team:1},null),
       opt(`${coach.split(' ').pop()} sollte sich um seine eigene Mannschaft kümmern.`,'hot',{team:2,img:-1,mm:.005},`Zoff vor dem Spiel: ${mgrLast()} kontert ${coach.split(' ').pop()}`),
       opt('Dann wird er am Wochenende eine Überraschung erleben.','conf',{team:1,claim:'win'},null)]});
@@ -74,7 +75,7 @@ function pkQuestions(kind){
   if(star&&(isWindow()||windowSoon())){const ic=S.clubs.filter(c=>!c.guest&&c.rep>u.rep).sort(()=>R()-.5)[0];if(ic)pool.push({topic:'Gerücht',q:`Angeblich ist ${ic.name} an ${star.fn} ${star.ln} interessiert. Bleibt er?`,opts:[
     opt(`${star.ln} ist unverkäuflich. Punkt.`,'conf',{pl:[star.id,5],nfs:star.id,rel:mayDo('sell')?0:-3,img:1},`${mgrLast()} macht ${star.ln} zum Unverkäuflichen`),
     opt(`Dazu äußere ich mich nicht – das ist Sache von ${mayDo('sell')?'uns intern':sd}.`,'dodge',{rel:2},null),
-    opt('Jeder Spieler hat seinen Preis.','hard',{pl:[star.id,-6],rel:-1},`${mgrLast()} öffnet die Tür für einen ${star.ln}-Verkauf`)]})}
+    opt('Jeder Spieler hat seinen Preis.','hard',{pl:[star.id,-6],rel:-1,fan:-3},`${mgrLast()} öffnet die Tür für einen ${star.ln}-Verkauf`)]})}
   if(isWindow()){const wp=weakestPos(u);pool.push({topic:'Transfers',q:'Braucht die Mannschaft noch Verstärkung?',opts:[
     opt(`Ja – auf der Position ${POS_LABEL[wp.pos]} wollen wir nachlegen.`,'conf',{team:-1,rel:mayDo('buy')?0:-3,need:wp.pos},`${mgrLast()} fordert Verstärkung – Druck auf ${mayDo('buy')?'die Kaderplanung':sd}`),
     opt('Ich bin mit meinem Kader sehr zufrieden.','warm',{team:2},null),
@@ -136,7 +137,7 @@ function pkFx(fx){
 }
 function pkAnswer(i){
   const C=UI.ct,K=C.pk,q=K.Q[K.i];if(!q)return;const o=q.opts[i];
-  ctSay('me',o.t);pkFx(o.fx);K.ans.push({topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
+  ctSay('me',o.t);pkFx(o.fx);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
   ctSay('them',bpick(PK_REACT[o.tone]||['*notiert*']));K.i++;
   if(K.i<K.Q.length)pkAsk();else pkEnd();
 }
@@ -156,12 +157,12 @@ function pressWeekly(res){
   if(!S||S.user===null||S.fired)return;const P=pressOf(),B=boardOf(),list=res.userList||[];
   if(list.length){const last=list[list.length-1],m=last.m,home=m.h===S.user,gf=home?m.hg:m.ag,ga=home?m.ag:m.hg;
     if(P.claim&&P.claim.s===S.season&&P.claim.w===S.week-1){
-      if(gf>ga){P.img=clamp(P.img+3,0,100);addNews('press','📰 Wort gehalten',`${mgrLast()} hatte den Sieg angekündigt – und geliefert. Die Presse ist beeindruckt.`)}
-      else{P.img=clamp(P.img-5,0,100);B.trust=clamp(B.trust-2,0,100);addNews('press','📰 Große Klappe, nichts dahinter',`${mgrLast()} hatte vollmundig den Sieg versprochen – jetzt hagelt es Spott. Bild in der Öffentlichkeit: ${Math.round(P.img)}.`)}}
+      if(gf>ga){P.img=clamp(P.img+3,0,100);fanAdd(userClub(),2);addNews('press','📰 Wort gehalten',`${mgrLast()} hatte den Sieg angekündigt – und geliefert. Die Presse ist beeindruckt.`)}
+      else{P.img=clamp(P.img-5,0,100);fanAdd(userClub(),-3);B.trust=clamp(B.trust-2,0,100);addNews('press','📰 Große Klappe, nichts dahinter',`${mgrLast()} hatte vollmundig den Sieg versprochen – jetzt hagelt es Spott. Bild in der Öffentlichkeit: ${Math.round(P.img)}.`)}}
     P.post={s:S.season,w:S.week}}
   P.claim=P.claim&&P.claim.w>=S.week-1?P.claim:null;
   P.img=clamp(P.img+(50-P.img)*.03+userForm()*1.2,0,100);
-  B.trust=clamp(B.trust+(P.img-50)*.02,0,100);
+  B.trust=clamp(B.trust+(P.img-50)*.02+(fansOf(userClub()).mood-55)*.012,0,100);
 }
 function pressMul(c){const P=S&&S.press;return c.id===S.user&&P&&P.mmW===S.week?1+Math.min(.015,P.mm||0):1}
 function pressHome(){
@@ -169,7 +170,9 @@ function pressHome(){
   if(pkAvail('pre'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz vor dem Spiel</b><div class="small">Die Journalisten warten. Deine Worte wirken auf Mannschaft, Fans und Vorstand.</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="pre">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="pre">Co-Trainer schicken</button></div></div>`;
   if(pkAvail('post'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz nach dem Spiel</b><div class="small">${(()=>{const r=(S.ureps||[]).slice(-1)[0];return r?`${r.gf}:${r.ga} gegen ${esc(club(r.opp).name)} – die Reporter haben Fragen.`:''})()}</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="post">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="post">Auslassen</button></div></div>`;
   const L=P.log.slice(0,3);
-  h+=`<div class="news t-press"><b>📰 Pressespiegel</b> <span class="small muted">· Bild in der Öffentlichkeit ${Math.round(P.img)} – ${imgLbl(P.img)}</span>${L.length?L.map(x=>`<div class="small" style="margin-top:3px"><b>${esc(x.o)}:</b> „${esc(x.hl)}“ <span class="muted">(W${x.w+1})</span></div>`).join(''):'<div class="small muted">Noch keine Schlagzeilen.</div>'}</div>`;
+  const F=fansOf(userClub()),[fi,fl]=fanLbl(F.mood);
+  h+=`<div class="news t-fans"><b>📣 Fans: ${fi} ${fl}</b> <span class="small muted">· Stimmung ${Math.round(F.mood)}${F.next==='choreo'?' · Choreo geplant':F.next?' · Protest angekündigt':''}</span> <button class="btn sm" data-act="fans" style="margin-left:6px">Zu den Fans</button></div>`;
+  h+=`<div class="news t-press"><b>📰 Pressespiegel</b> <span class="small muted">· Bild in der Öffentlichkeit ${Math.round(P.img)} – ${imgLbl(P.img)}</span>${L.length?L.map(x=>`<div class="small" style="margin-top:3px"><b>${esc(x.o)}:</b> ${esc(x.hl)} <span class="muted">(W${x.w+1})</span></div>`).join(''):'<div class="small muted">Noch keine Schlagzeilen.</div>'}<div style="margin-top:6px"><button class="btn sm" data-act="pressReview">Alle Schlagzeilen der Liga</button></div></div>`;
   return h;
 }
 Object.assign(ACT,{

@@ -139,7 +139,7 @@ tr.z-ab td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .ev .m{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
 /* ===== Posteingang ===== */
 .news{border-left:3px solid var(--line2);padding:9px 13px;margin:8px 0;background:var(--night2);border-radius:4px 12px 12px 4px}
-.news.t-press{border-left-color:#7a5cc7}.news.t-offer{border-left-color:var(--accent)}.news.t-board{border-left-color:var(--info)}.news.t-transfer{border-left-color:var(--good)}.news.t-coach{border-left-color:var(--bad)}
+.news.t-press{border-left-color:#7a5cc7}.news.t-fans{border-left-color:#d4572a}.news.t-offer{border-left-color:var(--accent)}.news.t-board{border-left-color:var(--info)}.news.t-transfer{border-left-color:var(--good)}.news.t-coach{border-left-color:var(--bad)}
 .clubpick{cursor:pointer;transition:border-color .15s,background .15s}
 .clubpick:hover{border-color:var(--line2);background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%),var(--panel)}
 .clubpick.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,var(--shadow)}
@@ -397,7 +397,7 @@ html.desk .fxday td{color:var(--red);font-family:var(--hand);font-size:21px;font
 html.desk .fxtime{color:var(--ink);font-weight:600}
 /* Posteingang: Notizzettel */
 html.desk .news{background:#fffbea;border-left-color:var(--line2);box-shadow:0 1px 2px rgba(90,65,30,.12);border-radius:3px 8px 8px 3px}
-html.desk .news.t-press{background:#f4effc}html.desk .news.t-offer{background:#fff7d6}html.desk .news.t-board{background:#eef4fd}html.desk .news.t-transfer{background:#effaf3}html.desk .news.t-coach{background:#fdf0ed}
+html.desk .news.t-press{background:#f4effc}html.desk .news.t-fans{background:#fdf1ea}html.desk .news.t-offer{background:#fff7d6}html.desk .news.t-board{background:#eef4fd}html.desk .news.t-transfer{background:#effaf3}html.desk .news.t-coach{background:#fdf0ed}
 /* Balken, Werte, Kacheln */
 html.desk .bar{background:#ece4d4}
 html.desk .bar i{background:linear-gradient(90deg,var(--good),#53c28f)}
@@ -1004,7 +1004,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.30.0';
+const APP_VERSION='0.31.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -1575,7 +1575,7 @@ function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.playe
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
 function matchRates(hc,ac,neutral){
-  const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
+  const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){const fh=fanHome(hc)*fanEventMul(hc);H.M*=1+.04*fh;H.A*=1+.03*fh}
   H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
@@ -1625,6 +1625,7 @@ function signingFee(p,wage){return p.club===null?(wage||p.wage)*6:0}
 function aiWageFor(p,c){return rw(Math.max(calcWage(p)*c.econ*1.1,p.club!==null?p.wage*1.15:0))}
 function doTransfer(p,to,fee,contract){
   const from=p.club!==null?club(p.club):null;
+  if(S.user!==null)fansTransfer(p,from,to,fee);
   const ct=contract||{wage:aiWageFor(p,to),until:S.season+ri(2,4),role:suggestRole(p,to)};
   const sign=signingFee(p,ct.wage);
   paySellOn(p,from,to,fee);
@@ -1738,7 +1739,7 @@ function weeklyFinances(homeSet){
   for(const c of S.clubs){
     if(c.guest)continue;
     const wages=wageBill(c),tv=tvIncome(c);let tickets=0;
-    if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp(.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14,.35,1));tickets=att*ticketPrice(c);c.lastAtt=att}
+    if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp((.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14)*fanAtt(c),.3,1));tickets=att*ticketPrice(c);c.lastAtt=att}
     const CM=crewMoney(c,tv,tickets),extra=CM.spons+CM.mkt+CM.interest;
     c.budget+=tv+tickets-wages+extra-CM.cost;c.tBudget=Math.min(c.tBudget||0,Math.max(0,c.budget));
     if(c.id===S.user){S.fin.tv+=tv;S.fin.tickets+=tickets;S.fin.wages+=wages;S.fin.spons=(S.fin.spons||0)+extra;S.fin.staff=(S.fin.staff||0)+CM.cost;S.fin.log.unshift({w:S.week+1,tv,tickets,wages,bal:c.budget});if(S.fin.log.length>60)S.fin.log.length=60}
@@ -1784,7 +1785,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
@@ -2571,7 +2572,7 @@ const AT={
     mild:['Angenehme Temperaturen, der Rasen ist frisch gewässert.','Ein paar Wolken über dem Stadion, perfektes Fußballwetter.','Leichter Nieselregen – der Ball wird schnell werden.','Ein lauer Abend unter Flutlicht.'],
     warm:['Hochsommerliche Temperaturen – Trinkpausen könnten heute wichtig werden.','Die Sonne knallt aufs Spielfeld, über 28 Grad im Stadion.','Ein warmer Spätsommertag, die Tribünen sind in Sonnenlicht getaucht.']},
   crowd:['Das Stadion ist bis auf den letzten Platz gefüllt!','Ausverkauftes Haus – die Stimmung ist schon vor dem Anpfiff elektrisierend.','Die Ränge füllen sich, die Vorfreude ist überall zu spüren.','Ordentlich Betrieb auf den Tribünen.'],
-  choreo:['Die Heimkurve präsentiert eine riesige Choreografie – Gänsehaut pur!','Ein Fahnenmeer auf der Tribüne von {c}!','Rauchschwaden und Schals in der Luft – die Kurve von {c} gibt alles.','Tausende Schals werden in die Höhe gereckt, „You\'ll never walk alone" schallt durchs Rund.'],
+  choreo:['Die Heimkurve präsentiert eine riesige Choreografie – Gänsehaut pur!','Ein Fahnenmeer auf der Tribüne von {c}!','Rauchschwaden und Schals in der Luft – die Kurve von {c} gibt alles.','Tausende Schals werden in die Höhe gereckt, die Vereinshymne schallt durchs Rund.'],
   walk:['Die Mannschaften betreten den Rasen – {cap1} und {cap2} führen ihre Teams aufs Feld.','Unter dem Jubel der Fans laufen die Teams ein.','Die Spieler kommen aus dem Tunnel, die Einlaufkinder an der Hand.'],
   anthem:['Die Hymne erklingt – die Spieler stehen Schulter an Schulter.','Gänsehaut-Moment: die Champions-League-Hymne hallt durchs Stadion.'],
   cupNight:['Pokalnächte haben ihre eigenen Gesetze!','Ein K.-o.-Spiel – hier gibt es kein Morgen.','Für beide Teams geht es um alles.'],
@@ -2636,7 +2637,8 @@ function preMatchLines(M){
   if(ctx.label)L.push(`${ctx.name||''}${ctx.name&&ctx.label?' · ':''}${ctx.label||''}`.trim());
   L.push(`${res.neutral?'Neutraler Platz':'Stadion von '+hc.name} – ${res.att.toLocaleString('de-DE')} Zuschauer${full?', ausverkauft':''}. ${pick(AT.weather[wx])}`);
   L.push(full||BIGMATCH?pick(AT.crowd.slice(0,2)):pick(AT.crowd));
-  if(!res.neutral&&(BIGMATCH||full||chance(.35)))L.push(T(AT.choreo,v));
+  if(!res.neutral)L.push(...fanPreLine(hc,ac));
+  if(!res.neutral&&!fansOf(hc).next&&fansOf(hc).mood>=45&&(BIGMATCH||full||chance(.35)))L.push(T(AT.choreo,v));
   L.push(`An der Seitenlinie: ${coachN(hc)}${coachTag(hc)?' ('+coachTag(hc)+')':''} gegen ${coachN(ac)}${coachTag(ac)?' ('+coachTag(ac)+')':''}.`);
   L.push(T(AT.coachPre,v));
   L.push(T(AT.walk,v));
@@ -4493,7 +4495,7 @@ function render(){
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
   else if(S.fired)body=renderFired();
-  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
+  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,fans:renderFans,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
   const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
@@ -8219,7 +8221,8 @@ function pkQuestions(kind){
       opt(fav>3?'Wir sind Favorit, aber das heißt nichts.':'Wir sind Außenseiter – ein Punkt wäre schon ein Erfolg.','humble',{team:fav>3?0:-1,board:fav>3?0:-1},fav>3?null:`${mgrLast()} tiefstapelt vor ${o.name}`),
       opt('Ehrlich gesagt mache ich mir um den Gegner keine großen Gedanken.','hot',{team:2,img:-3,mm:.01,claim:'win',risk:1},`Arrogant? ${mgrLast()} unterschätzt ${o.name}`)]});
     const coach=o.staff.coach.name;
-    if(R()<.4)Q.push({topic:'Gegnertrainer',q:`${coach} hat gesagt, Ihre Mannschaft sei „leicht auszurechnen“. Ihre Antwort?`,opts:[
+    const OQ=S.oppQuote&&S.oppQuote.s===S.season&&S.oppQuote.w===S.week&&S.oppQuote.cid===o.id?S.oppQuote:null;
+    if(OQ||R()<.3)Q.push({topic:'Gegnertrainer',q:OQ?`${coach} hat gesagt: „${OQ.q}“ Was entgegnen Sie?`:`${coach} hat gesagt, Ihre Mannschaft sei „leicht auszurechnen“. Ihre Antwort?`,opts:[
       opt('Ich lasse lieber meine Mannschaft auf dem Platz antworten.','calm',{img:2,team:1},null),
       opt(`${coach.split(' ').pop()} sollte sich um seine eigene Mannschaft kümmern.`,'hot',{team:2,img:-1,mm:.005},`Zoff vor dem Spiel: ${mgrLast()} kontert ${coach.split(' ').pop()}`),
       opt('Dann wird er am Wochenende eine Überraschung erleben.','conf',{team:1,claim:'win'},null)]});
@@ -8271,7 +8274,7 @@ function pkQuestions(kind){
   if(star&&(isWindow()||windowSoon())){const ic=S.clubs.filter(c=>!c.guest&&c.rep>u.rep).sort(()=>R()-.5)[0];if(ic)pool.push({topic:'Gerücht',q:`Angeblich ist ${ic.name} an ${star.fn} ${star.ln} interessiert. Bleibt er?`,opts:[
     opt(`${star.ln} ist unverkäuflich. Punkt.`,'conf',{pl:[star.id,5],nfs:star.id,rel:mayDo('sell')?0:-3,img:1},`${mgrLast()} macht ${star.ln} zum Unverkäuflichen`),
     opt(`Dazu äußere ich mich nicht – das ist Sache von ${mayDo('sell')?'uns intern':sd}.`,'dodge',{rel:2},null),
-    opt('Jeder Spieler hat seinen Preis.','hard',{pl:[star.id,-6],rel:-1},`${mgrLast()} öffnet die Tür für einen ${star.ln}-Verkauf`)]})}
+    opt('Jeder Spieler hat seinen Preis.','hard',{pl:[star.id,-6],rel:-1,fan:-3},`${mgrLast()} öffnet die Tür für einen ${star.ln}-Verkauf`)]})}
   if(isWindow()){const wp=weakestPos(u);pool.push({topic:'Transfers',q:'Braucht die Mannschaft noch Verstärkung?',opts:[
     opt(`Ja – auf der Position ${POS_LABEL[wp.pos]} wollen wir nachlegen.`,'conf',{team:-1,rel:mayDo('buy')?0:-3,need:wp.pos},`${mgrLast()} fordert Verstärkung – Druck auf ${mayDo('buy')?'die Kaderplanung':sd}`),
     opt('Ich bin mit meinem Kader sehr zufrieden.','warm',{team:2},null),
@@ -8333,7 +8336,7 @@ function pkFx(fx){
 }
 function pkAnswer(i){
   const C=UI.ct,K=C.pk,q=K.Q[K.i];if(!q)return;const o=q.opts[i];
-  ctSay('me',o.t);pkFx(o.fx);K.ans.push({topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
+  ctSay('me',o.t);pkFx(o.fx);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
   ctSay('them',bpick(PK_REACT[o.tone]||['*notiert*']));K.i++;
   if(K.i<K.Q.length)pkAsk();else pkEnd();
 }
@@ -8353,12 +8356,12 @@ function pressWeekly(res){
   if(!S||S.user===null||S.fired)return;const P=pressOf(),B=boardOf(),list=res.userList||[];
   if(list.length){const last=list[list.length-1],m=last.m,home=m.h===S.user,gf=home?m.hg:m.ag,ga=home?m.ag:m.hg;
     if(P.claim&&P.claim.s===S.season&&P.claim.w===S.week-1){
-      if(gf>ga){P.img=clamp(P.img+3,0,100);addNews('press','📰 Wort gehalten',`${mgrLast()} hatte den Sieg angekündigt – und geliefert. Die Presse ist beeindruckt.`)}
-      else{P.img=clamp(P.img-5,0,100);B.trust=clamp(B.trust-2,0,100);addNews('press','📰 Große Klappe, nichts dahinter',`${mgrLast()} hatte vollmundig den Sieg versprochen – jetzt hagelt es Spott. Bild in der Öffentlichkeit: ${Math.round(P.img)}.`)}}
+      if(gf>ga){P.img=clamp(P.img+3,0,100);fanAdd(userClub(),2);addNews('press','📰 Wort gehalten',`${mgrLast()} hatte den Sieg angekündigt – und geliefert. Die Presse ist beeindruckt.`)}
+      else{P.img=clamp(P.img-5,0,100);fanAdd(userClub(),-3);B.trust=clamp(B.trust-2,0,100);addNews('press','📰 Große Klappe, nichts dahinter',`${mgrLast()} hatte vollmundig den Sieg versprochen – jetzt hagelt es Spott. Bild in der Öffentlichkeit: ${Math.round(P.img)}.`)}}
     P.post={s:S.season,w:S.week}}
   P.claim=P.claim&&P.claim.w>=S.week-1?P.claim:null;
   P.img=clamp(P.img+(50-P.img)*.03+userForm()*1.2,0,100);
-  B.trust=clamp(B.trust+(P.img-50)*.02,0,100);
+  B.trust=clamp(B.trust+(P.img-50)*.02+(fansOf(userClub()).mood-55)*.012,0,100);
 }
 function pressMul(c){const P=S&&S.press;return c.id===S.user&&P&&P.mmW===S.week?1+Math.min(.015,P.mm||0):1}
 function pressHome(){
@@ -8366,7 +8369,9 @@ function pressHome(){
   if(pkAvail('pre'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz vor dem Spiel</b><div class="small">Die Journalisten warten. Deine Worte wirken auf Mannschaft, Fans und Vorstand.</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="pre">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="pre">Co-Trainer schicken</button></div></div>`;
   if(pkAvail('post'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz nach dem Spiel</b><div class="small">${(()=>{const r=(S.ureps||[]).slice(-1)[0];return r?`${r.gf}:${r.ga} gegen ${esc(club(r.opp).name)} – die Reporter haben Fragen.`:''})()}</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="post">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="post">Auslassen</button></div></div>`;
   const L=P.log.slice(0,3);
-  h+=`<div class="news t-press"><b>📰 Pressespiegel</b> <span class="small muted">· Bild in der Öffentlichkeit ${Math.round(P.img)} – ${imgLbl(P.img)}</span>${L.length?L.map(x=>`<div class="small" style="margin-top:3px"><b>${esc(x.o)}:</b> „${esc(x.hl)}“ <span class="muted">(W${x.w+1})</span></div>`).join(''):'<div class="small muted">Noch keine Schlagzeilen.</div>'}</div>`;
+  const F=fansOf(userClub()),[fi,fl]=fanLbl(F.mood);
+  h+=`<div class="news t-fans"><b>📣 Fans: ${fi} ${fl}</b> <span class="small muted">· Stimmung ${Math.round(F.mood)}${F.next==='choreo'?' · Choreo geplant':F.next?' · Protest angekündigt':''}</span> <button class="btn sm" data-act="fans" style="margin-left:6px">Zu den Fans</button></div>`;
+  h+=`<div class="news t-press"><b>📰 Pressespiegel</b> <span class="small muted">· Bild in der Öffentlichkeit ${Math.round(P.img)} – ${imgLbl(P.img)}</span>${L.length?L.map(x=>`<div class="small" style="margin-top:3px"><b>${esc(x.o)}:</b> ${esc(x.hl)} <span class="muted">(W${x.w+1})</span></div>`).join(''):'<div class="small muted">Noch keine Schlagzeilen.</div>'}<div style="margin-top:6px"><button class="btn sm" data-act="pressReview">Alle Schlagzeilen der Liga</button></div></div>`;
   return h;
 }
 Object.assign(ACT,{
@@ -8375,6 +8380,130 @@ Object.assign(ACT,{
   pkSkip:()=>{const C=UI.ct,K=C&&C.pk;if(!K||!K.Q[K.i])return;ctSay('me','Dazu sage ich heute nichts.');pressOf().img=clamp(pressOf().img-1,0,100);ctSay('them','*leises Murren*');K.i++;if(K.i<K.Q.length)pkAsk();else pkEnd();render()},
   pkClose:()=>{const C=UI.ct;if(C&&C.pk&&C.pk.i<C.pk.Q.length){pressOf().done[C.pk.kind+S.season+':'+S.week]=1;pressOf().img=clamp(pressOf().img-2,0,100)}ACT.ctClose()},
   pkSkipAll:d=>{pkSkipAll(d.v);save();render()}
+});
+
+</script>
+<script>
+/* =====================================================================
+   Seitenlinie – Fans: Stimmung, Treue, Choreos, Proteste, Zuschauer.
+   Gilt für alle Vereine. Dazu: Pressekonferenzen der KI-Trainer.
+   ===================================================================== */
+function fansOf(c){
+  if(!c.fans){const R=mkRng(hashStr('fans'+c.id+':'+(S.seed||1)));c.fans={mood:Math.round(clamp(52+(c.rep-60)*.15+R()*16,30,80)),loy:Math.round(clamp(35+R()*55+(c.rep-60)*.2,20,95)),next:null,log:[]}}
+  return c.fans;
+}
+function fanLbl(v){return v>=82?['🔥','euphorisch']:v>=66?['😀','begeistert']:v>=50?['🙂','zufrieden']:v>=36?['😐','gespalten']:v>=24?['😠','wütend']:['📢','im Protestmodus']}
+function fanHome(c){return c.guest?1:clamp(.5+fansOf(c).mood/100*.8,.6,1.3)}            // Heimvorteil-Faktor (≈1 bei Stimmung 62)
+function fanAtt(c){if(c.guest)return 1;const F=fansOf(c);return clamp(.84+F.mood/100*.28+(F.loy-55)/450,.68,1.1)}
+function fanLog(c,t){const F=fansOf(c);F.log.unshift({s:S.season,w:S.week,t});F.log=F.log.slice(0,12)}
+function fanAdd(c,d){if(!c||c.guest)return;const F=fansOf(c);F.mood=clamp(F.mood+d*(d<0?1.25-F.loy/200:1),0,100)}
+
+/* ---------- Woche: Ergebnisse, Tabellenlage, Ereignisse ---------- */
+function fansWeekly(played){
+  const ul=userClub().league;
+  for(const {L,r} of played||[])for(const m of L.fixtures[r]){
+    if(m.hg===null)continue;
+    for(const [c,o,gf,ga] of [[club(m.h),club(m.a),m.hg,m.ag],[club(m.a),club(m.h),m.ag,m.hg]]){
+      if(c.guest)continue;const F=fansOf(c),res=gf>ga?1:gf===ga?0:-1,exp=clamp((clubAvg(c)-clubAvg(o))/10,-1,1);
+      fanAdd(c,(res-exp*.5)*2.6+(gf-ga>=3?1.5:gf-ga<=-3?-2:0));
+      const home=c.id===m.h;if(home&&F.next){F.next=null}
+    }
+  }
+  for(const c of S.clubs){if(c.guest||!league(c))continue;const F=fansOf(c),rk=rankOf(c.id),gap=rk-c.expRank;
+    const target=clamp(60-gap*3.2+(c.lastAtt&&c.lastAtt>=c.stadium*.97?3:0),18,92);F.mood=clamp(F.mood+(target-F.mood)*.05,0,100);
+    // Ereignis fürs nächste Heimspiel
+    if(!F.next){if(F.mood>=80&&rnd()<.22)F.next='choreo';else if(F.mood<26&&rnd()<.3)F.next=rnd()<.4?'boycott':'protest'}
+    if(F.next&&(F.next==='protest'||F.next==='boycott')&&!F.ann){F.ann=1;const mine=c.id===S.user;
+      fanLog(c,F.next==='boycott'?'Die Ultras kündigen einen Stimmungsboykott an.':'Fans kündigen Proteste beim nächsten Heimspiel an.');
+      if(mine)addNews('fans',`📢 Fans machen mobil`,F.next==='boycott'?'Die Kurve kündigt an, beim nächsten Heimspiel die ersten zwölf Minuten zu schweigen. Die Stimmung ist im Keller.':'Beim nächsten Heimspiel sind Protestaktionen angekündigt. Die Fans wollen Veränderungen sehen.');
+      else if(c.league===ul)tn(true,[c.id],'transfer',`${c.short}: Fans proben den Aufstand`,`Bei ${esc(c.name)} brodelt es – ${F.next==='boycott'?'Stimmungsboykott':'Proteste'} beim nächsten Heimspiel angekündigt.`)}
+    if(!F.next)F.ann=0;
+    if(c.id!==S.user&&F.mood<20&&S.week>=S.weeks*.25&&c.firedSeason!==S.season&&rnd()<.05)fireCoach(c,'nach massiven Fanprotesten');
+  }
+}
+// Transfers bewegen die Fans
+function fansTransfer(p,from,to,fee){
+  if(from&&!from.guest&&league(from)){const star=ovr(p)>=clubAvg(from)+3,long=p.since!==undefined&&S.season-p.since>=4;
+    if(star||long){fanAdd(from,-(star?4:0)-(long?3:0));fanLog(from,`Unmut über den Abgang von ${pname(p)}.`);
+      if(from.id===S.user)addNews('fans',`📢 Fans enttäuscht: ${fullname(p)} geht`,`Der Abgang ${long?'des langjährigen Publikumslieblings':'eines Leistungsträgers'} kommt in der Kurve schlecht an.`)}}
+  if(to&&!to.guest&&league(to)&&ovr(p)>=clubAvg(to)+4){fanAdd(to,3);fanLog(to,`Vorfreude auf Neuzugang ${pname(p)}.`);if(to.id===S.user)addNews('fans',`📣 Fans feiern ${fullname(p)}`,'Der Neuzugang sorgt für Aufbruchstimmung – die Trikots gehen weg wie warme Semmeln.')}
+}
+// Zeile im Live-Ticker vor dem Anpfiff
+function fanPreLine(hc,ac){
+  const F=fansOf(hc),A=fansOf(ac);const L=[];
+  if(F.next==='choreo')L.push(pick([`Gänsehaut! Die Heimkurve zeigt eine riesige Choreo in ${hc.short==='?'?'den Vereinsfarben':'den Vereinsfarben'} – das ganze Stadion singt mit.`,'Eine Choreo über die komplette Tribüne – die Fans von '+hc.name+' sind heute in Feierlaune.']));
+  else if(F.next==='protest')L.push(pick(['Spruchbänder in der Kurve: „Wir wollen euch kämpfen sehen!“ – Pfiffe bei der Mannschaftsvorstellung.',`Protest im Stadion: Die Fans von ${hc.name} zeigen der Vereinsführung die rote Karte.`]));
+  else if(F.next==='boycott')L.push('Gespenstische Stille: Die Heimkurve schweigt aus Protest – die ersten zwölf Minuten kein Gesang.');
+  else if(F.mood>=70)L.push(`Die Heimfans von ${hc.name} sind bester Laune – ein echter Hexenkessel.`);
+  else if(F.mood<35)L.push(`Gedrückte Stimmung auf den Rängen – die Fans von ${hc.name} warten auf eine Reaktion.`);
+  if(A.mood>=75)L.push(`Auch der Gästeblock ist voll und laut – die Anhänger von ${ac.name} sind mitgereist.`);
+  return L;
+}
+function fanEventMul(c){const F=fansOf(c);return F.next==='choreo'?1.02:F.next==='boycott'?.97:F.next==='protest'?.985:1}
+
+/* ---------- Pressekonferenzen der KI-Trainer ---------- */
+function coachLast(c){return c.staff.coach.name.split(' ').pop()}
+function aiPressWeekly(played){
+  S.apress=(S.apress||[]).filter(x=>x.s===S.season&&S.week-x.w<8);const ul=userClub().league,u=userClub();
+  const show=c=>c.league===ul;
+  for(const {L,r} of played||[])for(const m of L.fixtures[r]){
+    if(m.hg===null)continue;
+    for(const [c,o,gf,ga] of [[club(m.h),club(m.a),m.hg,m.ag],[club(m.a),club(m.h),m.ag,m.hg]]){
+      if(c.guest||c.id===S.user)continue;const tr=c.staff.coach.trait,hotP=tr==='offensiv'||tr==='pressing'?.35:tr==='defensiv'||tr==='pragmatiker'?.12:.2,gap=rankOf(c.id)-c.expRank,cn=coachLast(c);
+      c.cimg=c.cimg===undefined?55:c.cimg;let hl,team=0,fan=0,img=0;const x=rnd();
+      if(gf>ga){if(x<hotP){hl=`${cn} nach dem ${gf}:${ga}: „Das war eine Ansage an die Liga“`;team=2;fan=1.5;img=-1}else if(x<.7){hl=pick([`${cn}: „Wir sind auf dem richtigen Weg“`,`${cn} lobt die Moral seiner Mannschaft`,`${cn}: „Genau so wollen wir Fußball spielen“`,`Zufriedener ${cn}: „Die Jungs haben sich das verdient“`]);team=1;img=1}else{hl=`${cn} bleibt nach dem Sieg bescheiden`;img=1}}
+      else if(gf<ga){if(x<hotP*.6){hl=`${cn} schimpft über den Schiedsrichter`;fan=1.5;img=-3;c.budget-=nice(20000*Math.max(.3,c.econ))}
+        else if(x<hotP*.6+.25){hl=`${cn} rechnet mit seiner Mannschaft ab`;team=-3;img=1}
+        else if(gap>=4&&x<.8){hl=`${cn}: „Ich denke nicht an Rücktritt“`;img=-2;fan=-1}
+        else{hl=pick([`${cn}: „Das geht auf meine Kappe“`,`${cn} stellt sich schützend vor sein Team`,`${cn}: „Wir müssen jetzt zusammenhalten“`]);team=1;img=2}}
+      else{if(x<.5){hl=pick([`${cn}: „Ein Punkt, mit dem wir leben können“`,`${cn} sieht ein gerechtes Remis`,`${cn}: „Am Ende fehlte die Präzision“`])}else{hl=`${cn} ärgert sich über zwei verlorene Punkte`;team=-1;img=1}}
+      if(team)for(const p of squadOf(c))p.mor=clamp(p.mor+team,15,100);
+      if(fan)fanAdd(c,fan);c.cimg=clamp(c.cimg+img,0,100);
+      if(show(c)&&(rnd()<.45||o.id===S.user))S.apress.unshift({s:S.season,w:S.week,cid:c.id,o:OUTLETS[Math.floor(rnd()*OUTLETS.length)],hl});
+    }
+  }
+  // Vorberichte: der nächste Gegner äußert sich über dich
+  const g=nextUserGames()[0];
+  if(g&&g.w===S.week){const o=club(g.m.h===S.user?g.m.a:g.m.h);if(!o.guest){const tr=o.staff.coach.trait,hot=rnd()<(tr==='offensiv'||tr==='pressing'?.6:.3),cn=coachLast(o);
+    const q=hot?pick([`Gegen ${u.name} rechnen wir uns einiges aus. Die sind nicht unschlagbar.`,`${mgrLast()} redet viel – wir lassen lieber Taten sprechen.`,`Ihre Mannschaft ist leicht auszurechnen.`,`Wir fahren dorthin, um zu gewinnen. Punkt.`])
+      :pick([`${u.name} ist ein starker Gegner, wir haben großen Respekt.`,`${mgrLast()} macht dort gute Arbeit. Das wird schwer für uns.`,`Wir müssen an unser Leistungslimit gehen.`]);
+    S.oppQuote={s:S.season,w:S.week,cid:o.id,q,hot};
+    S.apress.unshift({s:S.season,w:S.week,cid:o.id,o:OUTLETS[Math.floor(rnd()*OUTLETS.length)],hl:`${cn} vor dem Duell mit ${u.name}: „${q}“`,me:1});}}
+  S.apress=S.apress.slice(0,60);
+}
+
+/* ---------- Oberfläche ---------- */
+const FAN_ACT={
+  train:{lbl:'🏟️ Offenes Training',d:'Fans dürfen beim Training zuschauen, Autogramme inklusive.',mood:3,cd:4},
+  visit:{lbl:'🍻 Fanclub-Besuch',d:'Du besuchst mit zwei Spielern einen Fanclub.',mood:4,img:1,cd:6},
+  tickets:{lbl:'🎟️ Ticketaktion',d:'Günstigere Tickets fürs nächste Heimspiel – kostet Einnahmen.',mood:6,cost:1,cd:8}};
+function fanActCost(u){return nice(u.stadium*ticketPrice(u)*.3)}
+function renderFans(){
+  const u=userClub(),F=fansOf(u),[ic,lb]=fanLbl(F.mood),cd=S.fanCd||{};
+  const L=league(u),tbl=L.clubs.map(id=>club(id)).filter(c=>!c.guest).sort((a,b)=>fansOf(b).mood-fansOf(a).mood);
+  const acts=Object.entries(FAN_ACT).map(([k,A])=>{const wait=(cd[k]||-99)+A.cd-S.week;return `<div class="crow"><span><b>${A.lbl}</b><small>${A.d}${A.cost?' Kosten: '+money(fanActCost(u))+'.':''}</small></span>${wait>0?`<span class="small muted">wieder in ${wait} ${wait===1?'Woche':'Wochen'}</span>`:`<button class="btn sm pri" data-act="fanAct" data-v="${k}">Machen</button>`}</div>`}).join('');
+  return `<h2>Fans von ${esc(u.name)}</h2><div class="grid g2">
+   <div class="card">${meter('Stimmung',F.mood)}<div class="small" style="margin:4px 0 10px">${ic} ${lb}</div>${meter('Treue',F.loy)}<div class="small muted" style="margin:4px 0 10px">Treue Fans kommen auch in schlechten Zeiten – und verzeihen schneller.</div>
+     <div class="crow"><span>Zuschauer zuletzt<small>Kapazität ${u.stadium.toLocaleString('de-DE')}</small></span><b>${u.lastAtt?u.lastAtt.toLocaleString('de-DE'):'–'}</b></div>
+     <div class="crow"><span>Nächstes Heimspiel<small>Wirkt auf Heimvorteil und Ticker</small></span><b>${F.next==='choreo'?'🎉 Choreo geplant':F.next==='protest'?'📢 Proteste angekündigt':F.next==='boycott'?'🤐 Stimmungsboykott':'normal'}</b></div>
+     <p class="small muted" style="margin-top:10px">Die Stimmung hängt an Ergebnissen, Tabellenplatz, Transfers und deinen Worten in der Pressekonferenz. Sie bestimmt Zuschauerzahlen, Heimvorteil und – über den Fanvertreter im Aufsichtsrat – dein Standing im Verein.</p></div>
+   <div class="card"><h3>Aktionen für die Fans</h3><div class="clist">${acts}</div>
+     <h3 style="margin-top:14px">Was in der Kurve los war</h3>${F.log.length?F.log.slice(0,6).map(x=>`<div class="small" style="margin-top:3px"><span class="muted">W${x.w+1}</span> · ${esc(x.t)}</div>`).join(''):'<p class="small muted">Noch nichts Besonderes.</p>'}</div>
+   <div class="card" style="grid-column:1/-1"><h3>Fanstimmung in der ${esc(L.name)}</h3><div class="tw"><table><thead><tr><th>#</th><th>Verein</th><th class="n">Stimmung</th><th class="n">Treue</th><th>Lage</th><th>Trainer in der Presse</th></tr></thead><tbody>
+     ${tbl.map((c,i)=>{const G=fansOf(c),[ci,cl]=fanLbl(G.mood);return `<tr class="${c.id===S.user?'me':''}"><td>${i+1}</td><td>${badge(c,18)} ${esc(c.name)}</td><td class="n"><b>${Math.round(G.mood)}</b></td><td class="n">${Math.round(G.loy)}</td><td>${ci} ${cl}${G.next==='choreo'?' · Choreo':G.next?' · Protest':''}</td><td class="small">${c.id===S.user?imgLbl(pressOf().img):imgLbl(c.cimg===undefined?55:c.cimg)}</td></tr>`}).join('')}</tbody></table></div></div></div>`;
+}
+function pressReview(){return ()=>{
+  const P=pressOf(),own=P.log.map(x=>({...x,cid:S.user})),all=[...own,...(S.apress||[])].sort((a,b)=>(b.s*100+b.w)-(a.s*100+a.w)).slice(0,40);
+  return `<h2>📰 Pressespiegel</h2><p class="small muted">Schlagzeilen über dich und die Trainer deiner Liga. Dein Bild in der Öffentlichkeit: ${Math.round(P.img)} – ${imgLbl(P.img)}.</p>
+   <div class="clist">${all.map(x=>{const c=club(x.cid);return `<div class="crow"><span>${badge(c,18)} <b>${esc(x.o)}:</b> ${esc(x.hl)}<small>${esc(c.name)} · Woche ${x.w+1}</small></span></div>`}).join('')||'<p class="small muted">Noch keine Schlagzeilen.</p>'}</div>
+   <div class="row" style="margin-top:10px"><button class="btn" data-act="closeModal">Schließen</button></div>`}}
+Object.assign(ACT,{
+  fans:()=>{UI.view='fans';render();scrollTo(0,0)},
+  pressReview:()=>{UI.modal=pressReview();render()},
+  fanAct:d=>{const u=userClub(),A=FAN_ACT[d.v];S.fanCd=S.fanCd||{};if((S.fanCd[d.v]||-99)+A.cd>S.week)return;
+    if(A.cost){const c=fanActCost(u);u.budget-=c;S.fin.staff=(S.fin.staff||0)+c}
+    const k=1+.3*crewK(u,'mkt');fanAdd(u,A.mood*k);if(A.img)pressOf().img=clamp(pressOf().img+A.img,0,100);S.fanCd[d.v]=S.week;
+    fanLog(u,A.lbl.replace(/^\S+\s/,'')+' – die Fans sind angetan.');save();toast('Die Fans freuen sich');render()}
 });
 
 </script>

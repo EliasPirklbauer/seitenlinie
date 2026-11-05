@@ -21,7 +21,7 @@ const AT={
     mild:['Angenehme Temperaturen, der Rasen ist frisch gewässert.','Ein paar Wolken über dem Stadion, perfektes Fußballwetter.','Leichter Nieselregen – der Ball wird schnell werden.','Ein lauer Abend unter Flutlicht.'],
     warm:['Hochsommerliche Temperaturen – Trinkpausen könnten heute wichtig werden.','Die Sonne knallt aufs Spielfeld, über 28 Grad im Stadion.','Ein warmer Spätsommertag, die Tribünen sind in Sonnenlicht getaucht.']},
   crowd:['Das Stadion ist bis auf den letzten Platz gefüllt!','Ausverkauftes Haus – die Stimmung ist schon vor dem Anpfiff elektrisierend.','Die Ränge füllen sich, die Vorfreude ist überall zu spüren.','Ordentlich Betrieb auf den Tribünen.'],
-  choreo:['Die Heimkurve präsentiert eine riesige Choreografie – Gänsehaut pur!','Ein Fahnenmeer auf der Tribüne von {c}!','Rauchschwaden und Schals in der Luft – die Kurve von {c} gibt alles.','Tausende Schals werden in die Höhe gereckt, „You\'ll never walk alone" schallt durchs Rund.'],
+  choreo:['Die Heimkurve präsentiert eine riesige Choreografie – Gänsehaut pur!','Ein Fahnenmeer auf der Tribüne von {c}!','Rauchschwaden und Schals in der Luft – die Kurve von {c} gibt alles.','Tausende Schals werden in die Höhe gereckt, die Vereinshymne schallt durchs Rund.'],
   walk:['Die Mannschaften betreten den Rasen – {cap1} und {cap2} führen ihre Teams aufs Feld.','Unter dem Jubel der Fans laufen die Teams ein.','Die Spieler kommen aus dem Tunnel, die Einlaufkinder an der Hand.'],
   anthem:['Die Hymne erklingt – die Spieler stehen Schulter an Schulter.','Gänsehaut-Moment: die Champions-League-Hymne hallt durchs Stadion.'],
   cupNight:['Pokalnächte haben ihre eigenen Gesetze!','Ein K.-o.-Spiel – hier gibt es kein Morgen.','Für beide Teams geht es um alles.'],
@@ -86,7 +86,8 @@ function preMatchLines(M){
   if(ctx.label)L.push(`${ctx.name||''}${ctx.name&&ctx.label?' · ':''}${ctx.label||''}`.trim());
   L.push(`${res.neutral?'Neutraler Platz':'Stadion von '+hc.name} – ${res.att.toLocaleString('de-DE')} Zuschauer${full?', ausverkauft':''}. ${pick(AT.weather[wx])}`);
   L.push(full||BIGMATCH?pick(AT.crowd.slice(0,2)):pick(AT.crowd));
-  if(!res.neutral&&(BIGMATCH||full||chance(.35)))L.push(T(AT.choreo,v));
+  if(!res.neutral)L.push(...fanPreLine(hc,ac));
+  if(!res.neutral&&!fansOf(hc).next&&fansOf(hc).mood>=45&&(BIGMATCH||full||chance(.35)))L.push(T(AT.choreo,v));
   L.push(`An der Seitenlinie: ${coachN(hc)}${coachTag(hc)?' ('+coachTag(hc)+')':''} gegen ${coachN(ac)}${coachTag(ac)?' ('+coachTag(ac)+')':''}.`);
   L.push(T(AT.coachPre,v));
   L.push(T(AT.walk,v));

@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.30.0';
+const APP_VERSION='0.31.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -577,7 +577,7 @@ function pickAny(c){const ids=c.lineup.filter(Boolean);return ids.length?S.playe
 const TXT_CHANCE=['{p} zieht ab – knapp vorbei!','Riesenchance für {p}, aber der Keeper pariert!','{p} köpft an die Latte!','{p} scheitert aus spitzem Winkel.','Schuss von {p} – geblockt!','{p} vergibt frei vor dem Tor!'];
 const TXT_GOAL=['TOR! {p} trifft für {c}!','TOR! {p} vollendet eiskalt – {c} jubelt!','TOR! Traumtor von {p}!','TOR! {p} köpft ein!'];
 function matchRates(hc,ac,neutral){
-  const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){H.M*=1.04;H.A*=1.03}
+  const H=teamStrength(hc),A=teamStrength(ac);if(!neutral){const fh=fanHome(hc)*fanEventMul(hc);H.M*=1+.04*fh;H.A*=1+.03*fh}
   H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
@@ -627,6 +627,7 @@ function signingFee(p,wage){return p.club===null?(wage||p.wage)*6:0}
 function aiWageFor(p,c){return rw(Math.max(calcWage(p)*c.econ*1.1,p.club!==null?p.wage*1.15:0))}
 function doTransfer(p,to,fee,contract){
   const from=p.club!==null?club(p.club):null;
+  if(S.user!==null)fansTransfer(p,from,to,fee);
   const ct=contract||{wage:aiWageFor(p,to),until:S.season+ri(2,4),role:suggestRole(p,to)};
   const sign=signingFee(p,ct.wage);
   paySellOn(p,from,to,fee);
@@ -740,7 +741,7 @@ function weeklyFinances(homeSet){
   for(const c of S.clubs){
     if(c.guest)continue;
     const wages=wageBill(c),tv=tvIncome(c);let tickets=0;
-    if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp(.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14,.35,1));tickets=att*ticketPrice(c);c.lastAtt=att}
+    if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp((.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14)*fanAtt(c),.3,1));tickets=att*ticketPrice(c);c.lastAtt=att}
     const CM=crewMoney(c,tv,tickets),extra=CM.spons+CM.mkt+CM.interest;
     c.budget+=tv+tickets-wages+extra-CM.cost;c.tBudget=Math.min(c.tBudget||0,Math.max(0,c.budget));
     if(c.id===S.user){S.fin.tv+=tv;S.fin.tickets+=tickets;S.fin.wages+=wages;S.fin.spons=(S.fin.spons||0)+extra;S.fin.staff=(S.fin.staff||0)+CM.cost;S.fin.log.unshift({w:S.week+1,tv,tickets,wages,bal:c.budget});if(S.fin.log.length>60)S.fin.log.length=60}
@@ -786,7 +787,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
