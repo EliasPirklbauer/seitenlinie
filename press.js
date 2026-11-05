@@ -137,7 +137,7 @@ function pkFx(fx){
 }
 function pkAnswer(i){
   const C=UI.ct,K=C.pk,q=K.Q[K.i];if(!q)return;const o=q.opts[i];
-  ctSay('me',o.t);pkFx(o.fx);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({q:q.q,t:o.t,topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
+  ctSay('me',o.t);pkFx(o.fx);feudTone(o.tone);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({q:q.q,t:o.t,topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
   ctSay('them',bpick(PK_REACT[o.tone]||['*notiert*']));K.i++;
   if(K.i<K.Q.length)pkAsk();else pkEnd();
 }

@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.33.0';
+const APP_VERSION='0.34.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -788,7 +788,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);mediaWeekly(played);ivWeekly();
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);mediaWeekly(played);ivWeekly();feudWeekly();
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
