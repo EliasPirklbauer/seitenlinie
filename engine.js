@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.22.1';
+const APP_VERSION='0.23.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -761,7 +761,7 @@ function playWeek(){
     for(const m of L.fixtures[r]){
       const isU=m.h===S.user||m.a===S.user;
       if(isU&&changed.length)addNews('info','Aufstellung angepasst',`Für verletzte/fehlende Spieler rücken nach: ${changed.map(esc).join(', ')}.`);
-      const res=simMatch(club(m.h),club(m.a),isU);m.hg=res.hg;m.ag=res.ag;homes.add(m.h);addLeagueStats(m,res);
+      MATCH_CTX=isU?{name:L.name,label:(r+1)+'. Spieltag'}:null;const res=simMatch(club(m.h),club(m.a),isU);MATCH_CTX=null;m.hg=res.hg;m.ag=res.ag;homes.add(m.h);addLeagueStats(m,res);
       if(isU)userRes={m,r:res,round:r,L};
     }
   }

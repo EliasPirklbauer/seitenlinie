@@ -93,7 +93,7 @@ const TX={
   late:['Noch {n} Minuten! {c} wirft alles nach vorne.','Die Schlussphase läuft – {c} drängt auf den Ausgleich!','{c} rennt an, {o} verteidigt mit Mann und Maus.'],
   lateDraw:['Noch {n} Minuten – wer setzt den Lucky Punch?','Alles offen in der Schlussphase!','Die Zuschauer stehen – jeder Angriff könnte jetzt entscheiden.'],
   lateLead:['{c} spielt die Zeit herunter.','{c} verteidigt die Führung leidenschaftlich.'],
-  stop1:['Nachspielzeit in Halbzeit eins: +{n}.','Es gibt {n} Minute(n) Nachschlag.'],
+  stop1:['Nachspielzeit in Halbzeit eins: +{n}.','Der vierte Offizielle zeigt +{n} an.'],
   stop1z:['Keine Nachspielzeit – gleich ist Pause.'],
   stop2:['Die Tafel geht hoch: {n} Minuten Nachspielzeit!','Vierter Offizieller zeigt +{n} an.'],
   ht:['Halbzeit! Pausenstand {s}.','Pausenpfiff – es steht {s}.'],
@@ -131,7 +131,7 @@ function simMatch(hc,ac,detail,neutral){
     M.cardF=M.cardF||{};M.cardF[s]=td.tackle==='hard'?1.45:td.tackle==='soft'?.6:1;
   }
   if(detail){const h=hc.name,a=ac.name;M.t=0;M.m=0;
-    evPush(M,{side:'h',type:'info',k:'pre',lines:[T(TX.pre,{h,a}),`${neutral?'Neutraler Platz':'Stadion von '+esc(hc.name)} · ${res.att.toLocaleString('de-DE')} Zuschauer · Schiedsrichter ${res.ref}`,T(TX.kick,{ref:res.ref})]})}
+    evPush(M,{side:'h',type:'info',k:'pre',lines:preMatchLines(M)})}
   runHalf(M,1);runHalf(M,2);
   res.t90=M.t;res.end=M.t+1;
   finishRegular(M,hc,ac);
@@ -153,9 +153,9 @@ function runHalf(M,h){
     if(k===45&&M.detail){const n=h===1?res.s1:res.s2;evPush(M,{side:'h',type:'info',k:'stop',lines:[n?T(h===1?TX.stop1:TX.stop2,{n}):pick(TX.stop1z)]})}
   }
   if(M.detail){const s=res.hg+':'+res.ag;
-    if(h===1)evPush(M,{side:'h',type:'whistle',k:'ht',lines:[T(TX.ht,{s})]});
+    if(h===1)evPush(M,{side:'h',type:'whistle',k:'ht',lines:[T(TX.ht,{s}),...htLines(M)]});
     else{const hc=M.c.h,ac=M.c.a;const txt=res.hg>res.ag?`${hc.name} gewinnt ${s}.`:res.hg<res.ag?`${ac.name} gewinnt ${res.ag}:${res.hg} auswärts.`:`Unentschieden, ${s}.`;
-      evPush(M,{side:'h',type:'whistle',k:'ft',lines:[T(TX.ft,{txt})]})}
+      evPush(M,{side:'h',type:'whistle',k:'ft',lines:[T(TX.ft,{txt}),...ftLines(M)]})}
   }
 }
 function minute(M){
@@ -241,18 +241,20 @@ function shotEvent(M,side,p,a,gk,kind,q,out,d){
   let k='chance',big=false;
   if(out==='goal'){
     const g=TX.goal[kind==='head'||kind==='corner'?'head':kind==='long'||kind==='fk'?'long':kind==='pen'?'pen':'std'];
-    lines.push(T(g,v));
+    lines.push(T(g,v));var gl=lines.length-1;
     const ctx=goalContext(M,side,p);
-    lines.push(`TOOOR für ${M.c[side].name}! ${pn(p)} trifft zum ${M.res.hg}:${M.res.ag}!${a?` Vorlage: ${pn(a)}.`:''}${ctx?' '+ctx:''}`);
+    lines.push(`${tooor()} ${M.c[side].name}! ${pn(p)} trifft zum ${M.res.hg}:${M.res.ag}!${a?` Vorlage: ${pn(a)}.`:''}${ctx?' '+ctx:''}`);
+    lines.push(...goalLines(M,side,p,a));
     k='goal';big=true;
   }else{
     const pool=kind==='pen'?(out==='save'?TX.penSave:out==='post'?TX.post:TX.penOff):TX[out];
-    lines.push(T(pool,v));if(q>=.3&&out!=='block')lines.push(pick(TX.bigMiss));
+    var ol=lines.length;lines.push(T(pool,v));if(q>=.3&&out!=='block'){lines.push(pick(TX.bigMiss));lines.push(...(out==='save'?saveLines(M,side):missLines(M,side,p)))}
+    else if(out==='save'&&q>=.15)lines.push(...saveLines(M,side));
     big=q>=.3||kind==='pen';
     if(!big&&q<.06&&out==='block'&&rnd()<.5){evPush(M,{side,type:'shot',hid:true,d});return}
   }
-  const e=evPush(M,{side,type:k==='goal'?'goal':'chance',kind,out,lines,big,xg:Math.round(q*100)/100,pid:p.id,aid:a?a.id:null,d});
-  if(k==='goal'){e.gl=lines.length-2;
+  const e=evPush(M,{side,type:k==='goal'?'goal':'chance',ol:k==='goal'?gl:ol,kind,out,lines,big,xg:Math.round(q*100)/100,pid:p.id,aid:a?a.id:null,d});
+  if(k==='goal'){e.gl=gl;
     if(rnd()<.12){evPush(M,{side,type:'info',k:'var',lines:[pick(TX.var),pick(TX.varOk)]})}}
 }
 
@@ -279,7 +281,7 @@ function foul(M,side){
     else{res.yel[p.id]=1;d.yc=1;type='card';res.ts[side].yc++;p.yc=(p.yc||0)+1;mst(res,p).y=1;lines=[T(TX.foulY,nv)];if(p.yc%5===0){suspend(p,1,`${p.yc}. Gelben Karte`);lines[0]+=` Das ist seine ${p.yc}. Gelbe – er ist im nächsten Spiel gesperrt!`}}
   }
   if(!M.detail)return;
-  if(lines)evPush(M,{side,type,lines,pid:p.id,d});
+  if(lines){lines.push(...cardLines(M,side,p,type==='red'));evPush(M,{side,type,lines,pid:p.id,d})}
   else if(rnd()<.2)evPush(M,{side,type:'foul',lines:[T(TX.foul,nv)].concat(rnd()<.25?[T(TX.fkDanger,nv)]:[]),d});
   else evPush(M,{side,type:'stat',hid:true,d});
 }
@@ -302,7 +304,7 @@ function injury(M,side){
   const c=M.c[side],xs=onPitch(c);if(!xs.length)return;
   const x=wpick(xs,x=>Math.pow(at(x.p,'inp'),1.5)*(1.3-at(x.p,'nat')/40));const p=x.p;if(p.inj>0)return;
   p.inj=ri(1,5);
-  if(M.detail)evPush(M,{side,type:'injury',lines:[T(TX.injury,{p:pn(p)}),T(TX.injOut,{p:pn(p)})+` (Ausfall ca. ${p.inj} ${p.inj===1?'Woche':'Wochen'})`],pid:p.id});
+  if(M.detail)evPush(M,{side,type:'injury',lines:[T(TX.injury,{p:pn(p)}),T(TX.injOut,{p:pn(p)})+` (Ausfall ca. ${p.inj} ${p.inj===1?'Woche':'Wochen'})`,pick(AT.injury)],pid:p.id});
   if(!doSubs(M,side,1,'inj',x.i)){c.lineup[x.i]=null;if(M.iv[p.id])M.iv[p.id].to=M.t;M.atk[side]*=.85}
 }
 
@@ -331,7 +333,7 @@ function doSubs(M,side,n,why,forceSlot){
     res.subs.push({t:M.t,m:M.m,x:M.x,side,out:outId,in:inP.id,slot:i});
     if(M.detail){const op=S.players[outId],v={c:c.short,in:pn(inP),out:pn(op)};
       const extra=why==='inj'?'':late&&trailing&&GROUP[inP.pos]==='ANG'?T(TX.subAtt,v):late&&leading&&(GROUP[inP.pos]==='ABW'||inP.pos==='DM')?T(TX.subDef,v):M.x>0?pick(TX.subLate):rnd()<.35?T(TX.subFresh,v):'';
-      evPush(M,{side,type:'sub',lines:[T(TX.sub,v)+(extra?' '+extra:'')],pin:inP.id,pout:outId})}
+      evPush(M,{side,type:'sub',lines:[T(TX.sub,v)+(extra?' '+extra:''),...subLines(M,side,inP,op)],pin:inP.id,pout:outId})}
     forceSlot=undefined;
   }
   return done;
@@ -339,7 +341,7 @@ function doSubs(M,side,n,why,forceSlot){
 
 /* ---------- Atmosphäre & Spannung ---------- */
 function filler(M){
-  const res=M.res;if(M.t-M.lastVis<4||rnd()>.3)return;
+  const res=M.res;const lateF=M.ph>=2&&M.m>=75;if(M.t-M.lastVis<(lateF?2:3)||rnd()>(lateF?.6:.45))return;
   const rec=M.recent.filter(r=>r.t>M.t-10);const xh=rec.filter(r=>r.side==='h').reduce((a,r)=>a+r.q,0),xa=rec.filter(r=>r.side==='a').reduce((a,r)=>a+r.q,0);
   const late=M.ph===2&&M.m>=78,diff=res.hg-res.ag,n=Math.max(1,90-M.m);
   let side,txt;
@@ -347,6 +349,7 @@ function filler(M){
     if(diff===0){side='h';txt=T(TX.lateDraw,{n})}
     else{const lose=diff>0?'a':'h';side=rnd()<.7?lose:OTHER[lose];txt=side===lose?T(TX.late,{n,c:M.c[lose].short,o:M.c[OTHER[lose]].short}):T(TX.lateLead,{c:M.c[side].short})}
   }else if(Math.abs(xh-xa)>.45){side=xh>xa?'h':'a';txt=T(TX.push,{c:M.c[side].short})}
+  else if(rnd()<.65){const f=atmoFiller(M);side=f.side;txt=f.txt}
   else{
     side=rnd()<M.pH?'h':'a';const c=M.c[side],o=M.c[OTHER[side]],v={c:c.short,o:o.short};const r=rnd();
     if(r<.25)txt=T(TX.fans,v);
@@ -441,7 +444,7 @@ function extraTime(hc,ac,res,detail,neutral){
       minute(M)}
     if(detail&&h===3)evPush(M,{side:'h',type:'whistle',k:'et1',lines:[`Halbzeit in der Verlängerung. Es steht ${res.hg}:${res.ag}.`]});
   }
-  if(detail)evPush(M,{side:'h',type:'whistle',k:'et2',lines:[`Ende der Verlängerung: ${res.hg}:${res.ag}.`]});
+  if(detail)evPush(M,{side:'h',type:'whistle',k:'et2',lines:[`Ende der Verlängerung: ${res.hg}:${res.ag}.`,...(res.hg!==res.ag?ftLines(M):['Es geht ins Elfmeterschießen! Die Spieler bilden an der Mittellinie eine Kette.'])]});
   // Statistik für die Verlängerung
   const before=JSON.parse(JSON.stringify(res.ps));for(const id in res.ps0)for(const k in res.ps0[id])before[id][k]-=res.ps0[id][k];
   for(const [id,v] of Object.entries(M.iv)){if(v.slot===undefined)v.slot=(res.subs.find(x=>x.in===id)||{}).slot}
@@ -520,7 +523,7 @@ function applyIv(M,iv){
     if(!M.tac0){M.tac0=JSON.parse(JSON.stringify(c.tactic));M.tacSide=s}
     Object.assign(c.tactic,iv.tac);M.tacLive=c.tactic;
     const t=c.tactic;
-    if(M.detail)evPush(M,{side:s,type:'info',k:'tac',big:true,lines:[`Taktische Umstellung bei ${c.short}: ${MENTALITY[t.men]} · ${PRESSING[t.press]} · ${STYLE[t.style]||t.style}.`,pick(['Mal sehen, ob das greift.','Der Trainer gestikuliert wild an der Seitenlinie.','Ein deutliches Signal an die Mannschaft.'])]});
+    if(M.detail)evPush(M,{side:s,type:'info',k:'tac',big:true,lines:[`Taktische Umstellung bei ${c.short}: ${MENTALITY[t.men]} · ${PRESSING[t.press]} · ${STYLE[t.style]||t.style}.`,pick([`${coachN(c)} gestikuliert wild an der Seitenlinie und ruft seine Spieler zu sich.`,`${coachN(c)} gibt ${pn(captainOf(c))} neue Anweisungen – die Botschaft wird weitergegeben.`,'Ein deutliches Signal an die Mannschaft. Mal sehen, ob das greift.'])]});
   }
   recalcRates(M);
 }
@@ -530,7 +533,7 @@ function manualSub(M,s,o,i){
   c.lineup[slot]=i;M.used[s].add(i);M.used[s].add(o);M.subsLeft[s]--;
   if(M.iv[o])M.iv[o].to=M.t;M.iv[i]={side:s,from:M.t,to:null,sub:true};
   res.subs.push({t:M.t,m:M.m,x:M.x,side:s,out:o,in:i,slot,manual:true});
-  if(M.detail)evPush(M,{side:s,type:'sub',lines:[`Wechsel bei ${c.short} – deine Entscheidung: ${pn(inP)} kommt für ${pn(op)}.`],pin:i,pout:o});
+  if(M.detail)evPush(M,{side:s,type:'sub',lines:[`Wechsel bei ${c.short} – deine Entscheidung: ${pn(inP)} kommt für ${pn(op)}.`,...subLines(M,s,inP,op)],pin:i,pout:o});
   return true;
 }
 function liveFit(c,p,played,tot){

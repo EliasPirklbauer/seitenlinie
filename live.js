@@ -2,7 +2,7 @@
    Seitenlinie – Live-Spieltag: Ticker mit Spannung, Aufstellungen,
    Live-Statistik, xG-Verlauf und Spielerwerte
    ===================================================================== */
-const LSPEED=[['slow','Langsam',1500],['norm','Normal',850],['fast','Schnell',280],['turbo','Turbo',60]];
+const LSPEED=[['slow','Gemütlich',3500],['norm','Normal',2400],['fast','Schnell',1000],['turbo','Turbo',70]];
 function lspeedMs(k){const s=LSPEED.find(x=>x[0]===k);return s?s[2]:850}
 
 /* ---------- Zeitleiste ---------- */
@@ -17,36 +17,43 @@ function tickInfo(r,t){
   return {m:120,x:0,ph:5};
 }
 function minLbl(i){return i.ph===0?'':i.ph===5?'i.E.':i.x?`${i.m}+${i.x}'`:`${i.m}'`}
+function readT(s){return clamp((s||'').length/40,.9,2.9)}
 function buildBeats(r){
   const by={};let end=0;for(const e of r.ev){(by[e.t]=by[e.t]||[]).push(e);if(e.t>end)end=e.t}
-  const beats=[];
+  const beats=[];let prev='';
   for(let t=0;t<=end;t++){
-    if(t>0)beats.push({t,clock:1,d:1});
+    if(t>0){beats.push({t,clock:1,d:prev?Math.max(.75,readT(prev)*.85):.75});prev=''}
     for(const e of by[t]||[]){
       if(e.hid){beats.push({t,e,li:0,d:0});continue}
       const n=e.lines.length;
       e.lines.forEach((l,li)=>{
-        let d=li===0?.55:1.35;
-        if(e.big&&li===n-1)d=e.type==='goal'?.6:2.1;          // Auflösung einer Großchance
-        if(e.type==='goal'&&li===e.gl)d=2.4;                   // Spannung vor dem Tor
-        if(e.type==='offgoal'&&li===1)d=2.4;
-        if((e.type==='pen'||e.type==='penmiss')&&li===1)d=2.3;
-        if(e.k==='var'&&li===1)d=2.6;
-        if(e.k==='pre')d=li===0?.2:1.4;
+        let d=li===0?(prev?readT(prev)*.85:.45):readT(e.lines[li-1]);
+        if(e.k==='pre'&&li===0)d=.3;
+        if(e.type==='goal'&&li===e.gl)d=Math.max(d,2.7);          // Spannung vor dem Tor
+        else if(e.type==='goal'&&li===e.gl+1)d=.45;                // TOOOR sofort hinterher
+        else if(e.type==='chance'&&e.big&&li===e.ol)d=Math.max(d,2.4);
+        if(e.type==='offgoal'&&li===1)d=Math.max(d,2.6);
+        if((e.type==='pen'||e.type==='penmiss')&&li===1)d=2.8;
+        if(e.k==='var'&&li===1)d=3.2;
+        if(e.k==='penend')d=2.2;
         beats.push({t,e,li,d,pause:li===n-1&&(e.k==='ht'||e.k==='et'||e.k==='pens'||e.k==='et1')?e.k:null});
+        prev=l;
       });
     }
   }
   return beats;
 }
+function moodLbl(v){return v>=86?['🔥','Hexenkessel']:v>=72?['🎉','Euphorie']:v>=58?['🙌','Gute Stimmung']:v>=44?['😬','Angespannt']:v>=30?['😠','Unruhe']:['📢','Pfeifkonzert']}
 function liveState(L){
-  const r=L.r,st={t:0,lines:new Map(),score:{h:0,a:0},pens:null,scorers:{h:[],a:[]},reds:{h:[],a:[]},yel:{},stats:{h:mts0(),a:mts0()},xgT:[],goalsT:[],cur:null};
+  const r=L.r,st={mood:r.neutral?55:62,t:0,lines:new Map(),score:{h:0,a:0},pens:null,scorers:{h:[],a:[]},reds:{h:[],a:[]},yel:{},stats:{h:mts0(),a:mts0()},xgT:[],goalsT:[],cur:null};
   for(let i=0;i<L.bi&&i<L.beats.length;i++){
-    const b=L.beats[i];if(b.clock){st.t=b.t;continue}
+    const b=L.beats[i];if(b.clock){st.t=b.t;st.mood+=(58-st.mood)*.015;const ti2=tickInfo(r,b.t);if(ti2.m>=75&&Math.abs(st.score.h-st.score.a)<=1)st.mood+=.45;st.mood=clamp(st.mood,5,100);continue}
     const e=b.e;st.lines.set(e,b.li+1);if(!e.hid)L.lastE=e;const last=b.li===(e.hid?0:e.lines.length-1);
-    if(e.type==='goal'&&b.li===e.gl){st.score[e.side]++;const p=S.players[e.pid];st.scorers[e.side].push({n:p?p.ln:'?',l:minLbl(e),id:e.pid});st.goalsT.push({t:e.t,side:e.side})}
+    if(e.type==='goal'&&b.li===e.gl){st.mood+=e.side==='h'?24:(r.neutral?10:-16);st.mood=clamp(st.mood,5,100);st.lastGoal=e;st.score[e.side]++;const p=S.players[e.pid];st.scorers[e.side].push({n:p?p.ln:'?',l:minLbl(e),id:e.pid});st.goalsT.push({t:e.t,side:e.side})}
     if(last&&e.d){const S2=st.stats[e.side];for(const k in e.d)S2[k]=(S2[k]||0)+e.d[k];if(e.d.xg)st.xgT.push({t:e.t,side:e.side,q:e.d.xg})}
     if(last&&e.type==='chance'&&e.out==='save')st.stats[OTHER[e.side]].sav++;
+    if(last&&e.type==='chance'&&e.big){st.mood=clamp(st.mood+(e.side==='h'?5:-4),5,100)}
+    if(last&&(e.type==='card'||e.type==='red')){st.mood=clamp(st.mood+(e.side==='h'?(e.type==='red'?-9:-4):(e.type==='red'?6:2)),5,100)}
     if(last&&e.type==='red'){const p=S.players[e.pid];st.reds[e.side].push({n:p?p.ln:'?',l:minLbl(e),id:e.pid})}
     if(last&&e.type==='card')st.yel[e.pid]=1;
     if(last&&(e.type==='pen'||e.type==='penmiss'))st.pens=e.ps;
@@ -114,10 +121,12 @@ function renderLive(){
   const head=`<div class="card lscore">
     <div class="small muted" style="text-align:center;margin-bottom:6px">${L.label?esc(L.label):esc(L.L.name)+' · '+(L.round+1)+'. Spieltag'}${r.ref?' · Schiedsrichter '+esc(r.ref):''}</div>
     <div class="score">
-      <div class="lteam">${badge(hc,52)}<b>${esc(hc.name)}</b><span class="small muted">${hc.tactic.f} · ${MENTALITY[hc.tactic.men]}</span><div class="lsc">${scorers('h')}</div></div>
+      <div class="lteam">${badge(hc,52)}<b>${esc(hc.name)}</b><span class="small muted">Trainer ${esc(coachN(hc))}</span><div class="lsc">${scorers('h')}</div></div>
       <div><div class="big ${L.flash?'flash':''}">${st.score.h}:${st.score.a}</div>${inPen&&st.pens?`<div class="small"><b>i.E. ${st.pens}</b></div>`:''}<div class="pill lclock ${!L.done&&!L.paused&&st.t>0?'run':''}">${clock}</div></div>
-      <div class="lteam">${badge(ac,52)}<b>${esc(ac.name)}</b><span class="small muted">${ac.tactic.f} · ${MENTALITY[ac.tactic.men]}</span><div class="lsc">${scorers('a')}</div></div>
+      <div class="lteam">${badge(ac,52)}<b>${esc(ac.name)}</b><span class="small muted">Trainer ${esc(coachN(ac))}</span><div class="lsc">${scorers('a')}</div></div>
     </div>
+    ${goalBanner(L,st,hc,ac,col)}
+    ${moodBar(st,hc,L)}
     <div class="lprog"><i style="width:${prog*100}%"></i>${[45,90].map(x=>`<b style="left:${x/(r.et?120:90)*100}%"></b>`).join('')}</div>
     ${momentumSvg(r,st,col,total)}
     <div class="row" style="justify-content:center;margin-top:10px">${ctrl}</div>
@@ -305,4 +314,14 @@ function quickTac(L,st){
   const seg=(k,opts)=>`<div class="seg qseg">${Object.entries(opts).map(([v,l])=>`<button class="${t[k]===v?'on':''}" data-act="ivQuick" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
   const I=ivState(L,st);
   return `<div class="qtac"><span class="small muted">Sofort umstellen:</span>${seg('men',MENTALITY)}${seg('press',{niedrig:'Tief',mittel:'Mittel',hoch:'Hoch'})}<span class="small muted">Wechsel übrig: <b>${I.left}</b></span></div>`;
+}
+
+function goalBanner(L,st,hc,ac,col){
+  const e=st.lastGoal;if(!e||L.lastE!==e||L.done)return '';
+  const c=e.side==='h'?hc:ac,p=S.players[e.pid];
+  return `<div class="gbanner" style="--gc:${col[e.side]}"><b>${'T'+'O'.repeat(5)+'R!'}</b><span>${esc(c.name)} · ${esc(p?fullname(p):'')} · ${st.score.h}:${st.score.a}</span></div>`;
+}
+function moodBar(st,hc,L){
+  const [ic,lb]=moodLbl(st.mood);const v=Math.round(st.mood);
+  return `<div class="lmood"><span class="small muted">Stimmung im Stadion${L.r.neutral?'':' ('+esc(hc.short)+'-Fans)'}</span><div class="mbar"><i style="width:${v}%"></i></div><span class="small"><b>${ic} ${lb}</b></span></div>`;
 }

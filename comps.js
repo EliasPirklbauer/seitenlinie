@@ -191,7 +191,7 @@ function playCompWeek(userList){
       for(const id of involved){const c=club(id);if(id===S.user){if(u.autoXI)autoLineup(u);const ch=fixLineup(u);if(ch.length)addNews('info','Aufstellung angepasst',`Für ${def.short}: ${ch.map(esc).join(', ')} rücken nach.`)}else autoLineup(c)}
       for(const m of r.matches){
         const isU=m.h===S.user||m.a===S.user;
-        BIGMATCH=r.stage==='ko';const res=simMatch(club(m.h),club(m.a),isU,r.neutral);m.hg=res.hg;m.ag=res.ag;
+        BIGMATCH=r.stage==='ko';MATCH_CTX=isU?{comp:C.key,name:def.name,label:r.label,ko:r.stage==='ko'}:null;const res=simMatch(club(m.h),club(m.a),isU,r.neutral);MATCH_CTX=null;m.hg=res.hg;m.ag=res.ag;
         if(r.stage==='ko'){const st=C.ko[r.ko];if(st.legs===1||r.leg===st.legs-1){
           const agg={h:0,a:0};for(const ri of st.rounds){const pr=C.rounds[ri];if(pr===r)continue;const pm=pr.matches[m.tie];if(pm.hg===null)continue;if(pm.h===m.h){agg.h+=pm.hg;agg.a+=pm.ag}else{agg.h+=pm.ag;agg.a+=pm.hg}}
           resolveKO(m,res,isU,r.neutral,agg,true)}}
