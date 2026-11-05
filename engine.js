@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.17.0';
+const APP_VERSION='0.18.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -563,7 +563,7 @@ function prepareAI(c,opp){
 function pickScorer(c){
   const slots=slotsOf(c);const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
   const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p);
-  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.g||1};
+  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];let g=R&&R.g||1;for(const k of (c.tactic.pi&&c.tactic.pi[i])||[]){const I=PINSTR[k];if(I&&I.g)g*=I.g}const du=c.tactic.du&&c.tactic.du[i];return g*(du==='att'?1.15:du==='def'?.8:1)};
   const x=wpick(cand,x=>W[x.pos]*roleG(x.i)*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
 function pickAssist(c,scorer){
@@ -581,9 +581,10 @@ function matchRates(hc,ac,neutral){
   H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
-  let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
+  let rH=.124*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.124*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
   if(hc.tactic.style==='ballbesitz')rH*=.95;if(ac.tactic.style==='ballbesitz')rA*=.95;
-  let cH=clamp(.1*Math.pow(H.A/A.D,2.8),.03,.32),cA=clamp(.1*Math.pow(A.A/H.D,2.8),.03,.32);
+  const EH=tacticProfile(hc).E,EA=tacticProfile(ac).E;rH*=EH.rate*EA.oppRate;rA*=EA.rate*EH.oppRate;
+  let cH=clamp(.1*Math.pow(H.A/A.D,2.8)*EH.conv*(pH<.5?EH.ctr:1),.03,.32),cA=clamp(.1*Math.pow(A.A/H.D,2.8)*EA.conv*(pH>.5?EA.ctr:1),.03,.32);
   if(hc.tactic.style==='konter'&&pH<.5)cH*=1.15;if(ac.tactic.style==='konter'&&pH>.5)cA*=1.15;
   return {pH,rH,rA,cH,cA};
 }
@@ -606,13 +607,13 @@ function simMatch(hc,ac,detail,neutral){
   simPeriod(hc,ac,R,1,90+ri(1,4),detail,res,90);
   for(const [side,c] of [['h',hc],['a',ac]]){
     const xi=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(Boolean);
-    if(xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot);for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p&&!mst(res,p).y){mst(res,p).y=1;p.yc=(p.yc||0)+1;if(detail)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}}
+    if(xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot*((c.tactic.td&&c.tactic.td.tackle==='hard')?1.5:(c.tactic.td&&c.tactic.td.tackle==='soft')?.6:1));for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p&&!mst(res,p).y){mst(res,p).y=1;p.yc=(p.yc||0)+1;if(detail)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}}
     const inj=xi.length?xi.reduce((t,p)=>t+at(p,'inp'),0)/xi.length:10;
     if(xi.length&&rnd()<.11*(.6+inj/25)){const p=wpick(xi,p=>Math.pow(at(p,'inp'),1.5)*(1.3-at(p,'nat')/40));if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
   }
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
-    const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
+    const loss=(c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11)*(c.tactic.ti&&c.tactic.ti.tempo==='high'?1.1:c.tactic.ti&&c.tactic.ti.tempo==='low'?.92:1)*(c.tactic.td&&c.tactic.td.trans==='press'?1.06:1);
     const slots=slotsOf(c),avg=clubAvg(c)||50;
     c.lineup.forEach((id,i)=>{if(!id)return;const p=S.players[id];if(!p)return;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100);
       const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';

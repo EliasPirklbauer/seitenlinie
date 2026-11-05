@@ -277,6 +277,21 @@ optgroup{color:#000}
 .tpitch.ip{background:repeating-linear-gradient(0deg,#22704a 0 12.5%,#1f6644 12.5% 25%)}
 table.roles select{font-size:13px;padding:6px 8px;min-width:170px}
 .rolehelp{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}.rolehelp>div{background:var(--night2);border:1px solid var(--line);border-radius:12px;padding:8px 11px}
+.pbwrap{display:flex;gap:12px;align-items:flex-start}.pbwrap .pitch{flex:1;margin:0}
+.bench{width:190px;flex:none;background:var(--night2);border:1px solid var(--line);border-radius:16px;padding:10px;max-height:640px;overflow:auto}
+.bench h3{margin:0 0 2px}
+.bp{display:flex;align-items:center;gap:7px;padding:6px 6px;border-radius:10px;border:1px solid transparent;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.bp:hover{background:var(--panel2);border-color:var(--line)}.bp.inj{opacity:.55}
+.bp .bn{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}.bp .bn b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bp .bn small{font-size:10.5px;color:var(--muted)}
+.bp .ovr{font-size:13px;min-width:28px}
+.bghost{position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-50%) scale(1.05);background:var(--panel2);border-color:var(--accent);box-shadow:0 10px 30px rgba(0,0,0,.5);width:180px}
+.tpitch .slot.drop .dot{outline:3px solid var(--accent);outline-offset:3px;transform:scale(1.15)}
+@media (max-width:900px){.pbwrap{flex-direction:column}.bench{width:100%;max-height:none;display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;padding:8px}.bench h3,.bench>.small{display:none}.bp{flex:none;width:150px;background:var(--panel2)}}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.rcard{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--night2);border:1px solid var(--line);border-radius:12px;padding:9px 11px;color:var(--text)}
+.rcard:hover{border-color:var(--line2)}.rcard.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--night2))}
+.rcard b{font-size:14px}.rcard small{font-size:11.5px;line-height:1.35}
+table.roles select{max-width:220px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -688,7 +703,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.17.0';
+const APP_VERSION='0.18.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -1245,7 +1260,7 @@ function prepareAI(c,opp){
 function pickScorer(c){
   const slots=slotsOf(c);const W={ST:5,FL:3,OM:3,ZM:1.3,DM:.6,IV:.5,AV:.4,TW:0};
   const cand=c.lineup.map((id,i)=>({p:id&&S.players[id],pos:slots[i],i})).filter(x=>x.p);
-  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];return R&&R.g||1};
+  const roleG=i=>{const R=TROLES[c.tactic.roles&&c.tactic.roles[i]];let g=R&&R.g||1;for(const k of (c.tactic.pi&&c.tactic.pi[i])||[]){const I=PINSTR[k];if(I&&I.g)g*=I.g}const du=c.tactic.du&&c.tactic.du[i];return g*(du==='att'?1.15:du==='def'?.8:1)};
   const x=wpick(cand,x=>W[x.pos]*roleG(x.i)*Math.pow(at(x.p,'fin')/12,2)*(.7+at(x.p,'otb')/30)*(x.pos==='IV'?at(x.p,'hea')/12:1));return x?x.p:null;
 }
 function pickAssist(c,scorer){
@@ -1263,9 +1278,10 @@ function matchRates(hc,ac,neutral){
   H.D*=lineRisk(hc,ac);A.D*=lineRisk(ac,hc);
   const pH=Math.pow(H.M,3.2)/(Math.pow(H.M,3.2)+Math.pow(A.M,3.2));
   const menF=t=>t.men==='offensiv'?1.15:t.men==='defensiv'?.85:1,openF=t=>t.men==='offensiv'?1.07:t.men==='defensiv'?.95:1;
-  let rH=.13*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.13*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
+  let rH=.124*(pH/.5)*menF(hc.tactic)*openF(ac.tactic),rA=.124*((1-pH)/.5)*menF(ac.tactic)*openF(hc.tactic);
   if(hc.tactic.style==='ballbesitz')rH*=.95;if(ac.tactic.style==='ballbesitz')rA*=.95;
-  let cH=clamp(.1*Math.pow(H.A/A.D,2.8),.03,.32),cA=clamp(.1*Math.pow(A.A/H.D,2.8),.03,.32);
+  const EH=tacticProfile(hc).E,EA=tacticProfile(ac).E;rH*=EH.rate*EA.oppRate;rA*=EA.rate*EH.oppRate;
+  let cH=clamp(.1*Math.pow(H.A/A.D,2.8)*EH.conv*(pH<.5?EH.ctr:1),.03,.32),cA=clamp(.1*Math.pow(A.A/H.D,2.8)*EA.conv*(pH>.5?EA.ctr:1),.03,.32);
   if(hc.tactic.style==='konter'&&pH<.5)cH*=1.15;if(ac.tactic.style==='konter'&&pH>.5)cA*=1.15;
   return {pH,rH,rA,cH,cA};
 }
@@ -1288,13 +1304,13 @@ function simMatch(hc,ac,detail,neutral){
   simPeriod(hc,ac,R,1,90+ri(1,4),detail,res,90);
   for(const [side,c] of [['h',hc],['a',ac]]){
     const xi=c.lineup.filter(Boolean).map(id=>S.players[id]).filter(Boolean);
-    if(xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot);for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p&&!mst(res,p).y){mst(res,p).y=1;p.yc=(p.yc||0)+1;if(detail)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}}
+    if(xi.length){const hot=xi.reduce((t,p)=>t+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21;const nc=Math.round(rnd()*3.2*hot*((c.tactic.td&&c.tactic.td.tackle==='hard')?1.5:(c.tactic.td&&c.tactic.td.tackle==='soft')?.6:1));for(let i=0;i<nc;i++){const p=wpick(xi,p=>at(p,'agg')+(21-at(p,'tmp')));if(p&&!mst(res,p).y){mst(res,p).y=1;p.yc=(p.yc||0)+1;if(detail)res.ev.push({m:ri(5,90),side,type:'card',t:`Gelbe Karte für ${pname(p)}.`})}}}
     const inj=xi.length?xi.reduce((t,p)=>t+at(p,'inp'),0)/xi.length:10;
     if(xi.length&&rnd()<.11*(.6+inj/25)){const p=wpick(xi,p=>Math.pow(at(p,'inp'),1.5)*(1.3-at(p,'nat')/40));if(p){p.inj=ri(1,5);if(detail)res.ev.push({m:ri(5,88),side,type:'injury',t:`${pname(p)} verletzt sich und muss raus (ca. ${p.inj} Wo.).`})}}
   }
   if(detail)scoreEvents(res.ev);
   for(const [c,gf,ga] of [[hc,res.hg,res.ag],[ac,res.ag,res.hg]]){
-    const loss=c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11;
+    const loss=(c.tactic.press==='hoch'?14:c.tactic.press==='niedrig'?8:11)*(c.tactic.ti&&c.tactic.ti.tempo==='high'?1.1:c.tactic.ti&&c.tactic.ti.tempo==='low'?.92:1)*(c.tactic.td&&c.tactic.td.trans==='press'?1.06:1);
     const slots=slotsOf(c),avg=clubAvg(c)||50;
     c.lineup.forEach((id,i)=>{if(!id)return;const p=S.players[id];if(!p)return;p.apps++;p.fit=clamp(p.fit-loss*(1.3-at(p,'sta')/40)-rnd()*3,30,100);p.mor=clamp(p.mor+(gf>ga?5:gf<ga?-5:0),15,100);
       const pos=slots[i],x=(res.st&&res.st[id])||{g:0,a:0,y:0},def=pos==='TW'||pos==='IV'||pos==='AV'||pos==='DM';
@@ -3162,6 +3178,7 @@ function ensureTactic(c){
   const t=c.tactic;if(!t)return;
   if(!t.oop||t.oop.length!==11){const F=FORMATIONS[t.f]||FORMATIONS['4-4-2'];t.oop=F.xy.map(a=>a.slice());t.ip=null;t.roles=null;t.droles=null}
   if(!t.roles||!t.droles){bestRoles(c,null)}
+  ensureInstr(t);
   if(!t.ip||t.ip.length!==11)t.ip=deriveIP(t);
 }
 function slotsOf(c){ensureTactic(c);return c.tactic.oop.map(([x,y],i)=>posFromXY(x,y,i))}
@@ -3253,13 +3270,15 @@ function deriveIP(t){
     if(mv.dx)nx=x+(left?1:-1)*mv.dx; // dx<0 = nach außen, dx>0 = nach innen
     if(mv.yTo!==undefined)ny=mv.yTo;
     if(mv.dy)ny+=mv.dy;
-    return [Math.round(clamp(nx,3,97)),Math.round(clamp(ny,10,90))];
+    const du=t.du&&DUTIES[t.du[i]];if(du)ny+=du.dy;
+    const pos=posFromXY(x,y,i),minY={IV:36,AV:12,DM:22,ZM:18,OM:14,FL:8,ST:8}[pos]||10;
+    return [Math.round(clamp(nx,3,97)),Math.round(clamp(ny,minY,90))];
   });
 }
 // KI: Rollen nach Trainertyp und Spielern, Form mit Ball daraus ableiten
 function aiTactic(c){
   ensureTactic(c);const trait=c.staff&&c.staff.coach&&c.staff.coach.trait;
-  bestRoles(c,ROLE_PREFS[trait]||[]);c.tactic.ip=deriveIP(c.tactic);
+  bestRoles(c,ROLE_PREFS[trait]||[]);ensureInstr(c.tactic);aiInstr(c);c.tactic.ip=deriveIP(c.tactic);
 }
 
 /* ---------- Formen-Analyse ---------- */
@@ -3284,16 +3303,20 @@ function tacticProfile(c){
   ensureTactic(c);const t=c.tactic,fx={build:0,chance:0,box:0,width:0,cross:0,aerial:0,aerialD:0,counter:0,press:0,cover:0,rest:0,sweep:0};
   const add=(k,i)=>{const R=roleDef(k);if(!R)return;const p=S.players[c.lineup[i]];const q=p?clamp(roleScore(p,k)/68,.6,1.3):.6;for(const f in R.fx)fx[f]+=R.fx[f]*q};
   for(let i=0;i<11;i++){add(t.roles[i],i);add(t.droles[i],i)}
+  ensureInstr(t);
+  for(let i=0;i<11;i++){const du=DUTIES[t.du[i]];if(du)for(const f in du.fx)fx[f]+=du.fx[f];
+    const p=S.players[c.lineup[i]];for(const k of t.pi[i]||[]){const I=PINSTR[k];if(!I)continue;const q=p?clamp(at(p,I.a)/12,.5,1.4):.6;for(const f in I.fx)fx[f]+=I.fx[f]*(I.fx[f]>0?q:1)}}
   const m=shapeMetrics(c);
   let Mf=1+.01*(fx.build-2.5)+.012*(m.central-3),Af=1+.01*(fx.chance-2.5)+.012*(fx.box+m.front*.6-4.5)+.012*Math.min(fx.cross,fx.aerial)+(m.wide>=2?.02:m.wide===1?0:-.04),Df=1+.012*(fx.cover-2.6)+(m.rest>=6?.04:m.rest===5?.025:m.rest===4?.01:m.rest===3?-.015:-.05)+(m.depth<=52?.03:m.depth>=68?-.03:0);
   if(t.press==='hoch'){Mf+=.008*fx.press;if(m.line>74)Df-=.02}
   if(t.press==='niedrig'&&m.line<70)Df-=.02;
   if(t.style==='konter')Af+=.012*fx.counter;if(t.style==='ballbesitz')Mf+=.006*fx.build;
-  return {M:clamp(Mf,.86,1.14),A:clamp(Af,.86,1.14),D:clamp(Df,.86,1.14),fx,m};
+  const E=instrEffects(c,fx);Mf*=E.M;Af*=E.A;Df*=E.D;
+  return {M:clamp(Mf,.84,1.16),A:clamp(Af,.84,1.16),D:clamp(Df,.84,1.16),fx,m,E};
 }
 // Hohe Linie gegen schnelle Stürmer: Anfälligkeit für Bälle in die Tiefe
 function lineRisk(c,opp){
-  const P=tacticProfile(c),high=clamp((74-P.m.line)/10,0,1.6);if(!high)return 1;
+  const P=tacticProfile(c),high=clamp((74-P.m.line-P.E.line)/10,0,1.8);if(!high)return 1;
   const os=slotsOf(opp),pace=[];opp.lineup.forEach((id,i)=>{const p=S.players[id];if(p&&(os[i]==='ST'||os[i]==='FL'))pace.push((at(p,'pac')+at(p,'acc'))/2)});
   const pc=pace.length?pace.reduce((a,b)=>a+b,0)/pace.length:12;
   return clamp(1-high*Math.max(0,pc-11)/45*(P.fx.sweep>0?.5:1),.88,1);
@@ -3310,6 +3333,79 @@ function tacticHints(c){
   if(P.fx.cross>1.4&&P.fx.aerial<.6)h.push(['gold','Viele Flanken, aber kein kopfballstarker Abnehmer im Zentrum.']);
   if(!h.length)h.push(['good','Die Taktik ist in sich stimmig.']);
   return h;
+}
+
+/* ---------- Aufgabe je Spieler (wie weit er sich mit Ball einschaltet) ---------- */
+const DUTIES={def:{lbl:'Absichern',d:'Hält sich mit Ball zurück und sichert ab.',dy:6,fx:{cover:.3,rest:.3,box:-.2}},sup:{lbl:'Unterstützen',d:'Ausgewogen – schaltet sich situativ ein.',dy:0,fx:{}},att:{lbl:'Angreifen',d:'Schiebt mit Ball weit nach vorne und sucht den Abschluss.',dy:-7,fx:{box:.3,chance:.2,cover:-.3,rest:-.3}}};
+/* ---------- Individuelle Anweisungen ---------- */
+const PINSTR={
+ risk:{lbl:'Riskantere Pässe',a:'pas',fx:{chance:.3,build:-.1},not:['TW']},
+ drib:{lbl:'Häufiger dribbeln',a:'dri',fx:{chance:.25},not:['TW','IV']},
+ long:{lbl:'Aus der Distanz schießen',a:'lon',fx:{chance:.1},g:1.15,not:['TW','IV']},
+ cross:{lbl:'Häufiger flanken',a:'cro',fx:{cross:.4},only:['AV','FL','ZM','OM']},
+ box:{lbl:'In den Strafraum starten',a:'otb',fx:{box:.35,cover:-.15},g:1.2,not:['TW','IV']},
+ hold:{lbl:'Position halten',a:'pos',fx:{cover:.3,box:-.2},not:['TW']},
+ mark:{lbl:'Gegenspieler eng decken',a:'mar',fx:{cover:.25},not:['TW','ST']},
+ hard:{lbl:'Härter in die Zweikämpfe',a:'tck',fx:{press:.2,cover:.1},card:1.4,not:['TW']},
+ press:{lbl:'Mehr pressen',a:'wor',fx:{press:.35},tire:1.1,not:['TW']},
+ dist:{lbl:'Schnell abwerfen (Konter)',a:'thr',fx:{counter:.4},only:['TW']},
+ short:{lbl:'Kurz abspielen',a:'pas',fx:{build:.3},only:['TW']}};
+function pinstrFor(pos){return Object.keys(PINSTR).filter(k=>{const I=PINSTR[k];return (!I.only||I.only.includes(pos))&&(!I.not||!I.not.includes(pos))})}
+
+/* ---------- Mannschaftsanweisungen ---------- */
+const TI_OPTS={
+ build:{lbl:'Spielaufbau',o:{short:'Kurz & flach',mix:'Gemischt',long:'Lange Bälle'},d:'Wie der Ball von hinten nach vorne kommt.'},
+ tempo:{lbl:'Tempo',o:{low:'Geduldig',norm:'Normal',high:'Hoch'},d:'Wie schnell nach vorne gespielt wird.'},
+ width:{lbl:'Breite mit Ball',o:{narrow:'Eng',norm:'Normal',wide:'Breit'},d:'Wie weit die Mannschaft das Feld auseinanderzieht.'},
+ risk:{lbl:'Passrisiko',o:{safe:'Sicher',norm:'Normal',risky:'Riskant'},d:'Sichere Pässe halten den Ball, riskante schaffen Chancen.'},
+ focus:{lbl:'Angriffsfokus',o:{center:'Durch die Mitte',mix:'Ausgewogen',wings:'Über die Flügel'},d:'Wo die Angriffe hauptsächlich laufen.'},
+ cross:{lbl:'Flanken',o:{low:'Flach (Cut-backs)',mix:'Gemischt',high:'Hoch'},d:'Wie in den Strafraum geflankt wird.'},
+ shoot:{lbl:'Abschluss',o:{work:'Herausspielen',norm:'Normal',long:'Aus der Distanz'},d:'Wann geschossen wird.'},
+ counter:{lbl:'Nach Ballgewinn',o:{hold:'Ball sichern',mix:'Situativ',go:'Sofort kontern'},d:'Umschalten nach Ballgewinn.'}};
+const TD_OPTS={
+ line:{lbl:'Abwehrlinie',o:{low:'Tief',mid:'Mittel',high:'Hoch'},d:'Wie hoch die Abwehr steht.'},
+ trans:{lbl:'Nach Ballverlust',o:{back:'Zurückfallen',mix:'Situativ',press:'Gegenpressing'},d:'Sofort nachsetzen oder sich ordnen.'},
+ tackle:{lbl:'Zweikampfführung',o:{soft:'Vorsichtig',norm:'Normal',hard:'Hart'},d:'Härtere Zweikämpfe gewinnen mehr Bälle, bringen aber Karten.'},
+ trap:{lbl:'Abseitsfalle',o:{off:'Aus',on:'An'},d:'Die Abwehr rückt gemeinsam heraus.'},
+ funnel:{lbl:'Gegner lenken',o:{in:'Nach innen',none:'Neutral',out:'Nach außen'},d:'Nach außen = Flanken zulassen, die Mitte zu; nach innen = Flügel zu, Zentrum dicht.'},
+ mark:{lbl:'Deckung',o:{zone:'Raumdeckung',mix:'Gemischt',man:'Manndeckung'},d:'Raum oder Gegenspieler verteidigen.'}};
+const TI_DEF={build:'mix',tempo:'norm',width:'norm',risk:'norm',focus:'mix',cross:'mix',shoot:'norm',counter:'mix'};
+const TD_DEF={line:'mid',trans:'mix',tackle:'norm',trap:'off',funnel:'none',mark:'zone'};
+const TI_PREFS={
+ offensiv:{ti:{tempo:'high',risk:'risky',width:'wide'},td:{line:'high',trans:'press'}},
+ defensiv:{ti:{tempo:'low',risk:'safe',counter:'go'},td:{line:'low',trans:'back',funnel:'out'}},
+ ballbesitz:{ti:{build:'short',tempo:'low',risk:'safe',focus:'center',cross:'low',shoot:'work',counter:'hold'},td:{line:'high',trans:'press'}},
+ konter:{ti:{build:'long',tempo:'high',counter:'go',focus:'wings'},td:{line:'low',trans:'back',funnel:'out'}},
+ pressing:{ti:{tempo:'high',counter:'go'},td:{line:'high',trans:'press',tackle:'hard',trap:'on'}},
+ pragmatiker:{ti:{},td:{}},rotation:{ti:{build:'short'},td:{}}};
+function ensureInstr(t){
+  t.ti=Object.assign({},TI_DEF,t.ti||{});t.td=Object.assign({},TD_DEF,t.td||{});
+  if(!t.du||t.du.length!==11)t.du=new Array(11).fill('sup');
+  if(!t.pi||t.pi.length!==11)t.pi=Array.from({length:11},()=>[]);
+}
+function aiInstr(c){const t=c.tactic,trait=c.staff&&c.staff.coach&&c.staff.coach.trait,P=TI_PREFS[trait]||{ti:{},td:{}};t.ti=Object.assign({},TI_DEF,P.ti);t.td=Object.assign({},TD_DEF,P.td);
+  if(t.press==='hoch')t.td.trans='press';else if(t.press==='niedrig')t.td.trans='back';
+  const sl=slotsOf(c);t.du=sl.map((pos,i)=>{const r=t.roles[i];return ['av_off','av_fv','zm_acht','zm_b2b','om_schat','fl_inv','fl_raum','st_konter','st_abst'].includes(r)?'att':['av_def','av_inv3','dm_anker','dm_abk','zm_carr','fl_def','iv_klass'].includes(r)?'def':'sup'})}
+// Kennzahlen eines Mannschaftsteils
+function avgAttr(c,poss,a){const sl=slotsOf(c);let s=0,n=0;c.lineup.forEach((id,i)=>{const p=S.players[id];if(p&&(!poss||poss.includes(sl[i]))){s+=at(p,a);n++}});return n?s/n:10}
+// Wirkung der Mannschaftsanweisungen auf das Spiel
+function instrEffects(c,fx){
+  const t=c.tactic;ensureInstr(t);const I=t.ti,D=t.td,e={M:1,A:1,D:1,rate:1,oppRate:1,conv:1,ctr:1,cards:1,tire:1,line:0};
+  if(I.build==='short'){e.M*=1+(avgAttr(c,['IV','DM','TW'],'pas')-12)*.006}else if(I.build==='long'){e.M*=.97;e.A*=1+.012*(fx.aerial-.8)}
+  if(I.tempo==='high'){e.rate*=1.035;e.oppRate*=1.025;e.tire*=1.15;e.conv*=.98}else if(I.tempo==='low'){e.rate*=.95;e.oppRate*=.97;e.tire*=.9;e.M*=1.02}
+  if(I.width==='wide'){e.A*=1+.01*(fx.width-1);e.M*=.99}else if(I.width==='narrow'){e.M*=1.02;if(fx.width>1.5)e.A*=.98}
+  if(I.risk==='risky'){e.conv*=1.04;e.M*=.97}else if(I.risk==='safe'){e.conv*=.95;e.M*=1.03}
+  if(I.focus==='wings')e.A*=1+.01*(fx.width+fx.cross-2);else if(I.focus==='center')e.A*=1+.01*(fx.chance+fx.build-2.5);
+  if(I.cross==='high')e.conv*=1+.03*(fx.aerial-.8);else if(I.cross==='low')e.conv*=1+.02*(fx.box-1.5);
+  if(I.shoot==='long'){e.rate*=1.03;e.conv*=.94+(avgAttr(c,['ZM','OM','FL','ST','DM'],'lon')-11)*.015}else if(I.shoot==='work'){e.rate*=.95;e.conv*=1.05}
+  if(I.counter==='go')e.ctr*=1.05;else if(I.counter==='hold'){e.ctr*=.96;e.M*=1.01}
+  if(D.line==='high'){e.line=-6;e.M*=1.02}else if(D.line==='low'){e.line=6;e.D*=1.03;e.M*=.98}
+  if(D.trans==='press'){e.M*=1.02;e.tire*=1.08}else if(D.trans==='back'){e.D*=1.015;e.M*=.99}
+  if(D.tackle==='hard'){e.D*=1.02;e.cards*=1.5}else if(D.tackle==='soft'){e.D*=.98;e.cards*=.6}
+  if(D.trap==='on'){const q=(avgAttr(c,['IV','AV'],'ant')+avgAttr(c,['IV','AV'],'cnt'))/2;e.D*=q>=12?1.02:.98;e.line-=3}
+  if(D.funnel==='out')e.D*=1+.01*(fx.aerialD-1.2);else if(D.funnel==='in')e.D*=1+.01*(fx.cover-3);
+  if(D.mark==='man')e.D*=1+(avgAttr(c,['IV','AV','DM'],'mar')-11)*.006;else if(D.mark==='mix')e.D*=1.003;
+  return e;
 }
 
 </script>
@@ -3974,21 +4070,23 @@ function renderTactic(){
   const kv=(l,v,s)=>`<div class="crow"><span>${l}${s?`<small>${s}</small>`:''}</span><b>${v}</b></div>`;
   const pct=f=>`<b class="${f>1.005?'good':f<.995?'bad':''}">${f>=1?'+':''}${Math.round((f-1)*100)} %</b>`;
   const rows=slots.map((pos,i)=>{const p=c.lineup[i]&&S.players[c.lineup[i]];
-    return `<tr><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[pos]]}88">${pos}</span></td><td><a data-act="slot" data-i="${i}" style="cursor:pointer"><b>${p?esc(fullname(p)):'<i>leer</i>'}</b></a>${p?`<div class="small muted">${FAM_LABEL(familiarity(p,pos))} · Stärke ${Math.round(rateAt(p,pos))}</div>`:''}</td><td>${roleSelect(i,'ip',t.roles[i],pos,p)}</td><td>${roleSelect(i,'oop',t.droles[i],pos,p)}</td></tr>`}).join('');
+    return `<tr><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[pos]]}88">${pos}</span></td><td><a data-act="tplayer" data-i="${i}" style="cursor:pointer"><b>${p?esc(fullname(p)):'<i>leer</i>'}</b></a>${p?`<div class="small muted">${FAM_LABEL(familiarity(p,pos))} · Stärke ${Math.round(rateAt(p,pos))}</div>`:''}</td><td>${roleSelect(i,'ip',t.roles[i],pos,p)}</td><td><select data-chg="dutySel" data-i="${i}">${Object.entries(DUTIES).map(([k,D])=>`<option value="${k}" ${t.du[i]===k?'selected':''}>${D.lbl}</option>`).join('')}</select></td><td>${roleSelect(i,'oop',t.droles[i],pos,p)}</td><td class="small"><a data-act="tplayer" data-i="${i}" style="cursor:pointer">${(t.pi[i]||[]).length?(t.pi[i]).map(k=>PINSTR[k].lbl).join(', '):'<span class="muted">+ hinzufügen</span>'}</a></td></tr>`}).join('');
   const sel=UI.troleInfo!==undefined&&UI.troleInfo!==null?UI.troleInfo:null;
   return `<h2>Taktik <span class="small muted">${t.cust?'eigene Formation':esc(t.f)}</span></h2><div class="grid g2">
    <div>
     <div class="seg ptabs" style="margin:0 0 10px">${[['oop','🛡️ Gegen den Ball'],['ip','⚽ Mit Ball'],['both','🔀 Beide']].map(([k,l])=>`<button class="${ph===k?'on':''}" data-act="tph" data-v="${k}">${l}</button>`).join('')}</div>
-    <div class="pitch tpitch ${ph}" id="tpitch"><div class="mid"></div><div class="circ"></div>${ph==='both'?lines+both:ghosts+dots}</div>
+    <div class="pbwrap"><div class="pitch tpitch ${ph}" id="tpitch"><div class="mid"></div><div class="circ"></div>${ph==='both'?lines+both:ghosts+dots}</div>
+    <div class="bench" id="tbench"><h3>Ersatzbank</h3><div class="small muted" style="margin-bottom:6px">Auf einen Spieler im Feld ziehen zum Einwechseln.</div>${squadOf(c).filter(p=>!c.lineup.includes(p.id)).sort((a,b)=>POS_ORDER[a.pos]-POS_ORDER[b.pos]||ovr(b)-ovr(a)).map(p=>`<div class="bp ${p.inj?'inj':''}" data-bench="${p.id}"><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span><span class="bn"><b>${esc(p.ln)}</b><small>${Math.round(p.fit)}% · ${p.inj?'🩹 '+p.inj+' Wo.':'Moral '+Math.round(p.mor)}</small></span>${ovrTag(ovr(p))}</div>`).join('')||'<p class="small muted">Keine Ersatzspieler.</p>'}</div></div>
     <div class="row" style="justify-content:center;gap:14px;margin-top:8px"><span class="small">Gegen den Ball: <b>${m.oopShape}</b></span><span class="small">Mit Ball: <b>${m.ipShape}</b></span></div>
-    <p class="small muted" style="text-align:center">${ph==='both'?'Linien zeigen die Laufwege vom Defensiv- ins Offensivsystem. Zum Verschieben eine Phase wählen.':'Ziehe Spieler frei über das Feld. Tippe auf einen Spieler, um ihn auszutauschen. Die Position (z. B. IV, ZM) ergibt sich aus der Stellung gegen den Ball.'}</p>
+    <p class="small muted" style="text-align:center">${ph==='both'?'Linien zeigen die Laufwege vom Defensiv- ins Offensivsystem. Zum Verschieben eine Phase wählen.':'Ziehe Spieler frei über das Feld. Tippe einen Spieler an für Rolle, Aufgabe und Anweisungen. Die Position (z. B. IV, ZM) ergibt sich aus der Stellung gegen den Ball.'}</p>
     <div class="row" style="justify-content:center">${ph!=='oop'?'<button class="btn sm" data-act="ipDerive">↻ Form mit Ball aus den Rollen ableiten</button>':''}<button class="btn sm" data-act="tMirror">⇆ Spiegeln</button></div>
    </div>
    <div class="grid" style="align-content:start">
     <div class="card"><label class="f">Grundformation (setzt beide Phasen neu)</label><div class="seg">${Object.keys(FORMATIONS).map(f=>`<button class="${t.f===f&&!t.cust?'on':''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
-     <label class="f" style="margin-top:12px">Mentalität</label>${seg('men',MENTALITY)}
-     <label class="f" style="margin-top:12px">Pressing</label>${seg('press',PRESSING)}
-     <label class="f" style="margin-top:12px">Spielstil</label>${seg('style',STYLE)}
+     <div class="seg ptabs" style="margin:14px 0 4px">${[['gen','Allgemein'],['ip','Mit Ball'],['oop','Gegen den Ball']].map(([k,l])=>`<button class="${(UI.ttab||'gen')===k?'on':''}" data-act="ttab" data-v="${k}">${l}</button>`).join('')}</div>
+     ${(UI.ttab||'gen')==='gen'?`<label class="f" style="margin-top:8px">Mentalität</label>${seg('men',MENTALITY)}
+     <label class="f" style="margin-top:12px">Pressinghöhe</label>${seg('press',PRESSING)}
+     <label class="f" style="margin-top:12px">Spielstil</label>${seg('style',STYLE)}`:instrHtml(t,(UI.ttab==='ip')?'ti':'td')}
      <div class="row" style="margin-top:14px"><button class="btn" data-act="autoXI">⚡ Beste Elf aufstellen</button><button class="btn" data-act="bestRolesBtn">🎯 Passende Rollen wählen</button></div>
      <label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" data-chg="autoXIToggle" ${c.autoXI?'checked':''}><span><b>Co-Trainer stellt vor jedem Spiel auf</b><br><span class="muted">Wählt die beste fitte Elf für deine Formation. Rollen und Formen bleiben wie von dir eingestellt.</span></span></label></div>
     <div class="card"><h3>Analyse</h3>
@@ -4003,7 +4101,7 @@ function renderTactic(){
     <div class="card"><h3>Mannschaftsteile</h3>${bar('Abwehr',str.D)}${bar('Mittelfeld',str.M)}${bar('Angriff',str.A)}</div>
    </div></div>
    <div class="card" style="margin-top:14px"><h3>Rollen</h3>
-    <div class="tw"><table class="roles"><thead><tr><th>Pos</th><th>Spieler</th><th>Rolle mit Ball</th><th>Rolle gegen den Ball</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table class="roles"><thead><tr><th>Pos</th><th>Spieler</th><th>Rolle mit Ball</th><th>Aufgabe</th><th>Rolle gegen den Ball</th><th>Anweisungen</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="small muted" style="margin-top:8px">Sterne = Eignung des Spielers für die Rolle (aus seinen Attributen). Die Rolle mit Ball bestimmt auch seinen Laufweg, wenn du die Form mit Ball ableiten lässt.</p>
     <div class="rolehelp">${(()=>{const seen=new Set();return slots.flatMap((pos,i)=>[t.roles[i],t.droles[i]]).filter(k=>!seen.has(k)&&seen.add(k)).map(k=>{const R=roleDef(k);return `<div><b>${esc(R.lbl)}</b> <span class="muted small">(${R.p})</span><div class="small">${esc(R.d)}</div><div class="small muted">Wichtig: ${Object.keys(R.a).map(a=>ATTR_LABEL[a]).join(', ')}</div></div>`}).join('')})()}</div>
    </div>`;
@@ -4014,6 +4112,39 @@ function slotPicker(){return ()=>{const c=userClub(),slots=slotsOf(c);if(UI.selS
    <div class="small muted" style="margin-top:4px">Rollen: ${esc(roleDef(rk).lbl)} (mit Ball) · ${esc(roleDef(dk).lbl)} (gegen den Ball)</div>
    <div class="tw" style="margin-top:8px;max-height:65vh;overflow:auto"><table><thead><tr><th>Pos</th><th>Name</th><th class="n">Stärke hier</th><th class="n">Rolle</th><th class="n">Fit</th><th></th></tr></thead><tbody>${ps.map(p=>{const where=c.lineup.indexOf(p.id);return `<tr class="click" data-act="assign" data-id="${p.id}"><td>${p.pos}</td><td>${esc(fullname(p))}${p.inj?' <span class="bad">🩹</span>':''}<div class="small muted">${FAM_LABEL(familiarity(p,pos))}</div></td><td class="n">${ovrTag(Math.round(rateAt(p,pos)))}</td><td class="n gold small">${'★'.repeat(roleStars(roleScore(p,rk)))}</td><td class="n">${Math.round(p.fit)}%</td><td class="small muted">${where>=0?'auf '+slots[where]:''}</td></tr>`}).join('')}</tbody></table></div>`}}
 
+function instrHtml(t,grp){
+  const O=grp==='ti'?TI_OPTS:TD_OPTS,cur=t[grp];
+  return Object.entries(O).map(([k,def])=>`<label class="f" style="margin-top:10px" title="${esc(def.d)}">${def.lbl} <span class="muted" style="font-weight:400">– ${esc(def.d)}</span></label><div class="seg">${Object.entries(def.o).map(([v,l])=>`<button class="${cur[k]===v?'on':''}" data-act="tinstr" data-g="${grp}" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`).join('');
+}
+/* Spieler-Panel: Rolle, Aufgabe, Anweisungen */
+function tpModal(){
+  return ()=>{
+    const c=userClub(),t=c.tactic,i=UI.tpi,slots=slotsOf(c),pos=slots[i],p=c.lineup[i]&&S.players[c.lineup[i]];
+    const card=(k,phase)=>{const R=roleDef(k),on=(phase==='ip'?t.roles[i]:t.droles[i])===k,sc=p?roleScore(p,k):0;
+      return `<button class="rcard ${on?'on':''}" data-act="tpRole" data-ph="${phase}" data-v="${k}"><b>${esc(R.lbl)}</b><span class="gold">${p?'★'.repeat(roleStars(sc))+'<span class="muted">'+'☆'.repeat(5-roleStars(sc))+'</span>':''}</span><small>${esc(R.d)}</small><small class="muted">${Object.keys(R.a).map(a=>ATTR_LABEL[a]+(p?' '+at(p,a):'')).join(' · ')}</small></button>`};
+    const pins=pinstrFor(pos);
+    return `<div class="negc"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h2 style="margin:0">${p?esc(fullname(p)):'Freie Position'}</h2><div class="small muted">${POS_LABEL[pos]} (${pos})${p?` · Stärke hier ${Math.round(rateAt(p,pos))} · ${FAM_LABEL(familiarity(p,pos))} · Fitness ${Math.round(p.fit)}%`:''}</div></div>
+       <div class="row"><button class="btn sm" data-act="slot" data-i="${i}">🔄 Spieler tauschen</button>${p?`<button class="btn sm" data-act="player" data-id="${p.id}">Profil</button>`:''}</div></div>
+      <h3 style="margin-top:14px">⚽ Rolle mit Ball</h3><div class="rgrid">${rolesFor(pos,'ip').map(k=>card(k,'ip')).join('')}</div>
+      <h3 style="margin-top:14px">Aufgabe</h3><div class="seg">${Object.entries(DUTIES).map(([k,D])=>`<button class="${t.du[i]===k?'on':''}" data-act="tpDuty" data-v="${k}">${D.lbl}</button>`).join('')}</div><div class="small muted" style="margin-top:4px">${DUTIES[t.du[i]].d}</div>
+      <h3 style="margin-top:14px">🛡️ Rolle gegen den Ball</h3><div class="rgrid">${rolesFor(pos,'oop').map(k=>card(k,'oop')).join('')}</div>
+      <h3 style="margin-top:14px">Individuelle Anweisungen <span class="small muted">(max. 3)</span></h3><div class="chipsel">${pins.map(k=>{const I=PINSTR[k],on=(t.pi[i]||[]).includes(k);return `<button class="${on?'on':''}" data-act="tpPin" data-v="${k}" title="${ATTR_LABEL[I.a]}${p?' '+at(p,I.a):''}">${on?'✓ ':''}${I.lbl}${p?` <span class="muted">(${ATTR_LABEL[I.a]} ${at(p,I.a)})</span>`:''}</button>`}).join('')}</div>
+      <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" data-chg="tpAutoMove" ${UI.tpMove!==false?'checked':''}> Laufweg mit Ball automatisch an Rolle & Aufgabe anpassen</label>
+      <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn pri" data-act="closeModal">Fertig</button></div></div>`;
+  };
+}
+(function(){
+  let B=null;
+  document.addEventListener('pointerdown',e=>{const el=e.target.closest('.bp[data-bench]');if(!el)return;B={el,pid:el.dataset.bench,sx:e.clientX,sy:e.clientY,moved:false,ghost:null};e.preventDefault()});
+  document.addEventListener('pointermove',e=>{if(!B)return;if(!B.moved&&Math.abs(e.clientX-B.sx)+Math.abs(e.clientY-B.sy)>6){B.moved=true;const g=B.el.cloneNode(true);g.classList.add('bghost');document.body.appendChild(g);B.ghost=g}
+    if(B.ghost){B.ghost.style.left=e.clientX+'px';B.ghost.style.top=e.clientY+'px';document.querySelectorAll('.tpitch .slot.drop').forEach(x=>x.classList.remove('drop'));B.ghost.style.display='none';const t=document.elementFromPoint(e.clientX,e.clientY);B.ghost.style.display='';const sl=t&&t.closest('.slot[data-drag]');if(sl)sl.classList.add('drop')}});
+  const end=e=>{if(!B)return;const b=B;B=null;if(b.ghost){b.ghost.style.display='none';const t=document.elementFromPoint(e.clientX,e.clientY);b.ghost.remove();const sl=t&&t.closest('.slot[data-drag]');
+      if(sl){const c=userClub(),i=+sl.dataset.drag,old=c.lineup[i],p=S.players[b.pid];c.lineup[i]=b.pid;const was=c.autoXI;c.autoXI=false;save();render();toast(`${p.ln} kommt für ${old&&S.players[old]?S.players[old].ln:'die freie Position'}`+(was?' – Co-Trainer-Aufstellung aus':''));return}
+      document.querySelectorAll('.tpitch .slot.drop').forEach(x=>x.classList.remove('drop'));return}
+    ACT.player({id:b.pid})};
+  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
+function tpMoveIP(){if(UI.tpMove===false)return;const t=userClub().tactic,d=deriveIP(t);t.ip[UI.tpi]=d[UI.tpi]}
 /* Drag & Drop auf dem Taktikfeld (Maus und Touch) */
 (function(){
   let D=null;
@@ -4023,7 +4154,7 @@ function slotPicker(){return ()=>{const c=userClub(),slots=slotsOf(c);if(UI.selS
     const x=clamp((e.clientX-D.rect.left)/D.rect.width*100,3,97),y=clamp((e.clientY-D.rect.top)/D.rect.height*100,D.i===0?78:6,96);
     D.el.style.left=x+'%';D.el.style.top=y+'%';D.x=x;D.y=y;D.el.classList.add('dragging')});
   const end=e=>{if(!D)return;const d=D;D=null;
-    if(!d.moved){ACT.slot({i:d.i});return}
+    if(!d.moved){ACT.tplayer({i:d.i});return}
     const c=userClub(),t=c.tactic,ph=UI.tph||'oop',arr=ph==='ip'?t.ip:t.oop;arr[d.i]=[Math.round(d.x),Math.round(d.y)];t.cust=1;
     if(ph==='oop'){const pos=posFromXY(d.x,d.y,d.i),ks=rolesFor(pos,'ip');if(!ks.includes(t.roles[d.i])){const p=S.players[c.lineup[d.i]];t.roles[d.i]=ks.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}
       const kd=rolesFor(pos,'oop');if(!kd.includes(t.droles[d.i])){const p=S.players[c.lineup[d.i]];t.droles[d.i]=kd.slice().sort((a,b)=>roleScore(p,b)-roleScore(p,a))[0]}}
@@ -4389,6 +4520,12 @@ const ACT={
   assign:d=>{const c=userClub(),i=UI.selSlot,j=c.lineup.indexOf(d.id);if(j>=0)c.lineup[j]=c.lineup[i];c.lineup[i]=d.id;UI.selSlot=null;UI.modal=null;const was=c.autoXI;c.autoXI=false;save();render();if(was)toast('Co-Trainer-Aufstellung ausgeschaltet – deine Elf gilt')},
   formation:d=>{const c=userClub(),t=c.tactic;t.f=d.v;t.cust=0;t.oop=FORMATIONS[d.v].xy.map(a=>a.slice());t.roles=null;t.droles=null;t.ip=null;autoLineup(c);bestRoles(c,null);t.ip=deriveIP(t);save();render()},
   tph:d=>{UI.tph=d.v;render()},
+  ttab:d=>{UI.ttab=d.v;render()},
+  tinstr:d=>{const t=userClub().tactic;ensureInstr(t);t[d.g][d.k]=d.v;save();render()},
+  tplayer:d=>{UI.tpi=+d.i;UI.modal=tpModal();render()},
+  tpRole:d=>{const t=userClub().tactic;if(d.ph==='ip')t.roles[UI.tpi]=d.v;else t.droles[UI.tpi]=d.v;tpMoveIP();save();render()},
+  tpDuty:d=>{const t=userClub().tactic;t.du[UI.tpi]=d.v;tpMoveIP();save();render()},
+  tpPin:d=>{const t=userClub().tactic,a=t.pi[UI.tpi]=t.pi[UI.tpi]||[];const j=a.indexOf(d.v);if(j>=0)a.splice(j,1);else{if(a.length>=3){toast('Höchstens 3 Anweisungen pro Spieler');return}a.push(d.v)}save();render()},
   ipDerive:()=>{const t=userClub().tactic;t.ip=deriveIP(t);save();render();toast('Form mit Ball aus den Rollen abgeleitet')},
   tMirror:()=>{const c=userClub(),t=c.tactic;t.oop=t.oop.map(([x,y])=>[100-x,y]);t.ip=t.ip.map(([x,y])=>[100-x,y]);t.cust=1;save();render()},
   bestRolesBtn:()=>{const c=userClub(),t=c.tactic;t.roles=null;t.droles=null;bestRoles(c,null);save();render();toast('Rollen passend zu deinen Spielern gewählt')},
@@ -4468,6 +4605,8 @@ function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.seaso
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}
   if(N.rw==='range'&&N.rf&&N.ru&&N.ru<=N.rf)N.ru=addDaysIso(N.rf,60)>cEnd?cEnd:addDaysIso(N.rf,60)}
 const CHG={
+  dutySel:el=>{const t=userClub().tactic;t.du[+el.dataset.i]=el.value;save();render()},
+  tpAutoMove:el=>{UI.tpMove=el.checked;render()},
   roleSel:el=>{const t=userClub().tactic,i=+el.dataset.i;if(el.dataset.ph==='ip')t.roles[i]=el.value;else t.droles[i]=el.value;save();render()},
   loanPct:el=>{const B=UI.loan;if(!B)return;const v=parseFloat(String(el.value).replace('%','').replace(',','.').trim());if(isNaN(v)){toast('Bitte einen Prozentwert zwischen 0 und 100 eingeben');render();return}B.t.ws=Math.round(clamp(v,0,100)*10)/10;render()},
   tkInq:el=>{UI.tk.inq=el.checked;render()},

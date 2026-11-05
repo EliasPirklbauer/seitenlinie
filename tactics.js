@@ -18,6 +18,7 @@ function ensureTactic(c){
   const t=c.tactic;if(!t)return;
   if(!t.oop||t.oop.length!==11){const F=FORMATIONS[t.f]||FORMATIONS['4-4-2'];t.oop=F.xy.map(a=>a.slice());t.ip=null;t.roles=null;t.droles=null}
   if(!t.roles||!t.droles){bestRoles(c,null)}
+  ensureInstr(t);
   if(!t.ip||t.ip.length!==11)t.ip=deriveIP(t);
 }
 function slotsOf(c){ensureTactic(c);return c.tactic.oop.map(([x,y],i)=>posFromXY(x,y,i))}
@@ -109,13 +110,15 @@ function deriveIP(t){
     if(mv.dx)nx=x+(left?1:-1)*mv.dx; // dx<0 = nach außen, dx>0 = nach innen
     if(mv.yTo!==undefined)ny=mv.yTo;
     if(mv.dy)ny+=mv.dy;
-    return [Math.round(clamp(nx,3,97)),Math.round(clamp(ny,10,90))];
+    const du=t.du&&DUTIES[t.du[i]];if(du)ny+=du.dy;
+    const pos=posFromXY(x,y,i),minY={IV:36,AV:12,DM:22,ZM:18,OM:14,FL:8,ST:8}[pos]||10;
+    return [Math.round(clamp(nx,3,97)),Math.round(clamp(ny,minY,90))];
   });
 }
 // KI: Rollen nach Trainertyp und Spielern, Form mit Ball daraus ableiten
 function aiTactic(c){
   ensureTactic(c);const trait=c.staff&&c.staff.coach&&c.staff.coach.trait;
-  bestRoles(c,ROLE_PREFS[trait]||[]);c.tactic.ip=deriveIP(c.tactic);
+  bestRoles(c,ROLE_PREFS[trait]||[]);ensureInstr(c.tactic);aiInstr(c);c.tactic.ip=deriveIP(c.tactic);
 }
 
 /* ---------- Formen-Analyse ---------- */
@@ -140,16 +143,20 @@ function tacticProfile(c){
   ensureTactic(c);const t=c.tactic,fx={build:0,chance:0,box:0,width:0,cross:0,aerial:0,aerialD:0,counter:0,press:0,cover:0,rest:0,sweep:0};
   const add=(k,i)=>{const R=roleDef(k);if(!R)return;const p=S.players[c.lineup[i]];const q=p?clamp(roleScore(p,k)/68,.6,1.3):.6;for(const f in R.fx)fx[f]+=R.fx[f]*q};
   for(let i=0;i<11;i++){add(t.roles[i],i);add(t.droles[i],i)}
+  ensureInstr(t);
+  for(let i=0;i<11;i++){const du=DUTIES[t.du[i]];if(du)for(const f in du.fx)fx[f]+=du.fx[f];
+    const p=S.players[c.lineup[i]];for(const k of t.pi[i]||[]){const I=PINSTR[k];if(!I)continue;const q=p?clamp(at(p,I.a)/12,.5,1.4):.6;for(const f in I.fx)fx[f]+=I.fx[f]*(I.fx[f]>0?q:1)}}
   const m=shapeMetrics(c);
   let Mf=1+.01*(fx.build-2.5)+.012*(m.central-3),Af=1+.01*(fx.chance-2.5)+.012*(fx.box+m.front*.6-4.5)+.012*Math.min(fx.cross,fx.aerial)+(m.wide>=2?.02:m.wide===1?0:-.04),Df=1+.012*(fx.cover-2.6)+(m.rest>=6?.04:m.rest===5?.025:m.rest===4?.01:m.rest===3?-.015:-.05)+(m.depth<=52?.03:m.depth>=68?-.03:0);
   if(t.press==='hoch'){Mf+=.008*fx.press;if(m.line>74)Df-=.02}
   if(t.press==='niedrig'&&m.line<70)Df-=.02;
   if(t.style==='konter')Af+=.012*fx.counter;if(t.style==='ballbesitz')Mf+=.006*fx.build;
-  return {M:clamp(Mf,.86,1.14),A:clamp(Af,.86,1.14),D:clamp(Df,.86,1.14),fx,m};
+  const E=instrEffects(c,fx);Mf*=E.M;Af*=E.A;Df*=E.D;
+  return {M:clamp(Mf,.84,1.16),A:clamp(Af,.84,1.16),D:clamp(Df,.84,1.16),fx,m,E};
 }
 // Hohe Linie gegen schnelle Stürmer: Anfälligkeit für Bälle in die Tiefe
 function lineRisk(c,opp){
-  const P=tacticProfile(c),high=clamp((74-P.m.line)/10,0,1.6);if(!high)return 1;
+  const P=tacticProfile(c),high=clamp((74-P.m.line-P.E.line)/10,0,1.8);if(!high)return 1;
   const os=slotsOf(opp),pace=[];opp.lineup.forEach((id,i)=>{const p=S.players[id];if(p&&(os[i]==='ST'||os[i]==='FL'))pace.push((at(p,'pac')+at(p,'acc'))/2)});
   const pc=pace.length?pace.reduce((a,b)=>a+b,0)/pace.length:12;
   return clamp(1-high*Math.max(0,pc-11)/45*(P.fx.sweep>0?.5:1),.88,1);
@@ -166,4 +173,77 @@ function tacticHints(c){
   if(P.fx.cross>1.4&&P.fx.aerial<.6)h.push(['gold','Viele Flanken, aber kein kopfballstarker Abnehmer im Zentrum.']);
   if(!h.length)h.push(['good','Die Taktik ist in sich stimmig.']);
   return h;
+}
+
+/* ---------- Aufgabe je Spieler (wie weit er sich mit Ball einschaltet) ---------- */
+const DUTIES={def:{lbl:'Absichern',d:'Hält sich mit Ball zurück und sichert ab.',dy:6,fx:{cover:.3,rest:.3,box:-.2}},sup:{lbl:'Unterstützen',d:'Ausgewogen – schaltet sich situativ ein.',dy:0,fx:{}},att:{lbl:'Angreifen',d:'Schiebt mit Ball weit nach vorne und sucht den Abschluss.',dy:-7,fx:{box:.3,chance:.2,cover:-.3,rest:-.3}}};
+/* ---------- Individuelle Anweisungen ---------- */
+const PINSTR={
+ risk:{lbl:'Riskantere Pässe',a:'pas',fx:{chance:.3,build:-.1},not:['TW']},
+ drib:{lbl:'Häufiger dribbeln',a:'dri',fx:{chance:.25},not:['TW','IV']},
+ long:{lbl:'Aus der Distanz schießen',a:'lon',fx:{chance:.1},g:1.15,not:['TW','IV']},
+ cross:{lbl:'Häufiger flanken',a:'cro',fx:{cross:.4},only:['AV','FL','ZM','OM']},
+ box:{lbl:'In den Strafraum starten',a:'otb',fx:{box:.35,cover:-.15},g:1.2,not:['TW','IV']},
+ hold:{lbl:'Position halten',a:'pos',fx:{cover:.3,box:-.2},not:['TW']},
+ mark:{lbl:'Gegenspieler eng decken',a:'mar',fx:{cover:.25},not:['TW','ST']},
+ hard:{lbl:'Härter in die Zweikämpfe',a:'tck',fx:{press:.2,cover:.1},card:1.4,not:['TW']},
+ press:{lbl:'Mehr pressen',a:'wor',fx:{press:.35},tire:1.1,not:['TW']},
+ dist:{lbl:'Schnell abwerfen (Konter)',a:'thr',fx:{counter:.4},only:['TW']},
+ short:{lbl:'Kurz abspielen',a:'pas',fx:{build:.3},only:['TW']}};
+function pinstrFor(pos){return Object.keys(PINSTR).filter(k=>{const I=PINSTR[k];return (!I.only||I.only.includes(pos))&&(!I.not||!I.not.includes(pos))})}
+
+/* ---------- Mannschaftsanweisungen ---------- */
+const TI_OPTS={
+ build:{lbl:'Spielaufbau',o:{short:'Kurz & flach',mix:'Gemischt',long:'Lange Bälle'},d:'Wie der Ball von hinten nach vorne kommt.'},
+ tempo:{lbl:'Tempo',o:{low:'Geduldig',norm:'Normal',high:'Hoch'},d:'Wie schnell nach vorne gespielt wird.'},
+ width:{lbl:'Breite mit Ball',o:{narrow:'Eng',norm:'Normal',wide:'Breit'},d:'Wie weit die Mannschaft das Feld auseinanderzieht.'},
+ risk:{lbl:'Passrisiko',o:{safe:'Sicher',norm:'Normal',risky:'Riskant'},d:'Sichere Pässe halten den Ball, riskante schaffen Chancen.'},
+ focus:{lbl:'Angriffsfokus',o:{center:'Durch die Mitte',mix:'Ausgewogen',wings:'Über die Flügel'},d:'Wo die Angriffe hauptsächlich laufen.'},
+ cross:{lbl:'Flanken',o:{low:'Flach (Cut-backs)',mix:'Gemischt',high:'Hoch'},d:'Wie in den Strafraum geflankt wird.'},
+ shoot:{lbl:'Abschluss',o:{work:'Herausspielen',norm:'Normal',long:'Aus der Distanz'},d:'Wann geschossen wird.'},
+ counter:{lbl:'Nach Ballgewinn',o:{hold:'Ball sichern',mix:'Situativ',go:'Sofort kontern'},d:'Umschalten nach Ballgewinn.'}};
+const TD_OPTS={
+ line:{lbl:'Abwehrlinie',o:{low:'Tief',mid:'Mittel',high:'Hoch'},d:'Wie hoch die Abwehr steht.'},
+ trans:{lbl:'Nach Ballverlust',o:{back:'Zurückfallen',mix:'Situativ',press:'Gegenpressing'},d:'Sofort nachsetzen oder sich ordnen.'},
+ tackle:{lbl:'Zweikampfführung',o:{soft:'Vorsichtig',norm:'Normal',hard:'Hart'},d:'Härtere Zweikämpfe gewinnen mehr Bälle, bringen aber Karten.'},
+ trap:{lbl:'Abseitsfalle',o:{off:'Aus',on:'An'},d:'Die Abwehr rückt gemeinsam heraus.'},
+ funnel:{lbl:'Gegner lenken',o:{in:'Nach innen',none:'Neutral',out:'Nach außen'},d:'Nach außen = Flanken zulassen, die Mitte zu; nach innen = Flügel zu, Zentrum dicht.'},
+ mark:{lbl:'Deckung',o:{zone:'Raumdeckung',mix:'Gemischt',man:'Manndeckung'},d:'Raum oder Gegenspieler verteidigen.'}};
+const TI_DEF={build:'mix',tempo:'norm',width:'norm',risk:'norm',focus:'mix',cross:'mix',shoot:'norm',counter:'mix'};
+const TD_DEF={line:'mid',trans:'mix',tackle:'norm',trap:'off',funnel:'none',mark:'zone'};
+const TI_PREFS={
+ offensiv:{ti:{tempo:'high',risk:'risky',width:'wide'},td:{line:'high',trans:'press'}},
+ defensiv:{ti:{tempo:'low',risk:'safe',counter:'go'},td:{line:'low',trans:'back',funnel:'out'}},
+ ballbesitz:{ti:{build:'short',tempo:'low',risk:'safe',focus:'center',cross:'low',shoot:'work',counter:'hold'},td:{line:'high',trans:'press'}},
+ konter:{ti:{build:'long',tempo:'high',counter:'go',focus:'wings'},td:{line:'low',trans:'back',funnel:'out'}},
+ pressing:{ti:{tempo:'high',counter:'go'},td:{line:'high',trans:'press',tackle:'hard',trap:'on'}},
+ pragmatiker:{ti:{},td:{}},rotation:{ti:{build:'short'},td:{}}};
+function ensureInstr(t){
+  t.ti=Object.assign({},TI_DEF,t.ti||{});t.td=Object.assign({},TD_DEF,t.td||{});
+  if(!t.du||t.du.length!==11)t.du=new Array(11).fill('sup');
+  if(!t.pi||t.pi.length!==11)t.pi=Array.from({length:11},()=>[]);
+}
+function aiInstr(c){const t=c.tactic,trait=c.staff&&c.staff.coach&&c.staff.coach.trait,P=TI_PREFS[trait]||{ti:{},td:{}};t.ti=Object.assign({},TI_DEF,P.ti);t.td=Object.assign({},TD_DEF,P.td);
+  if(t.press==='hoch')t.td.trans='press';else if(t.press==='niedrig')t.td.trans='back';
+  const sl=slotsOf(c);t.du=sl.map((pos,i)=>{const r=t.roles[i];return ['av_off','av_fv','zm_acht','zm_b2b','om_schat','fl_inv','fl_raum','st_konter','st_abst'].includes(r)?'att':['av_def','av_inv3','dm_anker','dm_abk','zm_carr','fl_def','iv_klass'].includes(r)?'def':'sup'})}
+// Kennzahlen eines Mannschaftsteils
+function avgAttr(c,poss,a){const sl=slotsOf(c);let s=0,n=0;c.lineup.forEach((id,i)=>{const p=S.players[id];if(p&&(!poss||poss.includes(sl[i]))){s+=at(p,a);n++}});return n?s/n:10}
+// Wirkung der Mannschaftsanweisungen auf das Spiel
+function instrEffects(c,fx){
+  const t=c.tactic;ensureInstr(t);const I=t.ti,D=t.td,e={M:1,A:1,D:1,rate:1,oppRate:1,conv:1,ctr:1,cards:1,tire:1,line:0};
+  if(I.build==='short'){e.M*=1+(avgAttr(c,['IV','DM','TW'],'pas')-12)*.006}else if(I.build==='long'){e.M*=.97;e.A*=1+.012*(fx.aerial-.8)}
+  if(I.tempo==='high'){e.rate*=1.035;e.oppRate*=1.025;e.tire*=1.15;e.conv*=.98}else if(I.tempo==='low'){e.rate*=.95;e.oppRate*=.97;e.tire*=.9;e.M*=1.02}
+  if(I.width==='wide'){e.A*=1+.01*(fx.width-1);e.M*=.99}else if(I.width==='narrow'){e.M*=1.02;if(fx.width>1.5)e.A*=.98}
+  if(I.risk==='risky'){e.conv*=1.04;e.M*=.97}else if(I.risk==='safe'){e.conv*=.95;e.M*=1.03}
+  if(I.focus==='wings')e.A*=1+.01*(fx.width+fx.cross-2);else if(I.focus==='center')e.A*=1+.01*(fx.chance+fx.build-2.5);
+  if(I.cross==='high')e.conv*=1+.03*(fx.aerial-.8);else if(I.cross==='low')e.conv*=1+.02*(fx.box-1.5);
+  if(I.shoot==='long'){e.rate*=1.03;e.conv*=.94+(avgAttr(c,['ZM','OM','FL','ST','DM'],'lon')-11)*.015}else if(I.shoot==='work'){e.rate*=.95;e.conv*=1.05}
+  if(I.counter==='go')e.ctr*=1.05;else if(I.counter==='hold'){e.ctr*=.96;e.M*=1.01}
+  if(D.line==='high'){e.line=-6;e.M*=1.02}else if(D.line==='low'){e.line=6;e.D*=1.03;e.M*=.98}
+  if(D.trans==='press'){e.M*=1.02;e.tire*=1.08}else if(D.trans==='back'){e.D*=1.015;e.M*=.99}
+  if(D.tackle==='hard'){e.D*=1.02;e.cards*=1.5}else if(D.tackle==='soft'){e.D*=.98;e.cards*=.6}
+  if(D.trap==='on'){const q=(avgAttr(c,['IV','AV'],'ant')+avgAttr(c,['IV','AV'],'cnt'))/2;e.D*=q>=12?1.02:.98;e.line-=3}
+  if(D.funnel==='out')e.D*=1+.01*(fx.aerialD-1.2);else if(D.funnel==='in')e.D*=1+.01*(fx.cover-3);
+  if(D.mark==='man')e.D*=1+(avgAttr(c,['IV','AV','DM'],'mar')-11)*.006;else if(D.mark==='mix')e.D*=1.003;
+  return e;
 }

@@ -279,6 +279,21 @@ optgroup{color:#000}
 .tpitch.ip{background:repeating-linear-gradient(0deg,#22704a 0 12.5%,#1f6644 12.5% 25%)}
 table.roles select{font-size:13px;padding:6px 8px;min-width:170px}
 .rolehelp{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}.rolehelp>div{background:var(--night2);border:1px solid var(--line);border-radius:12px;padding:8px 11px}
+.pbwrap{display:flex;gap:12px;align-items:flex-start}.pbwrap .pitch{flex:1;margin:0}
+.bench{width:190px;flex:none;background:var(--night2);border:1px solid var(--line);border-radius:16px;padding:10px;max-height:640px;overflow:auto}
+.bench h3{margin:0 0 2px}
+.bp{display:flex;align-items:center;gap:7px;padding:6px 6px;border-radius:10px;border:1px solid transparent;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.bp:hover{background:var(--panel2);border-color:var(--line)}.bp.inj{opacity:.55}
+.bp .bn{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}.bp .bn b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bp .bn small{font-size:10.5px;color:var(--muted)}
+.bp .ovr{font-size:13px;min-width:28px}
+.bghost{position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-50%) scale(1.05);background:var(--panel2);border-color:var(--accent);box-shadow:0 10px 30px rgba(0,0,0,.5);width:180px}
+.tpitch .slot.drop .dot{outline:3px solid var(--accent);outline-offset:3px;transform:scale(1.15)}
+@media (max-width:900px){.pbwrap{flex-direction:column}.bench{width:100%;max-height:none;display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;padding:8px}.bench h3,.bench>.small{display:none}.bp{flex:none;width:150px;background:var(--panel2)}}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.rcard{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--night2);border:1px solid var(--line);border-radius:12px;padding:9px 11px;color:var(--text)}
+.rcard:hover{border-color:var(--line2)}.rcard.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--night2))}
+.rcard b{font-size:14px}.rcard small{font-size:11.5px;line-height:1.35}
+table.roles select{max-width:220px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
