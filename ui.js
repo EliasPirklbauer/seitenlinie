@@ -518,6 +518,26 @@ function negSubmit(){
 function userDeal(pid){const D=S.deals&&S.deals[pid];if(!D)return null;if(D.season!==S.season||!isWindow()||S.week>D.exp){delete S.deals[pid];return null}return D}
 function bidKey(pid){return pid+':'+S.season+':'+(S.week<4?'s':'w')}
 function scoutEst(p){const t=sellerTarget(p),f=.9+mkRng(hashStr('sc'+p.id+S.season))()*.2;return nice(t*f)}
+/* ---------- Zahlungsplan-Editor (Angebot & Verhandlungsraum) ---------- */
+function deferLimit(){const u=userClub(),open=userInstallments().filter(r=>r.from===S.user).reduce((t,r)=>t+r.amt,0);return Math.max(0,Math.round((u.tBudget*1.5+Math.max(0,u.budget)*.3-open)/1e5)*1e5)}
+function planTarget(ns){if(ns==='bid')return UI.bid.b;const V=S.vr&&S.vr[UI.vr.pid];return V&&V.club.offer}
+function planRows(b){
+  const rows=[];if(b.feeD)rows.push(`<div class="crow"><span>Ablöse<small>fällig am ${fmtDate(b.feeD)}</small></span><b>${money(b.fee)}</b></div>`);
+  for(const x of b.plan||[])rows.push(`<div class="crow"><span>Rate<small>fällig am ${fmtDate(x.d)}</small></span><b>${money(x.amt)}</b></div>`);
+  return rows.join('');
+}
+function planEditor(b,ns){
+  const t=today(),mx=maxPayDate(),chips=feeDateChips(),pl=b.plan||[];
+  const dIn=(act,v,i)=>`<label class="minp dinp"><input type="date" data-chg="${act}" data-ns="${ns}" ${i!==undefined?`data-i="${i}"`:''} value="${v||''}" min="${addDaysIso(t,1)}" max="${mx}"></label>`;
+  const amt=(i,v)=>`<label class="minp"><input type="text" inputmode="decimal" data-chg="pAmt" data-ns="${ns}" data-i="${i}" value="${v?fmtNum(v):''}" placeholder="0"><span>€</span></label>`;
+  return `<div class="nrow"><div><b>Fälligkeit der Ablöse</b><small>sofort bei Unterschrift oder zu einem festen Datum</small></div>
+     <div class="chipsel"><button class="${!b.feeD?'on':''}" data-act="pFeeD" data-ns="${ns}" data-v="">Sofort</button>${chips.map(d=>`<button class="${b.feeD===d?'on':''}" data-act="pFeeD" data-ns="${ns}" data-v="${d}">${fmtDate(d)}</button>`).join('')}</div>
+     <div class="drow"><span>eigenes Datum</span>${dIn('pFeeDate',b.feeD)}</div></div>
+   <div class="nrow"><div><b>Raten</b><small>beliebig viele, jede mit eigenem Fälligkeitsdatum</small></div>
+     ${pl.map((x,i)=>`<div class="row planrow">${amt(i,x.amt)}<span class="small muted">am</span>${dIn('pDate',x.d,i)}<button class="btn sm" data-act="pDel" data-ns="${ns}" data-i="${i}">✕</button></div>`).join('')}
+     <div class="chipsel" style="margin-top:6px"><button data-act="pAdd" data-ns="${ns}">+ Rate</button><button data-act="pPreset" data-ns="${ns}" data-v="y2">2 Jahresraten</button><button data-act="pPreset" data-ns="${ns}" data-v="y3">3 Jahresraten</button><button data-act="pPreset" data-ns="${ns}" data-v="h4">4 Halbjahresraten</button>${pl.length?`<button data-act="pPreset" data-ns="${ns}" data-v="none">keine Raten</button>`:''}</div></div>`;
+}
+function planChanged(ns){if(ns==='bid'){const B=UI.bid;if(B.res!=='counter'){B.res=null;B.msg=null}}render()}
 function bidModal(){
   return ()=>{
     const B=UI.bid,p=S.players[B.pid],u=userClub();if(!p)return '';const sell=B.mode==='sell',o=sell?S.offers.find(x=>x.id===B.oid):null;
@@ -525,7 +545,7 @@ function bidModal(){
     const b=B.b,tries=(S.btries||{})[bidKey(p.id)]||0,left=sell?3-((o&&o.rounds)||0):3-tries;
     const seg=(k,cur,vals)=>`<div class="seg">${vals.map(([v,l])=>`<button class="${String(cur)===String(v)?'on':''}" data-act="bidSet" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
     const inp=(k,v)=>`<label class="minp"><input type="text" inputmode="decimal" data-chg="bidAmt" data-k="${k}" value="${v?fmtNum(v):''}" placeholder="0"><span>€</span></label>`;
-    const per=b.inst&&b.instY?b.inst/b.instY:0,over=!sell&&b.fee>u.tBudget;
+    const over=!sell&&bidNow(b)>u.tBudget,overL=!sell&&bidLater(b)>deferLimit();
     const head=sell?`<h2 style="margin-bottom:2px">Gegenangebot an ${esc(other.name)}</h2><div class="small muted">für ${esc(fullname(p))} · ${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · Marktwert ${money(p.val)} · Vertrag bis ${contractEnd(p)}</div>
         <div class="news" style="margin-top:10px">Aktuelles Angebot: <b>${bidText(o.bid)}</b> (Gesamtwert ${money(bidTotal(o.bid))}). Trage ein, was du verlangst.</div>`
       :`<h2 style="margin-bottom:2px">Ablöse-Angebot an ${esc(other.name)}</h2><div class="small muted">für ${esc(fullname(p))} · ${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · Marktwert ${money(p.val)} · Vertrag bis ${contractEnd(p)}</div>
@@ -533,27 +553,26 @@ function bidModal(){
     return `<div class="negc">${head}
       <div class="neggrid">
         <div class="card"><h3>Ablöse</h3>
-          <div class="nrow"><div class="nhead"><div><b>Sofort fällig</b><small>bei Vertragsunterschrift</small></div>${inp('fee',b.fee)}</div>
+          <div class="nrow"><div class="nhead"><div><b>Ablöse</b><small>Hauptzahlung</small></div>${inp('fee',b.fee)}</div>
             <div class="chipsel">${[.8,.9,1,1.1,1.25].map(m=>{const v=nice((sell?bidTotal(o.bid):scoutEst(p))*m);return `<button data-act="bidSet" data-k="fee" data-v="${v}">${money(v)}</button>`}).join('')}</div></div>
-          <div class="nrow"><div class="nhead"><div><b>Ratenzahlung</b><small>zusätzlich, fällig jeweils zum Saisonstart</small></div>${inp('inst',b.inst)}</div>
-            ${b.inst?`<div class="row" style="gap:8px"><span class="small muted">verteilt auf</span>${seg('instY',b.instY||2,INST_Y.map(y=>[y,y+' '+(y===1?'Jahr':'Jahre')]))}<span class="small muted">= ${money(per)} pro Jahr</span></div>`:''}</div>
+          ${planEditor(b,'bid')}
           <div class="nrow"><div class="nhead"><div><b>Erfolgsbonus</b><small>einmalig nach einer Zahl an Pflichtspielen</small></div>${inp('ao',b.ao)}</div>
             ${b.ao?`<div class="row" style="gap:8px"><span class="small muted">nach</span>${seg('aoN',b.aoN||25,AO_N.map(n=>[n,n+' Spielen']))}</div>`:''}</div>
           <div class="nrow"><div><b>Weiterverkaufsbeteiligung</b><small>Anteil an der Ablöse, wenn ${sell?'der Käufer ihn':'du ihn'} später weiterverkauf${sell?'t':'st'}</small></div>${seg('so',b.so||0,SO_OPTS.map(x=>[x,x?x+' %':'keine']))}</div>
         </div>
         <div class="card"><h3>Übersicht</h3>
-          <div class="crow"><span>Gesamtwert<small>sofort + Raten + Bonus</small></span><b>${money(bidTotal(b))}</b></div>
-          <div class="crow"><span>Sofort fällig</span><b class="${over?'bad':''}">${money(b.fee)}</b></div>
-          ${b.inst?`<div class="crow"><span>Raten<small>${b.instY} × ${money(per)} ab Saison ${seasonLbl(S.season+1)}</small></span><b>${money(b.inst)}</b></div>`:''}
+          <div class="crow"><span>Gesamtwert<small>Ablöse + Raten + Bonus</small></span><b>${money(bidTotal(b))}</b></div>
+          <div class="crow"><span>Sofort fällig<small>bei Unterschrift</small></span><b class="${over?'bad':''}">${money(bidNow(b))}</b></div>
+          ${planRows(normBid(b))}
           ${b.ao?`<div class="crow"><span>Erfolgsbonus<small>nach ${b.aoN} Pflichtspielen für ${sell?esc(other.short):'dich'}</small></span><b>${money(b.ao)}</b></div>`:''}
           ${b.so?`<div class="crow"><span>Weiterverkauf<small>${b.so} % einer künftigen Ablöse</small></span><b>${b.so} %</b></div>`:''}
-          ${sell?'':`<div class="small ${over?'bad':'muted'}" style="margin-top:8px">Transferbudget: ${money(u.tBudget)}${over?' – reicht nicht für den Sofort-Betrag!':''}${(()=>{const open=userInstallments().filter(r=>r.from===S.user).reduce((t,r)=>t+r.amt,0);return open?` · offene Raten: ${money(open)}`:''})()}</div>`}
-          <div class="small muted" style="margin-top:8px">Raten sind für den Verkäufer etwas weniger wert als Geld sofort, ein Erfolgsbonus etwa die Hälfte. Verhandlungsrunden übrig: ${Math.max(0,left)}</div>
+          ${sell?'':`<div class="small ${over||overL?'bad':'muted'}" style="margin-top:8px">Transferbudget: ${money(u.tBudget)}${over?' – reicht nicht für den Sofort-Betrag!':''} · Spätere Zahlungen genehmigt der Vorstand bis ${money(deferLimit())}${overL?' – überschritten!':''}${(()=>{const open=userInstallments().filter(r=>r.from===S.user).reduce((t,r)=>t+r.amt,0);return open?` · offene Raten: ${money(open)}`:''})()}</div>`}
+          <div class="small muted" style="margin-top:8px">Später fälliges Geld ist für den Verkäufer weniger wert (ca. 6 % pro Jahr Abschlag), ein Erfolgsbonus etwa die Hälfte. Der Gegenwert für ihn: <b>${money(bidValue(normBid(b),p))}</b>. Verhandlungsrunden übrig: ${Math.max(0,left)}</div>
         </div>
       </div>
       ${B.msg?`<div class="news ${B.res==='yes'?'t-transfer':B.res==='counter'||B.res==='sent'?'t-offer':'t-coach'}" style="margin-top:12px">${B.msg}${B.res==='counter'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="bidTake">Gegenangebot annehmen</button><button class="btn sm" data-act="bidUseCounter">In die Felder übernehmen</button></div>`:''}${B.res==='yes'&&!sell?`<div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="negOpen" data-id="${p.id}" data-mode="buy">✍️ Weiter zu den Vertragsgesprächen</button></div>`:''}</div>`:''}
       ${!B.msg&&(sell?o&&o.wait:pendingBid(p.id))?`<div class="news t-offer" style="margin-top:12px">📨 ${sell?'Dein Gegenangebot':'Dein Angebot'} liegt beim Verein – Antwort bis ${fmtDate((S.pbids||[]).find(x=>x.pid===p.id).when)}.</div>`:''}
-      <div class="row" style="margin-top:14px;justify-content:space-between">${B.res==='yes'||B.res==='no'||B.res==='sent'||(sell?o&&o.wait:pendingBid(p.id))?'<span></span>':`<button class="btn pri" data-act="bidSubmit" ${over||left<=0?'disabled':''}>${sell?'Gegenangebot senden':'Angebot abschicken'}</button>`}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
+      <div class="row" style="margin-top:14px;justify-content:space-between">${B.res==='yes'||B.res==='no'||B.res==='sent'||(sell?o&&o.wait:pendingBid(p.id))?'<span></span>':`<button class="btn pri" data-act="bidSubmit" ${over||overL||left<=0?'disabled':''}>${sell?'Gegenangebot senden':'Angebot abschicken'}</button>`}<button class="btn" data-act="closeModal">Schließen</button></div></div>`;
   };
 }
 function bidSubmit(){
@@ -572,7 +591,8 @@ function bidSubmit(){
   if(u.players.length>=32)return say('no','Dein Kader ist voll (max. 32).');
   if(s.players.length<=19)return say('no',`${esc(s.name)} gibt keine Spieler mehr ab – Kader zu klein.`);
   if(s.rep-u.rep>22&&ovr(p)>=clubAvg(s)-2)return say('no',`${esc(pname(p))} hat kein Interesse – ${esc(s.name)} ist sportlich zu weit voraus.`);
-  if(b.fee>u.tBudget)return say('no','Der Sofort-Betrag übersteigt dein Transferbudget.');
+  if(bidNow(b)>u.tBudget)return say('no','Der Sofort-Betrag übersteigt dein Transferbudget.');
+  if(bidLater(b)>deferLimit())return say('no','So viele spätere Zahlungen genehmigt der Vorstand nicht.');
   if(pendingBid(p.id))return say('sent','Dein Angebot liegt bereits beim Verein – warte die Antwort ab.');
   S.btries[k]=(S.btries[k]||0)+1;
   const R=sendBid(p,b);
@@ -874,8 +894,8 @@ function renderFinance(){
      <div class="row"><button class="btn sm" data-act="shift" data-v="${step}">+${money(mon(step))}/Monat Gehalt <span class="muted">(−${money(step*WAGE_RATE)})</span></button><button class="btn sm" data-act="shift" data-v="-${step}">−${money(mon(step))}/Monat Gehalt <span class="muted">(+${money(step*WAGE_RATE)})</span></button></div></div>
    <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Liga-Prämien',f.prize,'good')}${line('Internationale Wettbewerbe',f.cups||0,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-f.wages,'bad')}${line('Prämien',-(f.bonus||0),'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
    <div class="card"><h3>Prämien diese Saison</h3>${BONUS.filter(b=>(f.bon||{})[b.k]).map(b=>line(b.lbl,-(f.bon[b.k]),'bad')).join('')||'<p class="small muted">Noch keine Prämien ausgezahlt.</p>'}<div class="small muted" style="margin-top:8px">Erwartet für die ganze Saison: <b style="color:var(--text)">${money(squadOf(c).reduce((t,p)=>{if(!p.ct)return t;const e=bonusEV(p,c,p.ct,p.role);for(const k in e)t+=e[k];return t},0))}</b> (laut Vertragsklauseln deines Kaders)</div></div>
-   <div class="card"><h3>Transferraten & Beteiligungen</h3>${(()=>{const r=userInstallments().sort((a,b)=>a.due-b.due);
-      const rows=r.map(x=>`<div class="crow"><span>${x.from===S.user?'an':'von'} ${esc(club(x.from===S.user?x.to:x.from).name)}<small>${esc(x.name)} · fällig zum Saisonstart ${seasonLbl(x.due)}</small></span><b class="${x.from===S.user?'bad':'good'}">${x.from===S.user?'−':'+'}${money(x.amt)}</b></div>`).join('');
+   <div class="card"><h3>Transferraten & Beteiligungen</h3>${(()=>{const r=userInstallments().sort((a,b)=>instDue(a)<instDue(b)?-1:1);
+      const rows=r.map(x=>`<div class="crow"><span>${x.from===S.user?'an':'von'} ${esc(club(x.from===S.user?x.to:x.from).name)}<small>${esc(x.name)} · ${x.kind==='fee'?'Ablöse':'Rate'} fällig am ${fmtDate(instDue(x))}</small></span><b class="${x.from===S.user?'bad':'good'}">${x.from===S.user?'−':'+'}${money(x.amt)}</b></div>`).join('');
       const so=Object.values(S.players).flatMap(p=>(p.so||[]).filter(x=>x.to===S.user).map(x=>({p,x}))).map(({p,x})=>`<div class="crow"><span>${esc(fullname(p))}<small>Weiterverkaufsbeteiligung · jetzt ${p.club!==null?esc(club(p.club).name):'vereinslos'}</small></span><b class="good">${x.pct} %</b></div>`).join('');
       const ao=Object.values(S.players).flatMap(p=>(p.ao||[]).filter(a=>!a.done&&(a.to===S.user||a.from===S.user)).map(a=>({p,a}))).map(({p,a})=>`<div class="crow"><span>${esc(fullname(p))}<small>Erfolgsbonus nach ${a.need} Spielen · bisher ${a.n}</small></span><b class="${a.from===S.user?'bad':'good'}">${a.from===S.user?'−':'+'}${money(a.amt)}</b></div>`).join('');
       return rows+so+ao||'<p class="small muted">Keine offenen Raten, Boni oder Beteiligungen.</p>'})()}</div>
@@ -1159,6 +1179,11 @@ const ACT={
     else if(R&&R.res==='no'){UI.bid.msg=`${esc(club(R.seller).name)} hat dein letztes Angebot abgelehnt.`;UI.bid.res=null}
     UI.modal=bidModal();render()},
   bidCounter:d=>{const o=S.offers.find(x=>x.id===d.id);if(!o)return;if(!o.bid)o.bid=normBid({fee:o.fee});if(!o.lim)o.lim=bidValue(o.bid,S.players[o.pid])*1.15;UI.bid={pid:o.pid,mode:'sell',oid:o.id,b:normBid({...o.bid,fee:nice(bidTotal(o.bid)*1.2)}),res:null,msg:null};UI.modal=bidModal();render()},
+  pFeeD:d=>{const b=planTarget(d.ns);if(!b)return;b.feeD=d.v||null;planChanged(d.ns)},
+  pAdd:d=>{const b=planTarget(d.ns);if(!b)return;b.plan=(b.plan||[]).slice();const last=b.plan.length?b.plan[b.plan.length-1].d:null;const nd=(nextDates(12,1).find(x=>!last||x>last))||addDaysIso(last,182);b.plan.push({d:nd,amt:nice(Math.max(1e5,(b.fee||0)*.2))});planChanged(d.ns)},
+  pDel:d=>{const b=planTarget(d.ns);if(!b)return;b.plan=(b.plan||[]).filter((_,i)=>i!==+d.i);planChanged(d.ns)},
+  pPreset:d=>{const b=planTarget(d.ns);if(!b)return;const tot=planSum(b)||nice(Math.max(1e5,(b.fee||0)*.3));if(d.v==='none'){b.plan=[];planChanged(d.ns);return}
+    const n=d.v==='y2'?2:d.v==='y3'?3:4,step=d.v==='h4'?1:2,ds=nextDates(n,step);b.plan=ds.map(x=>({d:x,amt:nice(tot/n)}));planChanged(d.ns)},
   bidSet:d=>{const B=UI.bid;B.b[d.k]=+d.v;if(d.k==='fee'||d.k==='so'){}B.msg=B.res==='counter'?B.msg:null;if(B.res!=='counter')B.res=null;render()},
   bidSubmit:()=>bidSubmit(),
   bidUseCounter:()=>{const B=UI.bid;if(B.counter)B.b={...B.counter};B.res=null;B.msg=null;render()},
@@ -1208,6 +1233,9 @@ const CHG={
   tkCode:el=>{UI.tk.code=el.value;UI.tk.lg='';render()},
   tkLg:el=>{UI.tk.lg=el.value;render()},
   tkQ:el=>{UI.tk.q=el.value.trim();render()},
+  pAmt:el=>{const b=planTarget(el.dataset.ns);if(!b)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}b.plan=b.plan.map(x=>({...x}));b.plan[+el.dataset.i].amt=Math.round(v);planChanged(el.dataset.ns)},
+  pDate:el=>{const b=planTarget(el.dataset.ns);if(!b||!el.value)return;b.plan=b.plan.map(x=>({...x}));b.plan[+el.dataset.i].d=el.value;b.plan.sort((x,y)=>x.d<y.d?-1:1);planChanged(el.dataset.ns)},
+  pFeeDate:el=>{const b=planTarget(el.dataset.ns);if(!b)return;b.feeD=el.value&&el.value>today()?el.value:null;planChanged(el.dataset.ns)},
   bidAmt:el=>{const B=UI.bid;if(!B)return;const v=parseMoney(el.value);if(isNaN(v)){toast('Bitte einen gültigen Betrag eingeben');render();return}B.b[el.dataset.k]=Math.round(v);if(el.dataset.k==='inst'&&v&&!B.b.instY)B.b.instY=2;if(B.res!=='counter'){B.res=null;B.msg=null}render()},
   negDate:el=>{const N=UI.neg;if(!N)return;if(/^\d{4}-\d{2}-\d{2}$/.test(el.value)){N[el.dataset.k]=el.value;negDateFix(N)}N.msg=null;render()},
   negAmt:el=>{const N=UI.neg;if(!N)return;const v=parseMoney(el.value),k=el.dataset.k;

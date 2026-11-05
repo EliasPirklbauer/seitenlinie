@@ -73,7 +73,8 @@ function vrClubPropose(p,arg){
   const C=(S.vr[p.id]).club,u=userClub(),s=club(p.club),b=normBid(C.offer),DV=VR_DIRV[C.trait]||VR_DIRV.erfahrung;
   if(C.st!=='open')return;
   if(!isWindow()){vrSay(C,'sys','Das Transferfenster ist geschlossen – eine Einigung ist erst im nächsten Fenster möglich.');return}
-  if(b.fee>u.tBudget){vrSay(C,'sys',`Dein Transferbudget reicht für ${money(b.fee)} sofort nicht (frei: ${money(u.tBudget)}). Nutze Raten oder einen Erfolgsbonus.`);return}
+  if(bidNow(b)>u.tBudget){vrSay(C,'sys',`Dein Transferbudget reicht für ${money(b.fee)} sofort nicht (frei: ${money(u.tBudget)}). Verschiebe die Fälligkeit, nutze Raten oder einen Erfolgsbonus.`);return}
+  if(bidLater(b)>deferLimit()){vrSay(C,'sys',`So viele spätere Zahlungen genehmigt dein Vorstand nicht (Rahmen: ${money(deferLimit())}).`);return}
   vrSay(C,'me',myOfferLine(b,arg,p));
   const ef=vrArgEffect(C,p,arg);if(ef.txt&&arg!=='final')vrSay(C,'them',ef.txt);C.pat+=ef.pat||0;
   C.round++;const v=bidValue(b,p);
@@ -88,7 +89,7 @@ function vrClubPropose(p,arg){
   C.T=Math.max(C.floor,C.T-gap*conc);C.pat-=8+Math.max(0,1-v/C.T)*22;
   if(C.pat<=0){vrClubBreak(p,sdBreak());return}
   let cb=normBid({...b,fee:nice(b.fee+(C.T-v))});
-  if(cb.fee>u.tBudget){const extra=cb.fee-u.tBudget;cb.fee=nice(u.tBudget);cb.instY=Math.max(cb.instY||0,2);cb.inst=nice((cb.inst||0)+extra/Math.pow(.94,cb.instY)*1.03);cb=normBid(cb)}
+  if(bidNow(cb)>u.tBudget){const extra=cb.fee-u.tBudget;cb.fee=nice(u.tBudget);planAdd(cb,extra*1.03,2,2);cb=normBid(cb)}
   C.counter=cb;
   const close=v/C.T;
   vrSay(C,'them',sdCounter(close,cb,C.pat));
@@ -329,8 +330,8 @@ function vrClubView(p,V){
   const close=bidValue(normBid(b),p)/C.T;
   const hint=C.st!=='open'?'':close>=.98?'Damit dürfte er einverstanden sein.':close>=.9?'Nah dran.':close>=.75?'Noch ein gutes Stück entfernt.':'Weit weg von seinen Vorstellungen.';
   const ctrl=C.st!=='open'?`<div class="news ${C.st==='agreed'?'t-transfer':'t-coach'}">${C.st==='agreed'?`✅ Vereinbart: <b>${bidText(C.deal)}</b>`:'❌ Verhandlung abgebrochen.'}</div>${C.st==='agreed'?`<button class="btn pri" data-act="vrStep" data-v="player" style="margin-top:8px">Weiter zum Spieler ▶</button>`:''}`:
-   `<label class="f">Sofort</label>${vrAmt('club.fee',b.fee)}
-    <label class="f" style="margin-top:8px">Raten <span class="muted">(über Jahre)</span></label><div class="row">${vrAmt('club.inst',b.inst)}<div class="seg">${INST_Y.map(y=>`<button class="${(b.instY||2)===y?'on':''}" data-act="vrSet" data-k="club.instY" data-v="${y}">${y} J.</button>`).join('')}</div></div>
+   `<label class="f">Ablöse</label>${vrAmt('club.fee',b.fee)}
+    <div style="margin-top:6px">${planEditor(b,'vr')}</div>
     <label class="f" style="margin-top:8px">Erfolgsbonus</label><div class="row">${vrAmt('club.ao',b.ao)}<div class="seg">${AO_N.map(n=>`<button class="${(b.aoN||25)===n?'on':''}" data-act="vrSet" data-k="club.aoN" data-v="${n}">nach ${n} Sp.</button>`).join('')}</div></div>
     <label class="f" style="margin-top:8px">Weiterverkaufsbeteiligung</label><div class="seg">${SO_OPTS.map(s=>`<button class="${(b.so||0)===s?'on':''}" data-act="vrSet" data-k="club.so" data-v="${s}">${s?s+' %':'keine'}</button>`).join('')}</div>
     <label class="f" style="margin-top:10px">Dein Argument</label><div class="vrargs">${VR_ARGS.map(([k,l,d])=>`<button class="${UI.vr.draftArg===k?'on':''} ${C.used[k]&&k!=='neutral'?'used':''}" data-act="vrArg" data-v="${k}" title="${esc(d)}">${l}</button>`).join('')}</div>
@@ -378,7 +379,7 @@ Object.assign(ACT,{
   vrAgTac:d=>{UI.vr.agTac=d.v;render()},
   vrSet:d=>{const V=vrOf(UI.vr.pid),[o,k]=vrPath(V,d.k);o[k]=isNaN(+d.v)?d.v:+d.v;render()},
   vrClubGo:()=>{const p=S.players[UI.vr.pid];vrClubPropose(p,UI.vr.draftArg);UI.vr.draftArg='neutral';render();vrScroll()},
-  vrClubAccept:()=>{const p=S.players[UI.vr.pid],C=S.vr[p.id].club,u=userClub();if(!C.counter)return;if(C.counter.fee>u.tBudget){vrSay(C,'sys','Dafür reicht dein Transferbudget nicht.');render();return}vrClubAgree(p,C.counter,'Sehr gut. Dann haben wir einen Deal.');render();vrScroll()},
+  vrClubAccept:()=>{const p=S.players[UI.vr.pid],C=S.vr[p.id].club,u=userClub();if(!C.counter)return;if(bidNow(C.counter)>u.tBudget){vrSay(C,'sys','Dafür reicht dein Transferbudget nicht.');render();return}vrClubAgree(p,C.counter,'Sehr gut. Dann haben wir einen Deal.');render();vrScroll()},
   vrPl:d=>{const p=S.players[UI.vr.pid];vrPlayerMove(p,d.v,d.r);render();vrScroll()},
   vrPlEnd:()=>{const p=S.players[UI.vr.pid];vrPlayerEnd(p);render();vrScroll()},
   vrAgGo:()=>{const p=S.players[UI.vr.pid];vrAgentMove(p,UI.vr.agTac||'neutral');UI.vr.agTac='neutral';render();vrScroll()},

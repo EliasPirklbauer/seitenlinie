@@ -292,7 +292,7 @@ function clauseTalksWeekly(){
     if(deal)vis=dealVisible(t);
     if(!deal&&!clauseApplies(p,c,ct)){t.st='void';tn(vis,[t.from,sid],'transfer',`Klausel greift nicht mehr: ${fullname(p)}`,`${esc(c.name)} kann die Ausstiegsklausel nicht mehr ziehen – ${esc(pname(p))} bleibt.`);continue}
     const fee=deal?t.fee:Math.min(t.fee,ct.rc||t.fee);
-    if(c.budget<fee||!isWindow()){t.st='void';tn(vis||mine,[t.from,sid],'transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
+    if(c.budget<(t.bid&&t.bid.feeD?0:fee)||!isWindow()){t.st='void';tn(vis||mine,[t.from,sid],'transfer',`Wechsel geplatzt: ${fullname(p)}`,`${esc(c.name)} bekommt die Ablöse von ${money(fee)} nicht rechtzeitig zusammen. ${esc(pname(p))} bleibt.`);continue}
     if(agentOf(p).type==='poker'&&!t.poked&&(mine||!deal)){t.poked=1;const nw=rw(t.wage*(1.05+rnd()*.08));if(c.wBudget-wageBill(c)>=nw||c.id!==S.user){t.wage=nw;tn(mine||vis,[t.from,sid],'transfer',`Berater pokert: ${fullname(p)}`,`${esc(agentOf(p).name)} hat bei ${esc(c.name)} kurz vor der Entscheidung noch mehr herausgeholt: jetzt ${money(mon(nw))} brutto/Monat.`)}}
     if(isLoan){
       if(rnd()<talkChance(t)){t.st='done';executeLoan(p,c,t.loan);trimSquad(c)}

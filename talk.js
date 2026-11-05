@@ -33,8 +33,11 @@ function lastResultLine(){
 /* ---------- Mein Angebot in gesprochener Form ---------- */
 function offerSpeech(b,du){
   const parts=[];const ihr=du?'ihr':'Sie';
-  parts.push(`${spM(b.fee)} sofort`);
-  if(b.inst)parts.push(`weitere ${spM(b.inst)}, verteilt auf ${b.instY===1?'ein Jahr':num(b.instY)+' Jahre'}`);
+  b=normBid(b);
+  parts.push(`${spM(b.fee)}${b.feeD?', zahlbar zum '+fmtDate(b.feeD):' sofort'}`);
+  const pl=b.plan||[];
+  if(pl.length===1)parts.push(`weitere ${spM(pl[0].amt)} zum ${fmtDate(pl[0].d)}`);
+  else if(pl.length>1)parts.push(`weitere ${spM(planSum(b))} in ${num(pl.length)} Raten, die erste zum ${fmtDate(pl[0].d)}, die letzte zum ${fmtDate(pl[pl.length-1].d)}`);
   if(b.ao)parts.push(`${spM(b.ao)} obendrauf, sobald er ${b.aoN} Pflichtspiele für uns gemacht hat`);
   if(b.so)parts.push(`und ${b.so} Prozent, falls wir ihn irgendwann weiterverkaufen`);
   return parts.length===1?parts[0]:parts.slice(0,-1).join(', ')+(parts[parts.length-1].startsWith('und')?' ':' und ')+parts[parts.length-1];
