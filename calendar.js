@@ -43,7 +43,7 @@ function leagueRoundSlots(L,r){
 }
 function isFinal(label){return /^Finale/.test(label)}
 // Wochentage der Kontinentalwettbewerbe: [Wochentage normale Runden], Finale [Tag, Uhrzeit]
-const COMP_DAYS={ucl:{days:['di','mi'],times:['18:45','21:00'],final:['sa','21:00']},uel:{days:['do'],times:['18:45','21:00'],final:['mi','21:00']},uecl:{days:['do'],times:['18:45','21:00'],final:['mi','21:00']},
+const COMP_DAYS={ucl:{days:['di','mi'],times:['18:45','21:00'],final:['sa','21:00'],early:true},uel:{days:['do'],times:['18:45','21:00'],final:['mi','21:00']},uecl:{days:['do'],times:['18:45','21:00'],final:['mi','21:00']},
  lib:{days:['di','mi','do'],times:['19:00','21:30'],final:['sa','17:00']},sud:{days:['di','mi','do'],times:['19:00','21:30'],final:['sa','17:00']},
  acle:{days:['mo','di'],times:['16:00','18:00'],final:['sa','19:30']},acl2:{days:['mi','do'],times:['16:00','18:00'],final:['sa','19:30']},
  cafcl:{days:['fr','sa','so'],times:['16:00','19:00'],final:['so','20:00']},cafcc:{days:['mi','so'],times:['16:00','19:00'],final:['so','17:00']},
@@ -54,6 +54,9 @@ function compRoundSlots(C,r){
   const n=Math.max(1,r.matches.length),ord=hshuffle([...Array(n).keys()],'cp'+C.key+r.label+S.season),out=[];
   // Rückspiele am selben Wochentag wie das Hinspiel des Duells
   ord.forEach((k,j)=>{const day=D.days[(r.ko!==undefined?k:j)%D.days.length],t=D.times[j%D.times.length];out[k]={d:isoAdd(sat,DOFF[day]),t}});
+  // Champions League: je Spieltag 2 Spiele um 18:45 (K.-o.-Playoffs/Achtelfinale: 1), der Rest um 21:00; ab Viertelfinale alle um 21:00
+  if(D.early){const byDay={};ord.forEach(k=>{(byDay[out[k].d]=byDay[out[k].d]||[]).push(k)});
+    Object.values(byDay).forEach(ks=>{const e=ks.length>=6?2:ks.length>=3?1:0;ks.forEach((k,i)=>{out[k].t=i<e?D.times[0]:D.times[1]})})}
   return out;
 }
 // Pokale: frühe Runden je nach Land am Wochenende, sonst unter der Woche; Finale nach Landespraxis
