@@ -3,15 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#131b2e">
+<meta name="theme-color" content="#f1e9da">
+<script>(function(){var t="desk";try{t=localStorage.getItem("sl-theme")||"desk"}catch(e){}document.documentElement.className=t;var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==="desk"?"#f1e9da":"#131b2e"})()</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Seitenlinie">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preload" href="fonts/Rubik-var.woff" as="font" type="font/woff" crossorigin>
 <link rel="preload" href="fonts/BarlowCondensed-700.woff" as="font" type="font/woff" crossorigin>
+<link rel="preload" href="fonts/Caveat-700.woff" as="font" type="font/woff" crossorigin>
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <title>Seitenlinie – Fußball Manager</title>
 <style>
@@ -314,6 +316,135 @@ table.roles select{max-width:220px}
 .fxtime{width:46px;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
 .nxwhen{text-align:center;margin-bottom:4px}.nxwhen b{font-family:var(--display);font-size:18px;letter-spacing:.02em}.nxwhen span{display:block;font-size:12px;color:var(--accent);font-weight:600}
 @media(max-width:700px){.fxtab th,.fxtab td{padding:7px 5px;font-size:12.5px}.fxtab td:not(.fxwhen):not(.fxtime){white-space:normal;line-height:1.25}.fxtab .fxtime{width:36px;font-size:11px}.fxwhen b{font-size:12px}}
+/* ===================================================================
+   Design „Trainerbüro“ – heller Schreibtisch mit Unterlagen
+   =================================================================== */
+@font-face{font-family:'Caveat';src:url('fonts/Caveat-700.woff') format('woff');font-weight:400 900;font-display:swap}
+html.desk{
+  --night:#efe6d6;--night2:#f7f2e8;--panel:#fffdf8;--panel2:#f4eee2;--panel3:#e9e0cd;--line:#e6dccb;--line2:#d3c5aa;
+  --text:#1f2735;--muted:#6c6556;--dim:#9b927f;
+  --accent:#b0650a;--accent-ink:#2a2000;--accent-soft:rgba(255,210,63,.38);
+  --good:#1e8a58;--bad:#c63d2b;--info:#2a68b8;--gold:#b0650a;--blue:#2a68b8;
+  --ink:#24406e;--marker:#ffd23f;--red:#d2402c;--kraft:#ead8b0;
+  --r:8px;--r2:6px;
+  --hand:'Caveat','Barlow Condensed',cursive;
+  --shadow:0 1px 1px rgba(90,65,30,.08),0 10px 22px -14px rgba(90,65,30,.45);
+  color-scheme:light;
+}
+html.desk,html.desk body{background-color:var(--night)}
+html.desk body{background:
+  radial-gradient(1200px 600px at 15% -10%,rgba(255,255,255,.75),transparent 60%),
+  radial-gradient(900px 500px at 100% 110%,rgba(196,160,110,.18),transparent 60%),
+  repeating-linear-gradient(91deg,rgba(150,110,60,.035) 0 2px,transparent 2px 11px),
+  repeating-linear-gradient(89.3deg,rgba(150,110,60,.03) 0 1px,transparent 1px 37px),
+  linear-gradient(180deg,#f3ebdc,#ebdfc9);background-attachment:fixed}
+/* Überschriften wie mit dem Filzstift geschrieben */
+html.desk h2{font-family:var(--hand);font-size:36px;font-weight:700;letter-spacing:0;color:var(--ink);line-height:1.05}
+html.desk h2 .small,html.desk h2 .muted{font-family:'Rubik',sans-serif}
+html.desk h3{color:var(--ink);text-transform:uppercase;font-size:14.5px;letter-spacing:.09em;font-weight:700}
+html.desk .main>h2:first-child,html.desk .main>.row:first-child h2{position:relative;display:inline-block;padding:0 6px}
+html.desk .main>h2:first-child:after{content:"";position:absolute;left:0;right:-8px;bottom:5px;height:11px;background:var(--marker);opacity:.55;z-index:-1;border-radius:3px;transform:rotate(-.6deg)}
+html.desk .main{position:relative;z-index:0}
+/* Karten = Blätter Papier auf dem Tisch */
+html.desk .card{background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:var(--r)}
+html.desk .card .card{background:var(--night2);box-shadow:none}
+html.desk .main>.grid>.card:nth-child(3n+1){transform:rotate(-.15deg)}
+html.desk .main>.grid>.card:nth-child(3n+2){transform:rotate(.12deg)}
+html.desk .card>h3:first-child{padding-bottom:7px;margin-bottom:12px;border-bottom:2px solid var(--ink);border-bottom-style:double;border-bottom-width:3px;border-color:rgba(36,64,110,.25)}
+/* Büroklammer auf den Hauptkarten der Startseite */
+html.desk .home-grid>.card{position:relative}
+html.desk .home-grid>.card:before{content:"";position:absolute;top:-9px;right:26px;width:14px;height:34px;border:2.5px solid #9aa3ad;border-radius:8px;border-bottom-color:#8a939c;background:transparent;box-shadow:inset 0 0 0 2px transparent;transform:rotate(8deg)}
+html.desk .home-grid>.card:after{content:"";position:absolute;top:-2px;right:30px;width:6px;height:20px;border:2.5px solid #9aa3ad;border-top:0;border-radius:0 0 5px 5px;transform:rotate(8deg)}
+/* Spieltagskarte wie ein Spielbericht mit Klebestreifen */
+html.desk .matchcard{background:var(--panel);overflow:visible}
+html.desk .matchcard:before,html.desk .matchcard:after{display:none}
+html.desk .matchcard>h3:first-child:before{content:"";position:absolute;top:-11px;left:50%;width:110px;height:24px;margin-left:-55px;background:rgba(255,236,170,.75);border-left:1px dashed rgba(160,130,60,.35);border-right:1px dashed rgba(160,130,60,.35);transform:rotate(-2deg);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+html.desk .lamps i{background:var(--red);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+html.desk .vs .mid{font-family:var(--hand);font-size:40px;color:var(--red)}
+html.desk .nxwhen b{font-family:var(--hand);font-size:28px;color:var(--ink);font-weight:700}
+html.desk .nxwhen span{color:var(--red)}
+/* Kopfleiste & Navigation (Register eines Ordners) */
+html.desk .top{background:rgba(255,253,248,.92);border-bottom:1px solid var(--line2);box-shadow:0 2px 10px -6px rgba(90,65,30,.35)}
+html.desk .top .brand{font-family:var(--hand);font-size:34px;color:var(--ink)}
+html.desk .top .brand i{background:var(--red);box-shadow:none;width:11px;height:11px}
+html.desk .top .meta .stat b{color:var(--ink)}
+html.desk .side{background:linear-gradient(90deg,#e7d3a6,var(--kraft));border-right:1px solid #cdb17a;box-shadow:inset -8px 0 14px -10px rgba(90,60,20,.35)}
+html.desk .nav a{color:#5a4a2c;border-radius:4px 10px 10px 4px}
+html.desk .nav a:hover{background:rgba(255,253,248,.55);color:var(--text)}
+html.desk .nav a.on{background:var(--panel);color:var(--ink);box-shadow:0 2px 6px -2px rgba(90,60,20,.35);margin-right:-13px;border-radius:4px 0 0 4px}
+html.desk .nav a.on:before{left:-12px;background:var(--red);width:4px}
+html.desk .bnav{background:rgba(255,253,248,.95);border-color:var(--line2);box-shadow:0 10px 26px -10px rgba(90,65,30,.5)}
+html.desk .bnav a{color:var(--muted)}html.desk .bnav a.on{color:var(--ink)}
+html.desk .bnav a.on svg{stroke:var(--red)}
+/* Schaltflächen */
+html.desk .btn{background:var(--panel);border-color:var(--line2);color:var(--text);box-shadow:0 1px 0 rgba(90,65,30,.08)}
+html.desk .btn:hover{background:var(--panel2)}
+html.desk .btn.pri{background:var(--marker);border-color:#e9b81c;color:#2a2000;box-shadow:0 4px 12px -6px rgba(190,140,0,.8)}
+html.desk .btn.pri:hover{background:#ffdb5e}
+html.desk .btn.warn{border-color:rgba(198,61,43,.5);color:var(--bad);background:transparent}
+html.desk .pill{background:var(--panel2);border-color:var(--line2)}
+html.desk .pill.good{background:rgba(30,138,88,.09);border-color:rgba(30,138,88,.35)}
+html.desk .seg{background:var(--panel2);border-color:var(--line)}
+html.desk .seg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(90,65,30,.25)}
+html.desk input,html.desk select,html.desk textarea{background:#fff;border-color:var(--line2);color:var(--text)}
+html.desk .dinp input{color-scheme:light}
+html.desk optgroup{color:var(--text)}
+/* Tabellen wie liniertes Papier, eigene Zeile mit Textmarker */
+html.desk .tw{background:var(--panel);border-color:var(--line)}
+html.desk th{background:#f5efe3;color:var(--ink);text-transform:uppercase;font-size:11px;letter-spacing:.07em;border-bottom:2px solid rgba(36,64,110,.22)}
+html.desk th,html.desk td{border-bottom-color:#e9e1d1}
+html.desk tr.click:hover td{background:rgba(42,104,184,.05)}
+html.desk tr.me td{background:rgba(255,210,63,.33)}
+html.desk .fxmonth td{background:#f1e9da;color:var(--ink)}
+html.desk .fxday td{color:var(--red);font-family:var(--hand);font-size:21px;font-weight:700;letter-spacing:0;padding-top:8px}
+html.desk .fxtime{color:var(--ink);font-weight:600}
+/* Posteingang: Notizzettel */
+html.desk .news{background:#fffbea;border-left-color:var(--line2);box-shadow:0 1px 2px rgba(90,65,30,.12);border-radius:3px 8px 8px 3px}
+html.desk .news.t-offer{background:#fff7d6}html.desk .news.t-board{background:#eef4fd}html.desk .news.t-transfer{background:#effaf3}html.desk .news.t-coach{background:#fdf0ed}
+/* Balken, Werte, Kacheln */
+html.desk .bar{background:#ece4d4}
+html.desk .bar i{background:linear-gradient(90deg,var(--good),#53c28f)}
+html.desk .av.v1{color:var(--bad)}html.desk .av.v4{color:#2a2000;background:var(--marker)}
+html.desk .ptile,html.desk .acol,html.desk .ksum>div,html.desk .nkpi>div,html.desk .clist,html.desk .pscore>div,html.desk .rolehelp>div,html.desk .tl,html.desk .whys span,html.desk .minp,html.desk .rcard{background:var(--night2)}
+html.desk .cbig>div,html.desk .cclause{background:linear-gradient(160deg,#fffdf8,#f4ecdc)}
+html.desk .ptile>b,html.desk .cbig b,html.desk .kpi,html.desk .ksum b{color:var(--ink)}
+html.desk .wbar,html.desk .cbar{background:#e9e0cd}
+html.desk .pdot.f0{background:rgba(255,255,255,.75);color:#4b5563}
+/* Taktiktafel bleibt grün, mit Rahmen wie eine Magnettafel */
+html.desk .pitch,html.desk .minipitch{border:6px solid #d9dde2;box-shadow:0 0 0 1px #b9c0c8,0 12px 24px -14px rgba(40,40,40,.55),inset 0 0 50px rgba(0,0,0,.25)}
+html.desk .bench{background:var(--panel)}
+html.desk .bp:hover{background:var(--panel2)}
+html.desk .tpitch .slot .rl{background:var(--marker)}
+/* Kalender wie ein Tischkalender */
+html.desk .cday{background:var(--panel)}
+html.desk .cday.sel{background:#fff6d5}
+html.desk .cchip{background:var(--night2)}
+html.desk .cday.today{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+html.desk .cday.today .cn{color:var(--red)}
+html.desk .calhead h3{font-family:var(--hand);text-transform:none;letter-spacing:0;font-size:32px}
+/* Dialoge = Akte auf dem Tisch */
+html.desk .ov{background:rgba(70,52,28,.38)}
+html.desk .modal{background:var(--panel);border-color:var(--line2);border-radius:10px;box-shadow:0 30px 70px -20px rgba(60,40,15,.55)}
+html.desk .modal:before{content:"";display:block;height:5px;margin:-20px -22px 16px;background:repeating-linear-gradient(90deg,var(--ink) 0 40px,var(--red) 40px 80px);border-radius:10px 10px 0 0;opacity:.85}
+html.desk .toast,html.desk .upd{background:var(--panel);box-shadow:0 12px 30px -10px rgba(90,65,30,.5)}
+html.desk .bghost{box-shadow:0 10px 30px rgba(90,65,30,.4)}
+html.desk .sticky-cta{background:linear-gradient(transparent,var(--night) 45%)}
+html.desk .tickfeed .news.mine{background:#fff3c4}
+html.desk .ev{border-bottom-color:#e9e1d1}html.desk .ev.goal{background:rgba(30,138,88,.09)}
+html.desk .score .big{color:var(--ink)}
+/* Startbildschirm: Notizbuch auf dem Schreibtisch */
+html.desk .title{background:transparent}
+html.desk .title .card{background:var(--panel);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 2px 2px rgba(90,65,30,.08),0 30px 60px -25px rgba(90,65,30,.55);
+  background-image:repeating-linear-gradient(180deg,transparent 0 27px,rgba(42,104,184,.10) 27px 28px);border-left:4px double rgba(210,64,44,.45)}
+html.desk .wordmark{font-family:var(--hand);font-size:76px;color:var(--ink)}
+html.desk .chalk{background:repeating-linear-gradient(90deg,var(--red) 0 22px,transparent 22px 30px);height:3px}
+html.desk .clubpick:hover{background:var(--panel2)}
+html.desk .clubpick.on{background:#fffbe6}
+/* Handschriftliche Notizen */
+html.desk .note{font-family:var(--hand);font-size:22px;color:var(--ink);line-height:1.1}
+html.desk .slot .nm{background:rgba(255,253,248,.95);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+html.desk .slot .nm i{color:var(--muted)}
+@media (max-width:900px){html.desk h2{font-size:32px}html.desk .main>.grid>.card{transform:none}html.desk .nav a.on{margin-right:0}}
 </style>
 </head>
 <body>

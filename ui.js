@@ -1017,6 +1017,7 @@ function renderMenu(){
   return `<h2>Menü</h2><div class="grid g2">
    <div class="card"><h3>Spielstand</h3><p class="small muted">Das Spiel speichert automatisch nach jeder Woche auf diesem Gerät. Um auf einem anderen Gerät weiterzuspielen, exportiere den Spielstand und importiere ihn dort.</p>
     <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
+   <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'desk')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
    ${installCard()}
    <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
    <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe, nationale Pokale und Fünfjahreswertung. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
@@ -1085,6 +1086,7 @@ function renderSeasonEndScreen(){
    ========================================================= */
 function newSeed(){return (Date.now()^Math.floor(Math.random()*1e9))>>>0}
 const ACT={
+  setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':'#131b2e';render()},
   nav:d=>{if(UI.view==='live'&&UI.live&&!UI.live.done)return;UI.view=d.v;UI.selSlot=null;if(d.v==='table')UI.tableLeague=UI.tableLeague;window.scrollTo(0,0);render()},
   closeModal:()=>{UI.modal=null;UI.selSlot=null;UI.neg=null;render()},
   continue:async()=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave();UI.loading=null;if(sv){try{applySave(sv);UI.view='home';render()}catch(e){toast('Spielstand konnte nicht geladen werden')}}else{UI.meta=null;render();toast('Kein Spielstand gefunden')}},
