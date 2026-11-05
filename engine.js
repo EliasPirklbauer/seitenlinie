@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.29.0';
+const APP_VERSION='0.30.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -550,7 +550,7 @@ function teamStrength(c){
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
   let D=avg('d')*(1+.03*(acc.d[1]-6.5)),M=avg('m')*(1+.03*(acc.m[1]-3.5)),A=avg('a')*(1+.03*(acc.a[1]-3.8));
-  const t=c.tactic,TP=tacticProfile(c),CM=crewMatchMul(c);D*=TP.D*CM;M*=TP.M*CM;A*=TP.A*CM;
+  const t=c.tactic,TP=tacticProfile(c),CM=crewMatchMul(c)*pressMul(c);D*=TP.D*CM;M*=TP.M*CM;A*=TP.A*CM;
   if(t.men==='offensiv'){A*=1.08;D*=.94}else if(t.men==='defensiv'){A*=.92;D*=1.08}
   if(t.press==='hoch'){M*=1.06;D*=.97}else if(t.press==='niedrig'){M*=.95;D*=1.03}
   if(t.style==='ballbesitz')M*=1.05;
@@ -786,7 +786,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);

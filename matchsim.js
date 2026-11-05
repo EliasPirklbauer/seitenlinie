@@ -501,7 +501,7 @@ function saveUserReport(item){
   const m=item.m,r=item.r;if(!r||!r.ts)return;const home=m.h===S.user;
   S.ureps=S.ureps||[];
   S.ureps.push({s:S.season,w:S.week,lbl:item.label||(item.L?item.L.name+' · '+(item.round+1)+'. ST':''),opp:home?m.a:m.h,home,gf:home?m.hg:m.ag,ga:home?m.ag:m.hg,
-    xf:Math.round((home?r.ts.h.xg:r.ts.a.xg)*100)/100,xa:Math.round((home?r.ts.a.xg:r.ts.h.xg)*100)/100,poss:home?r.poss:100-r.poss,sh:home?r.sh:r.sa,sha:home?r.sa:r.sh,res:resultText(m)});
+    xf:Math.round((home?r.ts.h.xg:r.ts.a.xg)*100)/100,xa:Math.round((home?r.ts.a.xg:r.ts.h.xg)*100)/100,poss:home?r.poss:100-r.poss,sh:home?r.sh:r.sa,sha:home?r.sa:r.sh,res:resultText(m),...(()=>{const ids=Object.keys(r.rt||{}).filter(id=>S.players[id]&&S.players[id].club===S.user).sort((a,b)=>r.rt[b]-r.rt[a]);return {top:ids[0]||null,low:ids.length>3?ids[ids.length-1]:null,lows:ids.slice(-3)}})()});
   if(S.ureps.length>120)S.ureps=S.ureps.slice(-120);
 }
 

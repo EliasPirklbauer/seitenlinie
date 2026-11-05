@@ -94,7 +94,7 @@ function takeJob(cid){
   // alter Verein bekommt einen KI-Trainer
   const pool=poolArr(ASSOC[old.assoc].pool),tr=pick(Object.keys(COACH));old.staff.coach={name:pick(pool.f)+' '+pick(pool.l),trait:tr};old.tactic={...COACH[tr].t};autoLineup(old);
   const prev=nc.staff.coach;S.user=cid;nc.staff.coach={name:S.manager,trait:null};nc.autoXI=true;squadOf(nc).forEach(materializeContract);ensureTactic(nc);autoLineup(nc);
-  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};S.offers=[];S.deals={};S.vr={};S.ldeals={};S.bidRes={};S.reports=[];S.known={};S.crewEv=[];S.ureps=[];S.wish=[];S.sdprop=[];S.needs=[];S.taskReq=[];S.orgReq=[];S.relReq=[];
+  S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};S.offers=[];S.deals={};S.vr={};S.ldeals={};S.bidRes={};S.reports=[];S.known={};S.crewEv=[];S.ureps=[];S.wish=[];S.sdprop=[];S.needs=[];S.taskReq=[];S.orgReq=[];S.relReq=[];S.press=null;
   S.board=null;S.fired=null;resetCache();boardOf();orgOf(nc).rel=60;
   addNews('board',`Neuer Job: ${nc.name}`,`Du übernimmst ${esc(nc.name)} (${esc(league(nc).name)}) als Nachfolger von ${esc(prev.name)}. Der Vorstand erwartet: <b>${nc.target.t}</b>.`);
   UI.view='home';UI.live=null;save();render();
