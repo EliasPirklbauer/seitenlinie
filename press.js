@@ -114,10 +114,10 @@ function pkOpen(kind){
 function pkAsk(){const C=UI.ct,K=C.pk,q=K.Q[K.i];if(!q)return;ctSay('them',`*${q.j} (${q.o})* ${q.q}`)}
 function pkModal(){return ()=>{
   const C=UI.ct;if(!C||!C.pk)return '';setTimeout(ctPump,0);const K=C.pk,busy=C.pend.length>0,q=K.Q[K.i],P=pressOf(),med=owner('press')!=='coach'?crewOf(userClub())[owner('press')]:null,warn=med&&med.q>=12;
-  return `<div class="vrc"><div class="vrhead"><div><h2 style="margin:0">🎙️ Pressekonferenz ${K.kind==='pre'?'vor dem Spiel':'nach dem Spiel'}</h2><div class="small muted">Frage ${Math.min(K.i+1,K.Q.length)} von ${K.Q.length}${med?' · vorbereitet von '+esc(med.name):''}</div></div></div>
+  return `<div class="vrc"><div class="vrhead"><div><h2 style="margin:0">${K.title||'🎙️ Pressekonferenz '+(K.kind==='pre'?'vor dem Spiel':'nach dem Spiel')}</h2><div class="small muted">Frage ${Math.min(K.i+1,K.Q.length)} von ${K.Q.length}${med?' · vorbereitet von '+esc(med.name):''}</div></div></div>
    <div class="vrgrid"><div>${vrLog(C.msgs,null,'Presse',busy?'Journalisten':null)}</div><div class="card vrpanel ${busy?'busy':''}">${meter('Bild in der Öffentlichkeit',P.img)}${meter('Stimmung Mannschaft',sqMor())}
     ${q?`<label class="f" style="margin-top:10px">Deine Antwort</label><div class="vrargs col">${q.opts.map((o,i)=>`<button data-act="pkAns" data-v="${i}">${esc(o.t)}<br><small class="muted" style="font-weight:400">${TONE[o.tone]}${warn&&(o.fx.risk||o.fx.img<=-3)?' · ⚠️ riskant':''}</small></button>`).join('')}</div>`
-     :`<p class="small muted" style="margin-top:10px">Die Pressekonferenz ist beendet.</p>${K.hl?`<div class="news t-board"><b>Morgen in der Zeitung:</b><br>${esc(K.hl)}</div>`:''}`}
+     :`<p class="small muted" style="margin-top:10px">${K.kind==='iv'?'Das Interview ist beendet.':'Die Pressekonferenz ist beendet.'}</p>${K.hl?`<div class="news t-board"><b>Morgen in der Zeitung:</b><br>${esc(K.hl)}</div>`:''}`}
    </div></div><div class="row" style="margin-top:12px;justify-content:flex-end">${q?`<button class="btn" data-act="pkSkip">Frage abblocken</button>`:''}<button class="btn ${q?'':'pri'}" data-act="pkClose">${q?'Pressekonferenz abbrechen':'Fertig'}</button></div></div>`;
 }}
 const PK_REACT={conf:['*Kameras klicken*','*Raunen im Raum*','*einige Journalisten notieren eifrig*'],calm:['*nickt*','*notiert*','*nächste Wortmeldung*'],humble:['*überraschte Blicke*','*notiert*'],dodge:['*leises Murren*','*Nachfrage wird abgewunken*'],hot:['*Unruhe im Raum*','*Blitzlichtgewitter*','*der Pressesprecher räuspert sich*'],warm:['*nickt anerkennend*','*notiert*'],hard:['*Stille*','*Kugelschreiber kratzen*']};
@@ -137,11 +137,12 @@ function pkFx(fx){
 }
 function pkAnswer(i){
   const C=UI.ct,K=C.pk,q=K.Q[K.i];if(!q)return;const o=q.opts[i];
-  ctSay('me',o.t);pkFx(o.fx);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
+  ctSay('me',o.t);pkFx(o.fx);fanAdd(userClub(),({conf:1.5,hot:1.5,humble:-1,dodge:-.5,warm:.5,hard:0,calm:0}[o.tone]||0)+(o.fx.fan||0)+(o.fx.nfs?3:0)+(o.fx.fine?2:0));K.ans.push({q:q.q,t:o.t,topic:q.topic,tone:o.tone,hl:o.hl,o:q.o,w:Math.abs(o.fx.img||0)+(o.fx.risk?3:0)+(o.hl?2:0)});
   ctSay('them',bpick(PK_REACT[o.tone]||['*notiert*']));K.i++;
   if(K.i<K.Q.length)pkAsk();else pkEnd();
 }
 function pkEnd(){
+  if(UI.ct.pk.kind==='iv')return ivEnd();
   const C=UI.ct,K=C.pk,P=pressOf(),u=userClub();P.done[K.kind+S.season+':'+S.week]=1;
   const best=K.ans.filter(a=>a.hl).sort((a,b)=>b.w-a.w)[0],calm=K.ans.every(a=>['calm','dodge','humble'].includes(a.tone));
   K.hl=best?best.hl:calm?`${mgrLast()} bleibt gelassen – keine Schlagzeilen aus ${u.short==='?'?'dem Verein':u.name}`:null;
@@ -166,7 +167,7 @@ function pressWeekly(res){
 }
 function pressMul(c){const P=S&&S.press;return c.id===S.user&&P&&P.mmW===S.week?1+Math.min(.015,P.mm||0):1}
 function pressHome(){
-  if(!S||S.user===null||S.fired)return '';const P=pressOf();let h='';
+  if(!S||S.user===null||S.fired)return '';const P=pressOf();let h=ivHome();
   if(pkAvail('pre'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz vor dem Spiel</b><div class="small">Die Journalisten warten. Deine Worte wirken auf Mannschaft, Fans und Vorstand.</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="pre">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="pre">Co-Trainer schicken</button></div></div>`;
   if(pkAvail('post'))h+=`<div class="news t-press"><b>🎙️ Pressekonferenz nach dem Spiel</b><div class="small">${(()=>{const r=(S.ureps||[]).slice(-1)[0];return r?`${r.gf}:${r.ga} gegen ${esc(club(r.opp).name)} – die Reporter haben Fragen.`:''})()}</div><div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="pkOpen" data-v="post">Zur Pressekonferenz</button><button class="btn sm" data-act="pkSkipAll" data-v="post">Auslassen</button></div></div>`;
   const L=P.log.slice(0,3);
