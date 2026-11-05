@@ -39,6 +39,7 @@ function installCard(){
 
 /* ---------- Grundgerüst ---------- */
 const ICONS={
+ stats:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
  squad:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/>',
  tactic:'<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M4 12h16"/><circle cx="12" cy="12" r="2.6"/><path d="M9 3v3h6V3M9 21v-3h6v3"/>',
@@ -51,7 +52,7 @@ const ICONS={
  world:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z"/>',
  menu:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>'};
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
-const NAV=[['home','Übersicht'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['transfers','Transfers'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
+const NAV=[['home','Übersicht'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['stats','Statistiken'],['transfers','Transfers'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
 function modalHtml(){return UI.modal?`<div class="ov" data-act="closeModal"><div class="modal" data-stop="1">${UI.modal()}</div></div>`:''}
 function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
 function render(){
@@ -63,7 +64,7 @@ function render(){
   if(v==='live')body=renderLive();
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
-  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
+  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
   const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
@@ -1031,26 +1032,7 @@ function importModal(){return ()=>`<h2>Spielstand importieren</h2><p class="smal
   <div class="row" style="margin-top:10px"><button class="btn pri" data-act="doImport">Importieren</button><button class="btn" data-act="closeModal">Abbrechen</button></div>`}
 
 /* ---------- Live-Spiel & Ergebnisse ---------- */
-function renderLive(){
-  const L=UI.live;if(!L)return renderHome();
-  const {m,r}=L,hc=club(m.h),ac=club(m.a);
-  const shown=r.ev.filter(e=>e.m<=L.min);let hg=0,ag=0,ph=0,pa=0;shown.forEach(e=>{if(e.type==='goal')e.side==='h'?hg++:ag++;if(e.type==='pen')e.side==='h'?ph++:pa++});
-  const inPen=shown.some(e=>e.type==='pen'||e.type==='penmiss'||(e.type==='info'&&e.m===121));
-  const evHtml=shown.slice().reverse().map(e=>{const c=e.side==='h'?hc:ac;const ic=e.type==='goal'?'⚽':e.type==='card'?'🟨':e.type==='injury'?'🩹':e.type==='pen'?'✅':e.type==='penmiss'?'❌':e.type==='info'?'📣':'•';
-    const mm=e.m>120?'i.E.':e.m+"'";return `<div class="ev ${e.type==='goal'||e.type==='info'?'goal':''}"><span class="m">${mm}</span><span>${ic} ${e.type==='info'?'':'<b>'+esc(c.short)+'</b> '}${esc(e.t)}${e.type==='goal'?' <span class="muted">('+e.score+')</span>':''}${e.type==='pen'||e.type==='penmiss'?' <span class="muted">('+e.score+')</span>':''}</span></div>`}).join('');
-  const minLbl=L.done?(m.pen?'nach Elfmeterschießen':m.et?'nach Verlängerung':'Abpfiff'):L.min>120?'Elfmeterschießen':L.min>90&&r.et?'Verlängerung · '+L.min+'. Minute':Math.min(L.min,90)+'. Minute';
-  const barMax=r.et?120:90;
-  const sp=s=>`<button class="${L.speed===s?'on':''}" data-act="speed" data-v="${s}">${s===400?'Langsam':s===150?'Normal':'Schnell'}</button>`;
-  return `<div class="card"><div class="small muted" style="text-align:center;margin-bottom:6px">${L.label?esc(L.label):esc(L.L.name)+' · '+(L.round+1)+'. Spieltag'}</div><div class="score"><div>${badge(hc,48)}<div style="margin-top:6px"><b>${esc(hc.name)}</b></div><div class="small muted">${hc.tactic.f} · ${MENTALITY[hc.tactic.men]}</div></div>
-   <div><div class="big">${hg}:${ag}</div>${inPen?`<div class="small"><b>i.E. ${ph}:${pa}</b></div>`:''}<div class="pill">${minLbl}</div></div>
-   <div>${badge(ac,48)}<div style="margin-top:6px"><b>${esc(ac.name)}</b></div><div class="small muted">${ac.tactic.f} · ${MENTALITY[ac.tactic.men]}</div></div></div>
-   <div class="bar" style="margin-top:14px"><i style="width:${Math.min(L.min,barMax)/barMax*100}%"></i></div>
-   ${L.done?`<div class="row small muted" style="justify-content:center;margin-top:10px;gap:18px"><span>Ballbesitz ${r.poss}% : ${100-r.poss}%</span><span>Torschüsse ${r.sh} : ${r.sa}</span></div>`:''}
-   <div class="row" style="justify-content:center;margin-top:12px">${L.done?`<button class="btn pri" data-act="liveDone">${UI.liveQueue&&UI.liveQueue.length?'Nächstes Spiel ▶':'Weiter zu den Ergebnissen ▶'}</button>`:`<div class="seg">${sp(400)}${sp(150)}${sp(40)}</div><button class="btn" data-act="liveSkip">Zum Ergebnis ⏭</button>`}</div></div>
-   <div class="card tick" style="margin-top:12px">${evHtml||'<p class="muted">Anpfiff…</p>'}</div>`;
-}
-function startLive(res){UI.live={m:res.m,r:res.r,round:res.round,L:res.L,label:res.label||null,min:0,speed:(UI.live&&UI.live.speed)||150,done:false};UI.view='live';render();tickLive()}
-function tickLive(){clearTimeout(tickLive.t);const L=UI.live;if(!L||L.done)return;const end=L.r.end||95;L.min++;if(L.min>=end){L.min=end;L.done=true}if(UI.view==='live')render();if(!L.done)tickLive.t=setTimeout(tickLive,L.min>120?Math.max(L.speed,350):L.speed)}
+/* renderLive, startLive, tickLive: siehe live.js */
 function renderWeekResults(){
   const W=UI.weekRes||{played:[]};const uL=league(userClub());
   const mine=W.played.find(x=>x.L.id===uL.id);
@@ -1113,7 +1095,6 @@ const ACT={
   },
   toSeason:()=>{UI.view='season';render()},
   newSeason:()=>{UI.loading='Neue Saison wird vorbereitet…';render();setTimeout(()=>{seasonEnd();UI.loading=null;UI.view='home';render();toast('Neue Saison gestartet!')},40)},
-  liveSkip:()=>{UI.live.min=UI.live.r.end||95;UI.live.done=true;render()},
   openComp:d=>{UI.cup=d.v;UI.cupMode='int';UI.view='cups';window.scrollTo(0,0);render()},
   cupSel:d=>{UI.cup=d.v;UI.cupTab=null;render()},
   cupMode:d=>{UI.cupMode=d.v;render()},
@@ -1122,7 +1103,6 @@ const ACT={
   openNatCup:()=>{UI.cupMode='nat';UI.natCup=userClub().assoc;UI.view='cups';window.scrollTo(0,0);render()},
   cupTab:d=>{UI.cupTab=d.v;render()},
   liveDone:()=>{if(UI.liveQueue&&UI.liveQueue.length){startLive(UI.liveQueue.shift());return}UI.view='matchday';UI.live=null;render()},
-  speed:d=>{UI.live.speed=+d.v;render();tickLive()},
   player:d=>{UI.ptab='profil';UI.modal=playerModal(d.id);render()},
   ptab:d=>{UI.ptab=d.v;render()},
   clubInfo:d=>{UI.modal=clubModal(+d.id);render()},
