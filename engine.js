@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.23.0';
+const APP_VERSION='0.24.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;

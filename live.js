@@ -130,13 +130,14 @@ function renderLive(){
     <div class="lprog"><i style="width:${prog*100}%"></i>${[45,90].map(x=>`<b style="left:${x/(r.et?120:90)*100}%"></b>`).join('')}</div>
     ${momentumSvg(r,st,col,total)}
     <div class="row" style="justify-content:center;margin-top:10px">${ctrl}</div>
+    <div class="row" style="justify-content:center;margin-top:8px">${v3Toggle()}</div>
     ${canIv(L,st)?quickTac(L,st):''}
     ${L.done?matchVerdict(L,st,hc,ac):''}
   </div>${L.ivOpen&&canIv(L,st)?ivPanel(L,st,hc,ac):''}`;
   const tab=L.tab,rt=tab==='ticker'?'lineup':tab;
   const tabs=`<div class="seg ltabs">${[['ticker','Ticker'],['lineup','Aufstellungen'],['stats','Statistik'],['players','Spieler']].map(([k,l])=>`<button class="${k===tab?'on-m':''} ${k===rt?'on-d':''} ${k==='ticker'?'tk-only':''}" data-act="liveTab" data-v="${k}">${l}</button>`).join('')}</div>`;
   const right=rt==='lineup'?lineupPane(L,st,hc,ac):rt==='stats'?statsPane(L,st,hc,ac,col):playersPane(L,hc,ac);
-  return `${head}${tabs}<div class="lgrid ${tab==='ticker'?'m-ticker':'m-right'}"><div class="card tick lticker">${tickerHtml(L,st,hc,ac)}</div><div class="lright">${right}</div></div>`;
+  return `<div class="lwrap">${head}${v3Slot(L)}</div>${tabs}<div class="lgrid ${tab==='ticker'?'m-ticker':'m-right'}"><div class="card tick lticker">${tickerHtml(L,st,hc,ac)}</div><div class="lright">${right}</div></div>`;
 }
 function tickerHtml(L,st,hc,ac){
   const r=L.r;const items=[];
