@@ -112,6 +112,10 @@ function setupNatCups(){
     // Termine: jede Runde (bzw. jedes Hinspiel/Rückspiel) eine eigene Woche
     const legs=spec.rounds.reduce((t,r)=>t+(r.legs||1),0),W=S.weeks,a=Math.max(1,Math.round(W*.06)),b=Math.max(a+legs,W-2);
     const slots=[];for(let i=0;i<legs;i++)slots.push(Math.round(a+(b-a)*(legs>1?i/(legs-1):1)));
+    // Wochenend-Pokalrunden (z. B. 1. Runde im DFB-Pokal, FA Cup) in Wochen legen, in denen die eigene Liga pausiert
+    const top=S.leagues.find(L=>L.assoc===code&&L.tier===1),wkN=typeof CUP_WEEKEND!=='undefined'&&CUP_WEEKEND[code]!==undefined?CUP_WEEKEND[code]:1;
+    if(top&&wkN){const lw=new Set(top.rw);let idx=0;spec.rounds.forEach((r,si)=>{for(let l=0;l<(r.legs||1);l++,idx++){if(si>=wkN||si===spec.rounds.length-1||!lw.has(slots[idx]))continue;
+      const lo=idx?slots[idx-1]+1:1,hi=idx<slots.length-1?slots[idx+1]-1:W-2;for(const dw of [1,-1,2,-2,3,-3,4]){const w=slots[idx]+dw;if(w>=lo&&w<=hi&&!lw.has(w)){slots[idx]=w;break}}}})}
     const cup={code,name:natCupName(code),season:S.season,note:spec.note,spec:spec.rounds.map(r=>({name:r.name,legs:r.legs||1,home:r.home||'lower',neutral:!!r.neutral,add:(r.add||[]).slice(),am:r.am||0,pots:r.pots||null})),
       slots,stages:[],rounds:[],winner:null,out:{},runner:null};
     S.ncups.push(cup);
