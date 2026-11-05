@@ -146,7 +146,7 @@ function pkEnd(){
   const best=K.ans.filter(a=>a.hl).sort((a,b)=>b.w-a.w)[0],calm=K.ans.every(a=>['calm','dodge','humble'].includes(a.tone));
   K.hl=best?best.hl:calm?`${mgrLast()} bleibt gelassen – keine Schlagzeilen aus ${u.short==='?'?'dem Verein':u.name}`:null;
   ctSay('sys',P.fine?`Der Verband prüft deine Schiedsrichter-Kritik – Geldstrafe ${money(P.fine)}.`:'Die Pressekonferenz ist beendet.');
-  if(K.hl){P.log.unshift({s:S.season,w:S.week,o:best?best.o:bpick(OUTLETS),hl:K.hl});P.log=P.log.slice(0,20);addNews('press',`📰 ${best?best.o:'Presse'}: ${K.hl}`,`Nach der Pressekonferenz ${K.kind==='pre'?'vor dem Spiel':'nach dem Spiel'}. Bild in der Öffentlichkeit: ${Math.round(P.img)} (${imgLbl(P.img)}).`)}
+  if(K.hl){P.log.unshift({s:S.season,w:S.week,o:best?best.o:bpick(OUTLETS),hl:K.hl});P.log=P.log.slice(0,20);mediaFromPk(K.hl,best?best.o:'Die Presse');addNews('press',`📰 ${best?best.o:'Presse'}: ${K.hl}`,`Nach der Pressekonferenz ${K.kind==='pre'?'vor dem Spiel':'nach dem Spiel'}. Bild in der Öffentlichkeit: ${Math.round(P.img)} (${imgLbl(P.img)}).`)}
   P.fine=0;
 }
 function pkSkipAll(kind){const P=pressOf(),u=userClub(),ast=crewOf(u).ast;P.done[kind+S.season+':'+S.week]=1;P.img=clamp(P.img-2,0,100);

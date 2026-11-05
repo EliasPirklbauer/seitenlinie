@@ -82,6 +82,7 @@ function boardSeasonEnd(){
 /* ---------- Entlassung & neuer Job ---------- */
 function boardFire(why){
   const u=userClub();S.fired={why,season:S.season,week:S.week,club:u.name,offers:jobOffers()};
+  mq({k:'coach',cid:u.id,old:S.manager||'Der Trainer',nw:'noch offen',why});
   addNews('board','❌ Du wurdest entlassen',`${esc(why)} ${esc(u.staff.pres.name)} bedankt sich für deine Arbeit.`);
   UI.view='fired';
 }
@@ -97,6 +98,7 @@ function takeJob(cid){
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};S.offers=[];S.deals={};S.vr={};S.ldeals={};S.bidRes={};S.reports=[];S.known={};S.crewEv=[];S.ureps=[];S.wish=[];S.sdprop=[];S.needs=[];S.taskReq=[];S.orgReq=[];S.relReq=[];S.press=null;
   S.board=null;S.fired=null;resetCache();boardOf();orgOf(nc).rel=60;
   addNews('board',`Neuer Job: ${nc.name}`,`Du übernimmst ${esc(nc.name)} (${esc(league(nc).name)}) als Nachfolger von ${esc(prev.name)}. Der Vorstand erwartet: <b>${nc.target.t}</b>.`);
+  mEmit('voss','breaking',`+++ ${S.manager||'Neuer Trainer'} übernimmt ${nc.name} +++`,`Schnelles Comeback an der Seitenlinie.`,[`<b>Eilmeldung:</b> ${esc(S.manager||'Der Trainer')} ist neuer Cheftrainer von ${esc(nc.name)}. Er folgt auf ${esc(prev.name)}.`,`Die Vorgabe des Vorstands: ${esc(nc.target.t)}.`],{cids:[nc.id],br:true});
   UI.view='home';UI.live=null;save();render();
 }
 function renderFired(){

@@ -241,7 +241,7 @@ function vorPerf(c,role){
 function vorReplace(c,role,why,quiet){
   const cr=crewOf(c),old=cr[role],q=clamp(Math.round(crewLevel(c)+(rnd()-.4)*7),1,20),m=crewPerson(c,role,q);m.until=S.season+3;m.since=S.season;cr[role]=m;
   if(role==='dirq'){const tr=pick(Object.keys(DIR));c.staff.dir={name:m.name,trait:tr}}
-  const mine=c.id===S.user;
+  const mine=c.id===S.user;mq({k:'vor',cid:c.id,role:roleLbl(role,c),old:old?old.name:null,nw:m.name});
   if(mine){addNews('board',`Aufsichtsrat: neuer ${roleLbl(role)}`,`${old?esc(old.name)+' muss gehen – '+esc(why)+'. ':''}Der Aufsichtsrat beruft <b>${esc(m.name)}</b> (${m.age} J., Qualität ${m.q}${role==='dirq'?', '+DIR[c.staff.dir.trait].label:''}).`);
     if(role==='dirq'){orgOf(c).rel=45;const B=boardOf();B.trust=clamp(B.trust-6,0,100);if(B.trust<38&&rnd()<.45)return boardFire(`Der neue ${roleLbl('dirq')} ${m.name} setzt auf einen eigenen Trainer.`)}}
   else if(!quiet&&c.league===userClub().league)addNews('coach',`${c.short}: neuer ${roleLbl(role,c)}`,`${old?esc(old.name)+' muss gehen. ':''}Nachfolger: ${esc(m.name)}.`);

@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.31.0';
+const APP_VERSION='0.32.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -719,6 +719,7 @@ function fireCoach(c,reason){
   const old=c.staff.coach;let nt;do{nt=pick(Object.keys(COACH))}while(nt===old.trait);
   const pool=poolArr(ASSOC[c.assoc].pool);
   c.staff.coach={name:pick(pool.f)+' '+pick(pool.l),trait:nt};c.tactic={...COACH[nt].t};c.firedSeason=S.season;autoLineup(c);
+  mq({k:'coach',cid:c.id,old:old.name,nw:c.staff.coach.name,why:reason});
   if(c.league===userClub().league)addNews('coach',`Trainerwechsel bei ${c.name}`,`${esc(old.name)} (${COACH[old.trait].label}) muss gehen – ${reason}. Nachfolger: ${esc(c.staff.coach.name)} (${COACH[nt].label}, ${COACH[nt].t.f}).`);
 }
 function aiWeekly(){
@@ -787,7 +788,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
-  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);
+  scoutWeekly();crewWeekly();orgWeekly();boardWeekly({userList});pressWeekly({userList});fansWeekly(played);aiPressWeekly(played);mediaWeekly(played);
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
