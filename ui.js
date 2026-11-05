@@ -41,6 +41,7 @@ function installCard(){
 const ICONS={
  staff:'<circle cx="12" cy="7" r="3"/><path d="M6 21v-2a6 6 0 0 1 12 0v2"/><path d="M4 11h3M17 11h3"/>',
  media:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 8.5h10M7 12h5M7 15.5h5"/><rect x="13.5" y="11.5" width="3.5" height="4" rx=".5"/>',
+ training:'<path d="M12 3 7.5 20h9z"/><path d="M5 20h14"/><path d="M9.4 13h5.2M10.6 8.5h2.8"/>',
  stats:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
  squad:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/>',
@@ -54,7 +55,7 @@ const ICONS={
  world:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z"/>',
  menu:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>'};
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
-const NAV=[['home','Übersicht'],['media','Medien'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['stats','Statistiken'],['transfers','Transfers'],['staff','Mitarbeiter'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
+const NAV=[['home','Übersicht'],['media','Medien'],['squad','Kader'],['tactic','Taktik'],['training','Training'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['stats','Statistiken'],['transfers','Transfers'],['staff','Mitarbeiter'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
 function modalHtml(){return UI.modal?`<div class="ov" data-act="closeModal"><div class="modal" data-stop="1">${UI.modal()}</div></div>`:''}
 function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
 function render(){
@@ -67,7 +68,7 @@ function render(){
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
   else if(S.fired)body=renderFired();
-  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,fans:renderFans,media:renderMedia,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
+  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,training:renderTraining,fans:renderFans,media:renderMedia,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
   const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;

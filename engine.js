@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.34.0';
+const APP_VERSION='0.35.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -550,7 +550,7 @@ function teamStrength(c){
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
   let D=avg('d')*(1+.03*(acc.d[1]-6.5)),M=avg('m')*(1+.03*(acc.m[1]-3.5)),A=avg('a')*(1+.03*(acc.a[1]-3.8));
-  const t=c.tactic,TP=tacticProfile(c),CM=crewMatchMul(c)*pressMul(c);D*=TP.D*CM;M*=TP.M*CM;A*=TP.A*CM;
+  const t=c.tactic,TP=tacticProfile(c),CM=crewMatchMul(c)*pressMul(c)*trainMul(c);D*=TP.D*CM;M*=TP.M*CM;A*=TP.A*CM;
   if(t.men==='offensiv'){A*=1.08;D*=.94}else if(t.men==='defensiv'){A*=.92;D*=1.08}
   if(t.press==='hoch'){M*=1.06;D*=.97}else if(t.press==='niedrig'){M*=.95;D*=1.03}
   if(t.style==='ballbesitz')M*=1.05;
@@ -756,7 +756,7 @@ function nextUserMatch(){
 function playWeek(){
   RNG=S.rng||RNG;resetCache();UMI=0;
   for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+(10+at(p,'nat')/4)*crewFitMul(club(p.club)),0,100)}
-  aiWeekly();clauseWatch();clauseTalksWeekly();
+  aiWeekly();clauseWatch();clauseTalksWeekly();trainWeek();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
   for(const L of S.leagues){
@@ -795,7 +795,7 @@ function playWeek(){
   if(S.week===ws){addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');processLoanEnds(true)}
   if(S.week===ws+3)addNews('info','Wintertransferfenster geschlossen','Ab jetzt zählt nur noch der Kader, den du hast.');
   if(S.week===Math.floor(S.weeks*.35)||S.week===Math.floor(S.weeks*.7)){const exp=squadOf(u).filter(p=>p.until<=S.season);if(exp.length)addNews('board','Auslaufende Verträge',`Am Saisonende ablösefrei weg, wenn du nicht verlängerst: ${exp.map(p=>esc(pname(p))+' ('+p.pos+', '+ovr(p)+')').join(', ')}.`)}
-  S.rng=RNG;save();
+  trainAfter();S.rng=RNG;save();
   return {userRes,userList,played};
 }
 
@@ -810,6 +810,7 @@ function develop(p){
   else if(p.age<=31)d=-(.8+rnd()*1.8)/Math.max(.7,drive);
   else d=-(1.8+rnd()*3.2)/Math.max(.7,drive);
   d=crewDevMul(p,p.club!==null?club(p.club):null,d);
+  if(d>0&&p.club===S.user&&S.train&&S.train.wk>=10)d*=TRAIN_DEV_SHARE;
   const v=decodeAt(p),w=WEIGHTS[p.pos];
   ATTR_KEYS.forEach((k,i)=>{
     const g=ATTR_GROUP[k];if(g==='hid')return;
@@ -910,7 +911,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();orgSeasonEnd();crewSeason();
+  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();orgSeasonEnd();crewSeason();if(S.train)S.train.wk=0;
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};
