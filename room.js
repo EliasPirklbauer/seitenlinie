@@ -49,7 +49,7 @@ function vrClubInit(p){
   const q=inqFor(p.id,S.user);if(q&&inqFresh(q)&&q.res&&q.res.club&&q.res.club.sale==='no'){T*=1.3;floor*=1.25}
   if(s.budget<0){floor*=.92}
   if(p.until<=S.season){T*=.8;floor*=.78}
-  const pat=clamp(70+rel*5+(pres.trait==='geduldig'?15:pres.trait==='ambitioniert'?-10:0),25,100);
+  const pat=clamp(70+rel*5+(pres.trait==='geduldig'?15:pres.trait==='ambitioniert'?-10:0)+15*crewK(userClub(),'dirq'),25,100);
   const st={T,floor,T0:T,pat,round:0,used:{},msgs:[],counter:null,st:'open',offer:normBid({fee:nice(scoutEst(p)*.85)}),dir:dir.name,trait:dir.trait};
   vrSay(st,'sys',`Büro von ${dir.name}, Sportdirektor von ${s.name} (${DIR[dir.trait].label}). Präsident: ${PRES[pres.trait].label}.`);
   for(const l of sdHello(p,s,dir,pres,rel))vrSay(st,'them',l);

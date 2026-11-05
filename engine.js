@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.26.0';
+const APP_VERSION='0.27.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -550,7 +550,7 @@ function teamStrength(c){
   });
   const avg=k=>acc[k][1]?acc[k][0]/acc[k][1]:30;
   let D=avg('d')*(1+.03*(acc.d[1]-6.5)),M=avg('m')*(1+.03*(acc.m[1]-3.5)),A=avg('a')*(1+.03*(acc.a[1]-3.8));
-  const t=c.tactic,TP=tacticProfile(c);D*=TP.D;M*=TP.M;A*=TP.A;
+  const t=c.tactic,TP=tacticProfile(c),CM=crewMatchMul(c);D*=TP.D*CM;M*=TP.M*CM;A*=TP.A*CM;
   if(t.men==='offensiv'){A*=1.08;D*=.94}else if(t.men==='defensiv'){A*=.92;D*=1.08}
   if(t.press==='hoch'){M*=1.06;D*=.97}else if(t.press==='niedrig'){M*=.95;D*=1.03}
   if(t.style==='ballbesitz')M*=1.05;
@@ -741,8 +741,9 @@ function weeklyFinances(homeSet){
     if(c.guest)continue;
     const wages=wageBill(c),tv=tvIncome(c);let tickets=0;
     if(homeSet.has(c.id)){const L=league(c),r=rankOf(c.id);const att=Math.round(c.stadium*clamp(.55+c.rep/220+(L.clubs.length-r)/L.clubs.length*.14,.35,1));tickets=att*ticketPrice(c);c.lastAtt=att}
-    c.budget+=tv+tickets-wages;c.tBudget=Math.min(c.tBudget||0,Math.max(0,c.budget));
-    if(c.id===S.user){S.fin.tv+=tv;S.fin.tickets+=tickets;S.fin.wages+=wages;S.fin.log.unshift({w:S.week+1,tv,tickets,wages,bal:c.budget});if(S.fin.log.length>60)S.fin.log.length=60}
+    const CM=crewMoney(c,tv,tickets),extra=CM.spons+CM.mkt+CM.interest;
+    c.budget+=tv+tickets-wages+extra-CM.cost;c.tBudget=Math.min(c.tBudget||0,Math.max(0,c.budget));
+    if(c.id===S.user){S.fin.tv+=tv;S.fin.tickets+=tickets;S.fin.wages+=wages;S.fin.spons=(S.fin.spons||0)+extra;S.fin.staff=(S.fin.staff||0)+CM.cost;S.fin.log.unshift({w:S.week+1,tv,tickets,wages,bal:c.budget});if(S.fin.log.length>60)S.fin.log.length=60}
   }
 }
 function nextUserMatch(){
@@ -752,7 +753,7 @@ function nextUserMatch(){
 }
 function playWeek(){
   RNG=S.rng||RNG;resetCache();UMI=0;
-  for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+10+at(p,'nat')/4,0,100)}
+  for(const p of Object.values(S.players)){if(p.club===null)continue;if(p.inj>0)p.inj--;p.fit=clamp(p.fit+(10+at(p,'nat')/4)*crewFitMul(club(p.club)),0,100)}
   aiWeekly();clauseWatch();clauseTalksWeekly();
   const u=userClub();if(u.autoXI)autoLineup(u);const changed=fixLineup(u);
   let userRes=null;const homes=new Set(),played=[];
@@ -775,7 +776,7 @@ function playWeek(){
   for(const p of Object.values(S.players)){
     if(p.club===null)continue;const c=club(p.club);if(c.guest)continue;
     if(p.inj===0&&league(c).wr[S.week]!==undefined){if(c.lineup.includes(p.id))p.mor+=1.5;else p.mor-=ROLES[p.role].exp*3}
-    p.mor=clamp(p.mor+(70-p.mor)*.03,15,100);
+    p.mor=clamp(p.mor+(crewMorTarget(c)-p.mor)*.03,15,100);
     if(c.id===S.user){
       if(p.mor<35&&!p.unhappy&&ROLE_ORDER.indexOf(p.role)<=1){p.unhappy=true;addNews('board',`${fullname(p)} ist unzufrieden`,`Als ${ROLES[p.role].label} erwartet er mehr Einsatzzeit. Stell ihn auf, gib ihm eine andere Rolle bei einer Vertragsverlängerung oder setze ihn auf die Transferliste.`)}
       if(p.mor>50)p.unhappy=false;
@@ -784,6 +785,7 @@ function playWeek(){
   S.offers=S.offers.filter(o=>(o.wait||S.week-o.w<2)&&S.players[o.pid]&&S.players[o.pid].club===S.user);
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
+  if(S.week===S.weeks-6)crewExpiryWarn();
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
@@ -804,6 +806,7 @@ function develop(p){
   else if(p.age<=29)d=gauss()*1.1+(drive-1)*.8;
   else if(p.age<=31)d=-(.8+rnd()*1.8)/Math.max(.7,drive);
   else d=-(1.8+rnd()*3.2)/Math.max(.7,drive);
+  d=crewDevMul(p,p.club!==null?club(p.club):null,d);
   const v=decodeAt(p),w=WEIGHTS[p.pos];
   ATTR_KEYS.forEach((k,i)=>{
     const g=ATTR_GROUP[k];if(g==='hid')return;
@@ -895,7 +898,7 @@ function seasonEnd(){
   for(const c of S.clubs){
     if(c.guest)continue;
     const yj=c.staff.dir.trait==='jugend',n=yj?3:2,names=[];
-    for(let i=0;i<n;i++){const q=36+c.rep*.3+(yj?5:0);const p=genPlayer(pick(POS_LIST),q,ri(16,18),c.assoc);p.pot=clamp(p.pot+(yj?6:0),0,96);p.club=c.id;p.until=S.season+3;p.role='perspektive';p.wage=rw(calcWage(p)*.8*c.econ);S.players[p.id]=p;c.players.push(p.id);if(c.id===S.user)materializeContract(p);names.push(`${fullname(p)} (${p.pos}, Pot. ${p.pot})`)}
+    for(let i=0;i<n;i++){const q=36+c.rep*.3+(yj?5:0)+4*crewK(c,'youth');const p=genPlayer(pick(POS_LIST),q,ri(16,18),c.assoc);p.pot=clamp(Math.round(p.pot+(yj?6:0)+2*crewK(c,'scout')),0,96);p.club=c.id;p.until=S.season+3;p.role='perspektive';p.wage=rw(calcWage(p)*.8*c.econ);S.players[p.id]=p;c.players.push(p.id);if(c.id===S.user)materializeContract(p);names.push(`${fullname(p)} (${p.pos}, Pot. ${p.pot})`)}
     if(c.id===S.user)addNews('transfer','Neue Jugendspieler',`Aus der Akademie rücken auf: ${names.map(esc).join(', ')}.`);
   }
   refillFreeAgents();
@@ -903,7 +906,7 @@ function seasonEnd(){
   fas.slice(60+S.active.length*15).forEach(p=>delete S.players[p.id]);
   bgSeason();
   // Neue Saison
-  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();
+  S.season++;S.week=0;S.offers=[];S.talks=[];S.pbids=[];S.bidRes={};S.aineg=[];resetCache();crewSeason();
   for(const L of S.leagues)[...L.clubs].map(club).sort((a,b)=>b.rep-a.rep).forEach((c,i)=>c.expRank=i+1);
   schedule();
   S.fin={tv:0,tickets:0,wages:0,tIn:0,tOut:0,prize:0,cups:0,bonus:0,bon:{},log:[]};

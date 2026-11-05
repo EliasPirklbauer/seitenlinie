@@ -39,6 +39,7 @@ function installCard(){
 
 /* ---------- Grundgerüst ---------- */
 const ICONS={
+ staff:'<circle cx="12" cy="7" r="3"/><path d="M6 21v-2a6 6 0 0 1 12 0v2"/><path d="M4 11h3M17 11h3"/>',
  stats:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
  squad:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.8.3 5 2.6 5 5.8"/>',
@@ -52,7 +53,7 @@ const ICONS={
  world:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z"/>',
  menu:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/>'};
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
-const NAV=[['home','Übersicht'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['stats','Statistiken'],['transfers','Transfers'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
+const NAV=[['home','Übersicht'],['squad','Kader'],['tactic','Taktik'],['fixtures','Spielplan'],['calendar','Kalender'],['table','Tabelle'],['stats','Statistiken'],['transfers','Transfers'],['staff','Mitarbeiter'],['finance','Finanzen'],['cups','Wettbewerbe'],['world','Welt'],['menu','Menü']];
 function modalHtml(){return UI.modal?`<div class="ov" data-act="closeModal"><div class="modal" data-stop="1">${UI.modal()}</div></div>`:''}
 function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
 function render(){
@@ -64,7 +65,7 @@ function render(){
   if(v==='live')body=renderLive();
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
-  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
+  else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
   const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
@@ -517,7 +518,7 @@ function negSubmit(){
 /* ---------- Ablöseverhandlung (Kauf und Verkauf) ---------- */
 function userDeal(pid){const D=S.deals&&S.deals[pid];if(!D)return null;if(D.season!==S.season||!isWindow()||S.week>D.exp){delete S.deals[pid];return null}return D}
 function bidKey(pid){return pid+':'+S.season+':'+(S.week<4?'s':'w')}
-function scoutEst(p){const t=sellerTarget(p),f=.9+mkRng(hashStr('sc'+p.id+S.season))()*.2;return nice(t*f)}
+function scoutEst(p){const t=sellerTarget(p),f=1+(mkRng(hashStr('sc'+p.id+S.season))()-.5)*.24*(1-.6*crewK(userClub(),'scout'));return nice(t*f)}
 /* ---------- Zahlungsplan-Editor (Angebot & Verhandlungsraum) ---------- */
 function deferLimit(){const u=userClub(),open=userInstallments().filter(r=>r.from===S.user).reduce((t,r)=>t+r.amt,0);return Math.max(0,Math.round((u.tBudget*1.5+Math.max(0,u.budget)*.3-open)/1e5)*1e5)}
 function planTarget(ns){if(ns==='bid')return UI.bid.b;const V=S.vr&&S.vr[UI.vr.pid];return V&&V.club.offer}
@@ -880,7 +881,7 @@ function renderTransfers(){
 const WAGE_RATE=40;
 function renderFinance(){
   const c=userClub(),f=S.fin,wages=wageBill(c),step=rw(Math.max(1000,c.wBudget*.05));
-  const inc=f.tv+f.tickets+f.prize+(f.cups||0),exp=f.wages+(f.bonus||0);
+  const inc=f.tv+f.tickets+f.prize+(f.cups||0)+(f.spons||0),exp=f.wages+(f.bonus||0)+(f.staff||0);
   const line=(l,v,cls)=>`<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)"><span>${l}</span><b class="${cls||''}">${money(v)}</b></div>`;
   return `<h2>Finanzen</h2><div class="grid g2">
    <div class="card"><h3>Kontostand</h3><div style="font-size:30px;font-weight:800" class="${c.budget<0?'bad':''}">${money(c.budget)}</div><div class="small muted">Gehälter aktuell ${money(mon(wages))} pro Monat (${money(wages*52)} pro Jahr)</div>
@@ -892,7 +893,7 @@ function renderFinance(){
      <div class="bar" style="margin-top:6px"><i style="width:${clamp(wages/c.wBudget*100,0,100)}%;background:${wages>c.wBudget*.95?'var(--bad)':wages>c.wBudget*.85?'var(--gold)':'var(--accent)'}"></i></div>
      <label class="f" style="margin-top:12px">Budget umschichten (1 € Monatsgehalt = ${(WAGE_RATE*12/52).toLocaleString('de-DE',{maximumFractionDigits:1})} € Transferbudget)</label>
      <div class="row"><button class="btn sm" data-act="shift" data-v="${step}">+${money(mon(step))}/Monat Gehalt <span class="muted">(−${money(step*WAGE_RATE)})</span></button><button class="btn sm" data-act="shift" data-v="-${step}">−${money(mon(step))}/Monat Gehalt <span class="muted">(+${money(step*WAGE_RATE)})</span></button></div></div>
-   <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Liga-Prämien',f.prize,'good')}${line('Internationale Wettbewerbe',f.cups||0,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-f.wages,'bad')}${line('Prämien',-(f.bonus||0),'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
+   <div class="card"><h3>Diese Saison</h3>${line('TV-Gelder',f.tv,'good')}${line('Zuschauereinnahmen',f.tickets,'good')}${line('Liga-Prämien',f.prize,'good')}${line('Internationale Wettbewerbe',f.cups||0,'good')}${line('Sponsoring, Vermarktung & Zinsen',f.spons||0,'good')}${line('Spielerverkäufe',f.tOut,'good')}${line('Gehälter & Abfindungen',-f.wages,'bad')}${line('Prämien',-(f.bonus||0),'bad')}${line('Mitarbeiter & Abfindungen',-(f.staff||0),'bad')}${line('Spielerkäufe',-f.tIn,'bad')}${line('Saldo',inc+f.tOut-exp-f.tIn,inc+f.tOut-exp-f.tIn>=0?'good':'bad')}</div>
    <div class="card"><h3>Prämien diese Saison</h3>${BONUS.filter(b=>(f.bon||{})[b.k]).map(b=>line(b.lbl,-(f.bon[b.k]),'bad')).join('')||'<p class="small muted">Noch keine Prämien ausgezahlt.</p>'}<div class="small muted" style="margin-top:8px">Erwartet für die ganze Saison: <b style="color:var(--text)">${money(squadOf(c).reduce((t,p)=>{if(!p.ct)return t;const e=bonusEV(p,c,p.ct,p.role);for(const k in e)t+=e[k];return t},0))}</b> (laut Vertragsklauseln deines Kaders)</div></div>
    <div class="card"><h3>Transferraten & Beteiligungen</h3>${(()=>{const r=userInstallments().sort((a,b)=>instDue(a)<instDue(b)?-1:1);
       const rows=r.map(x=>`<div class="crow"><span>${x.from===S.user?'an':'von'} ${esc(club(x.from===S.user?x.to:x.from).name)}<small>${esc(x.name)} · ${x.kind==='fee'?'Ablöse':'Rate'} fällig am ${fmtDate(instDue(x))}</small></span><b class="${x.from===S.user?'bad':'good'}">${x.from===S.user?'−':'+'}${money(x.amt)}</b></div>`).join('');

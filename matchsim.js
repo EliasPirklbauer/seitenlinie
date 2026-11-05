@@ -127,7 +127,7 @@ function simMatch(hc,ac,detail,neutral){
     const xi=onPitch(c).map(x=>x.p);const hot=xi.length?xi.reduce((a,p)=>a+at(p,'agg')+(21-at(p,'tmp')),0)/xi.length/21:1;
     M.fr[s]=11*hot*(td.tackle==='hard'?1.25:td.tackle==='soft'?.78:1)*(t.press==='hoch'?1.1:t.press==='niedrig'?.9:1)/95;
     M.or[s]=1.9*(otd.line==='high'?1.45:otd.line==='low'?.65:1)*(otd.trap==='on'?1.35:1)*(t.style==='konter'?1.2:1)/95;
-    const inj=xi.length?xi.reduce((a,p)=>a+at(p,'inp'),0)/xi.length:10;M.ir[s]=.11*(.6+inj/25)/95;
+    const inj=xi.length?xi.reduce((a,p)=>a+at(p,'inp'),0)/xi.length:10;M.ir[s]=.11*(.6+inj/25)/95*crewInjMul(c);
     M.cardF=M.cardF||{};M.cardF[s]=td.tackle==='hard'?1.45:td.tackle==='soft'?.6:1;
   }
   if(detail){const h=hc.name,a=ac.name;M.t=0;M.m=0;
@@ -303,7 +303,7 @@ function offside(M,side){
 function injury(M,side){
   const c=M.c[side],xs=onPitch(c);if(!xs.length)return;
   const x=wpick(xs,x=>Math.pow(at(x.p,'inp'),1.5)*(1.3-at(x.p,'nat')/40));const p=x.p;if(p.inj>0)return;
-  p.inj=ri(1,5);
+  p.inj=crewInjDur(c,ri(1,5));
   if(M.detail)evPush(M,{side,type:'injury',lines:[T(TX.injury,{p:pn(p)}),T(TX.injOut,{p:pn(p)})+` (Ausfall ca. ${p.inj} ${p.inj===1?'Woche':'Wochen'})`,pick(AT.injury)],pid:p.id});
   if(!doSubs(M,side,1,'inj',x.i)){c.lineup[x.i]=null;if(M.iv[p.id])M.iv[p.id].to=M.t;M.atk[side]*=.85}
 }

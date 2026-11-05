@@ -581,6 +581,18 @@ html.desk .v3card.idle{border:1px solid var(--line);border-radius:var(--r)}
 .vrpanel.busy{opacity:.55;pointer-events:none}
 .vrpanel .btn{white-space:normal;text-align:left}
 .vrmsg.typing>div{padding:6px 12px}
+
+/* ===== Mitarbeiter ===== */
+.crewgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.crewc{display:flex;flex-direction:column;gap:3px}
+.crewc .crole{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.crewc .cname{font-family:var(--display);font-size:22px;font-weight:700;line-height:1.1}
+.crewc.vacant{border-style:dashed}
+.crewc.board{background:var(--night2)}
+.cq{display:flex;align-items:center;gap:8px;margin-top:4px}.cq b{font-family:var(--display);font-size:20px}
+.stars{color:#e0a020;letter-spacing:1px}
+.ceff{font-weight:600;font-size:13px;margin-top:4px}
+.crow.cand{align-items:center}
 </style>
 </head>
 <body>
@@ -603,5 +615,6 @@ html.desk .v3card.idle{border:1px solid var(--line);border-radius:var(--r)}
 <script src="stats.js"></script>
 <script src="talk.js"></script>
 <script src="room.js"></script>
+<script src="crew.js"></script>
 </body>
 </html>
