@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.24.0';
+const APP_VERSION='0.25.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -784,6 +784,7 @@ function playWeek(){
   S.offers=S.offers.filter(o=>(o.wait||S.week-o.w<2)&&S.players[o.pid]&&S.players[o.pid].club===S.user);
   S.week++;
   processBids();processAiNegs();processInquiries();
+  if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
   if(S.week===ws){addNews('info','Wintertransferfenster geöffnet','Für drei Wochen sind Transfers wieder möglich.');processLoanEnds(true)}

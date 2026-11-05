@@ -1,7 +1,7 @@
 /* Seitenlinie – Service Worker
    Speichert alle Spieldateien auf dem Gerät, damit die App ohne Internet startet.
    Bei jedem Update: CACHE-Version erhöhen. */
-const CACHE = 'seitenlinie-v0.24.0';
+const CACHE = 'seitenlinie-v0.25.0';
 const ASSETS = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const ASSETS = [
   './live.js',
   './view3d.js',
   './stats.js',
+  './room.js',
   './ui.js',
   './fonts/Rubik-var.woff',
   './fonts/BarlowCondensed-600.woff',
