@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.27.0';
+const APP_VERSION='0.28.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -786,6 +786,7 @@ function playWeek(){
   S.week++;
   processBids();processAiNegs();processInquiries();payInstallments();
   if(S.week===S.weeks-6)crewExpiryWarn();
+  scoutWeekly();crewWeekly();boardWeekly({userList});
   if(S.week===Math.floor(S.weeks/2))vrPromiseCheck(false);if(S.week===S.weeks)vrPromiseCheck(true);
   const ws=winterStart();
   if(S.week===4)addNews('info','Transferfenster geschlossen',`Das Sommer-Transferfenster ist zu. Nächste Chance: Woche ${ws+1}.`);
@@ -832,6 +833,7 @@ function bgSeason(){
 }
 function seasonEnd(){
   RNG=S.rng||RNG;resetCache();
+  boardSeasonEnd();
   closeComps();closeNatCups();finalizeCoef();
   S.qualOrder={};for(const L of S.leagues)if(L.tier===1)S.qualOrder[L.assoc]=tableOf(L).map(r=>r.id);
   S.prevTables={};for(const L of S.leagues)S.prevTables[L.id]=tableOf(L).map(r=>r.id);

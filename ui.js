@@ -65,6 +65,7 @@ function render(){
   if(v==='live')body=renderLive();
   else if(v==='matchday')body=renderWeekResults();
   else if(v==='season')body=renderSeasonEndScreen();
+  else if(S.fired)body=renderFired();
   else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
@@ -213,6 +214,7 @@ function renderHome(){
    <div class="card"><h3>Saison · ${esc(L.name)}</h3>
      <div class="row" style="gap:26px"><div><div class="small muted">Platz</div><div class="kpi">${rank}.</div></div><div><div class="small muted">Punkte</div><div class="kpi">${me.pts}</div></div><div><div class="small muted">Tore</div><div class="kpi">${me.tf}:${me.ta}</div></div></div>
      <div class="small" style="margin-top:8px">Vorstandsziel: <b>${c.target.t}</b> ${rank<=c.target.r?'<span class="good">✓ auf Kurs</span>':'<span class="bad">✗ aktuell verfehlt</span>'}</div>
+     ${(()=>{const B=boardOf(),[ti,tl]=trustLbl(B.trust);return `<div class="small" style="margin-top:4px">${ti} Aufsichtsrat: <b>${Math.round(B.trust)}</b> – ${tl}${B.pending?' · <a data-act="bdOpen" style="color:var(--text);cursor:pointer;text-decoration:underline">Sitzung wartet</a>':''}</div>`})()}
      <div class="small muted" style="margin-top:4px">Letzte Spiele: ${last.map(m=>{const gf=m.h===S.user?m.hg:m.ag,ga=m.h===S.user?m.ag:m.hg;return `<b class="${gf>ga?'good':gf<ga?'bad':''}">${gf}:${ga}</b>`}).join(' · ')||'–'}</div>
      <div class="small muted" style="margin-top:4px">Transferfenster: ${isWindow()?'<span class="good">offen</span>':'geschlossen'} · Gehälter ${money(mon(wageBill(c)))} / ${money(mon(c.wBudget))} pro Monat</div>
      ${userSupercup()?`<div class="small" style="margin-top:4px">🛡️ ${esc(userSupercup().name)}: <b>${userSupercup().winner===S.user?'🏆 gewonnen':userSupercup().winner!==null?'verloren':'Woche '+(userSupercup().rounds[0].w+1)}</b></div>`:''}
@@ -227,7 +229,7 @@ function renderHome(){
 const POS_ORDER=Object.fromEntries(POS_LIST.map((p,i)=>[p,i]));
 function playerRow(p,c,extra){
   const inXI=c&&c.lineup.includes(p.id);
-  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.loan?` <span class="pill" style="font-size:10px;padding:0 6px;border-color:var(--info)" title="Leihe von ${esc(club(p.loan.from).name)}">Leihe</span>`:''}${(p.inj?' <span class="bad small">🩹'+p.inj+'</span>':'')+(p.sus?' <span class="bad small" title="gesperrt">🟥'+p.sus+'</span>':'')}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${p.pot}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(mon(p.wage))}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
+  return `<tr class="click" data-act="player" data-id="${p.id}"><td>${inXI?'<b class="good">●</b>':''}</td><td><span class="pill" style="border-color:${GROUP_COLOR[GROUP[p.pos]]}88">${p.pos}</span></td><td><b>${esc(fullname(p))}</b>${p.loan?` <span class="pill" style="font-size:10px;padding:0 6px;border-color:var(--info)" title="Leihe von ${esc(club(p.loan.from).name)}">Leihe</span>`:''}${(p.inj?' <span class="bad small">🩹'+p.inj+'</span>':'')+(p.sus?' <span class="bad small" title="gesperrt">🟥'+p.sus+'</span>':'')}</td><td class="small muted">${p.nat}</td><td class="n">${p.age}</td><td class="n">${ovrTag(ovr(p))}</td><td class="n muted">${potDisp(p)}</td><td class="n">${Math.round(p.fit)}%</td><td class="n">${p.mor>=80?'😀':p.mor>=60?'🙂':p.mor>=40?'😐':'☹️'}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${money(p.val)}</td><td class="n muted">${money(mon(p.wage))}</td><td class="small">${p.club!==null?ROLES[p.role].short:'–'}</td><td class="n ${p.club!==null&&p.until<=S.season?'gold':''}">${contractEnd(p)}${p.listed?' 🏷️':''}</td>${extra||''}</tr>`;
 }
 const PH='<th></th><th>Pos</th><th>Name</th><th>Nat.</th><th class="n">Alter</th><th class="n">Stärke</th><th class="n">Pot.</th><th class="n">Fit</th><th class="n">Moral</th><th class="n">Sp.</th><th class="n">Tore</th><th class="n">Marktwert</th><th class="n">Gehalt/M.</th><th>Rolle</th><th class="n">Vertrag</th>';
 function renderSquad(){
@@ -254,12 +256,12 @@ function playerModal(pid){
         <div style="min-width:0"><h2 style="margin:0">${esc(fullname(p))}</h2>
         <div class="muted small">${POS_LABEL[p.pos]} · ${c?esc(c.name)+' · '+esc(leagueName(c)):'vereinslos'}</div>
         <div class="chips"><span class="pill">${esc(natName(p.nat))}</span><span class="pill">${p.age} Jahre</span>${p.listed?'<span class="pill gold">🏷️ Transferliste</span>':''}${p.loan?`<span class="pill" style="border-color:var(--info)">🔁 Leihe von ${esc(club(p.loan.from).name)} ${loanEndText(p.loan)}</span>`:''}${(p.inj?`<span class="pill bad">🩹 ${p.inj} Wo. verletzt</span>`:'')+(p.sus?`<span class="pill bad">🟥 gesperrt (${p.sus} ${p.sus===1?'Spiel':'Spiele'})</span>`:'')}</div></div></div>
-      <div class="pscore"><div><span>Stärke</span>${ovrTag(ovr(p))}</div><div><span>Potenzial</span>${ovrTag(p.pot)}</div></div></div>
+      <div class="pscore"><div><span>Stärke</span>${ovrTag(ovr(p))}</div><div><span>Potenzial${known(p)?'':' ~'}</span>${known(p)?ovrTag(p.pot):`<span class="ovr" style="font-size:16px" title="Grobe Schätzung – schicke einen Scout in die Region">${potDisp(p)}</span>`}</div></div></div>
       <div class="seg ptabs">${[['profil','Profil'],['vertrag','Vertrag'],['karriere','Karriere']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ptab" data-v="${k}">${l}</button>`).join('')}</div>`;
     let body='';
     if(tab==='profil'){
       const key=WEIGHTS[p.pos];
-      const col=(title,keys)=>`<div class="acol"><h3>${title}</h3>${keys.map(k=>{const v=at(p,k);return `<div class="arow${key[k]?' key':''}"><span>${ATTR_LABEL[k]}</span><b class="av v${v>=16?4:v>=11?3:v>=6?2:1}">${v}</b></div>`}).join('')}</div>`;
+      const col=(title,keys)=>`<div class="acol"><h3>${title}</h3>${keys.map(k=>{const v=at(p,k),fd=attrDisp(p,k,v);return `<div class="arow${key[k]?' key':''}"><span>${ATTR_LABEL[k]}</span><b class="av ${fd?'fog':'v'+(v>=16?4:v>=11?3:v>=6?2:1)}">${fd||v}</b></div>`}).join('')}</div>`;
       const T=ATTR_DEF.filter(d=>d[2]==='tech').map(d=>d[0]),Mn=ATTR_DEF.filter(d=>d[2]==='ment').map(d=>d[0]),Ph=ATTR_DEF.filter(d=>d[2]==='phys').map(d=>d[0]),G=ATTR_DEF.filter(d=>d[2]==='gk').map(d=>d[0]);
       const cols=p.pos==='TW'?col('Torwart',[...G,'fir','pas'])+col('Mental',Mn)+col('Physis',Ph):col('Technik',T)+col('Mental',Mn)+col('Physis',Ph);
       const PM={TW:[50,90],IV:[50,74],AV:[[14,70],[86,70]],DM:[50,60],ZM:[50,46],OM:[50,32],FL:[[14,30],[86,30]],ST:[50,13]};
@@ -448,7 +450,7 @@ function negModal(){
       ${N.rt!=='none'?`<div class="row" style="margin-top:8px"><button class="btn sm" data-act="negRc" data-v="-1">−</button>${amtInput('rc',N.rc)}<button class="btn sm" data-act="negRc" data-v="1">+</button>${[1,1.5,2,3,5].map(m=>`<button class="btn sm" data-act="negRcMul" data-v="${m}">${String(m).replace('.',',')}× MW</button>`).join('')}</div><div class="small muted" style="margin-top:4px">Marktwert: ${money(p.val)} · je niedriger die Klausel, desto zufriedener ist ein ehrgeiziger Spieler</div>${clauseWin}`:''}</div>`;
     const sat=clamp(E.ratio*100,0,130),satCls=E.ratio>=1?'good':E.ratio>=.9?'gold':'bad';
     return `<div class="negc"><h2 style="margin-bottom:2px">${buy?'Transfer':'Vertrag anpassen / verlängern'}: ${esc(fullname(p))}</h2>
-     <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${p.pot} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
+     <div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · ${esc(natName(p.nat))} · Stärke ${ovr(p)} · Pot. ${potDisp(p)} · aktuell ${money(mon(p.wage))}/Monat${p.club!==null?' bis '+contractEnd(p):''}</div>
      ${buy?`<div class="news" style="margin-top:10px">${p.club!==null?(bf.deal?`🤝 <b>Ablöse mit ${esc(club(p.club).name)} vereinbart:</b> ${bidText(bf.deal.bid)}. Jetzt fehlt nur noch die Einigung mit dem Spieler.`:bf.clause?`⚡ <b>Ausstiegsklausel:</b> Für <b>${money(fee)}</b> darf ${esc(pname(p))} wechseln – ${esc(club(p.club).name)} kann nicht ablehnen. Zuerst musst du dich aber mit dem Spieler auf einen Vertrag einigen; erst dann wird die Klausel gezogen und die Ablöse überwiesen.`:`<b>${esc(club(p.club).name)}</b> verlangt <b>${money(fee)}</b> Ablöse.`):'Vereinslos: keine Ablöse, aber '+money(hand)+' Handgeld.'} Transferbudget: <b>${money(u.tBudget)}</b></div>`:''}
      <div class="small" style="margin-top:8px">Berater: <b>${esc(agentOf(p).name)}</b> (${esc(agentOf(p).agency)}) · ${esc(agentOf(p).lbl)} – ${esc(agentOf(p).desc)}</div>
      ${wi.length?`<div class="small" style="margin-top:8px">Wünsche des Beraters: ${wi.map(k=>`<span class="pill gold">★ ${WISH_LABEL[k]}</span>`).join(' ')}</div>`:''}
@@ -1108,7 +1110,7 @@ const ACT={
     UI.loading='Welt wird erstellt…';render();
     setTimeout(()=>{newWorld(st.seed,codes,st.pick,st.name.trim()||'Manager');startCareer(st.name.trim()||'Manager');UI.setup=null;UI.loading=null;UI.view='home';UI.tableLeague=null;UI.fxLeague=null;render()},40);
   },
-  advance:()=>{
+  advance:()=>{if(S.fired){UI.view="home";render();toast("Nimm zuerst ein Jobangebot an.");return}
     if(S.week>=S.weeks){UI.view='season';render();return}
     S.rng=RNG;UI.weekSnap=JSON.stringify(S);UI.weekIv=[];LIVE_IV=[];
     const res=playWeek();UI.weekRes=res;UI.fxRound=null;UI.live=null;UI.liveAll=res.userList;

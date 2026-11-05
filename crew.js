@@ -3,7 +3,7 @@
    Scouting & Nachwuchs. Jeder Mitarbeiter hat eine Qualität (1–20),
    Gehalt und Vertrag – und wirkt sich messbar aufs Spiel aus.
    ===================================================================== */
-const CREW_GROUPS=[['lead','Führungsriege'],['sport','Sportlicher Stab'],['med','Medizin & Leistung'],['scout','Scouting & Nachwuchs']];
+const CREW_GROUPS=[['lead','Führungsriege'],['sport','Sportlicher Stab'],['med','Medizin & Leistung'],['scout','Scouting & Nachwuchs'],['board','Aufsichtsrat']];
 const CREW={
   ceo:{g:'lead',lbl:'Vorstandsvorsitzender',a:'Wirtschaftliche Führung',wf:2.0,eff:k=>`Sponsoring ${pc(k*60)}`,desc:'Verhandelt Sponsoren- und Werbeverträge.',board:1},
   cfo:{g:'lead',lbl:'Finanzvorstand',a:'Finanzplanung',wf:1.4,eff:k=>`Zinserträge & Kostenkontrolle ${pc(k*100)}`,desc:'Legt Rücklagen klug an und hält die Kosten im Griff.',board:1},
@@ -35,10 +35,10 @@ function crewOf(c){
   c.crew=cr;c.crewB=Math.round(crewCost(c)*1.15);
   return cr;
 }
-function crewCost(c){let s=0;for(const r in c.crew||{}){const m=c.crew[r];if(m)s+=m.wage}return s}
-function crewBudget(c){crewOf(c);return c.crewB||crewCost(c)}
+function crewCost(c){let s=0;for(const r in c.crew||{}){const m=c.crew[r];if(m)s+=m.wage}for(const x of c.scouts||[])s+=x.wage;return s}
+function crewBudget(c){crewOf(c);return (c.crewB||crewCost(c))+(c.id===S.user?rw(crewWage(crewLevel(c),'scout',c)*.55*3):0)}
 // Wirkung: −0,9 (sehr schwach/unbesetzt) … +1 (Weltklasse)
-function crewK(c,role){if(!c||c.guest)return 0;const m=crewOf(c)[role];return m?(m.q-10)/10:-.6}
+function crewK(c,role){if(!c||c.guest)return 0;const m=crewOf(c)[role];if(!m)return -.6;const mood=m.mood===undefined?60:m.mood;return (clamp(m.q+(mood-60)/20,1,21)-10)/10}
 
 /* ---------- Wirkungen (aus Engine aufgerufen) ---------- */
 function crewFitMul(c){return 1+.15*crewK(c,'fit')+.1*crewK(c,'phys')}
@@ -65,6 +65,7 @@ function crewSeason(){
       if(!m||m.until<S.season||rnd()<.12){const lvl=crewLevel(c);c.crew[role]=crewPerson(c,role,clamp(Math.round(lvl+(rnd()-.5)*7),1,20));if(role==='dirq'&&c.staff)c.crew[role].name=c.staff.dir.name}else m.age++;
     }
     if(c.id!==S.user)c.crewB=Math.round(crewCost(c)*1.15);
+    if(c.id===S.user&&c.scouts){c.scouts=c.scouts.filter(s=>{if(s.until<S.season){addNews('board',`Scout ${s.name} hört auf`,`Sein Vertrag ist ausgelaufen – das Gebiet ${esc(regionLbl(s.region))} ist unbeobachtet.`);return false}s.age++;return true})}
   }
 }
 function crewExpiryWarn(){
@@ -93,15 +94,16 @@ function renderStaff(){
     const m=cr[role],k=m?(m.q-10)/10:-.6;
     people.push(`<div class="card crewc ${m?'':'vacant'}"><div class="crole">${R.lbl}</div>
       ${m?`<div class="cname">${esc(m.name)}</div><div class="small muted">${m.age} J. · ${esc(natName(m.nat))} · seit ${seasonLbl(m.since)}</div>
-      <div class="cq"><span class="stars">${stars(m.q)}</span><b>${m.q}</b><span class="small muted">${crewQLbl(m.q)} · ${R.a}</span></div>`:`<div class="cname bad">Unbesetzt</div><div class="small muted">Ohne Besetzung fehlt diese Arbeit komplett.</div>`}
+      <div class="cq"><span class="stars">${stars(m.q)}</span><b>${m.q}</b><span class="small muted">${crewQLbl(m.q)} · ${R.a}</span></div>
+      <div class="small" style="margin-top:4px" title="${esc(CT_TR[crewTr(m)].d)}">${CT_TR[crewTr(m)].lbl} · ${moodLbl2(m.mood)[0]} ${moodLbl2(m.mood)[1]}</div>`:`<div class="cname bad">Unbesetzt</div><div class="small muted">Ohne Besetzung fehlt diese Arbeit komplett.</div>`}
       <div class="ceff ${k>=0?'good':'bad'}">${R.eff(k)}</div><div class="small muted">${R.desc}</div>
       ${m?`<div class="crow" style="margin-top:6px"><span>Gehalt<small>Vertrag bis ${contractEnd({club:1,until:m.until})}</small></span><b>${money(mon(m.wage))}/Monat</b></div>`:''}
       ${R.board?`<div class="small muted" style="margin-top:6px">Wird vom Vorstand berufen – du kannst einen Wechsel vorschlagen.</div>`:''}
-      <div class="row" style="margin-top:8px">${m?`<button class="btn sm" data-act="crewExt" data-v="${role}">Verlängern (+2 J.)</button><button class="btn sm" data-act="crewHire" data-v="${role}">${R.board?'Wechsel vorschlagen':'Ersetzen'}</button><button class="btn sm warn" data-act="crewFire" data-v="${role}">Trennen</button>`:`<button class="btn sm pri" data-act="crewHire" data-v="${role}">Stelle besetzen</button>`}</div></div>`);
+      <div class="row" style="margin-top:8px">${m?`<button class="btn sm pri" data-act="ctOpen" data-v="${role}">💬 Gespräch</button><button class="btn sm" data-act="crewExt" data-v="${role}">Verlängern (+2 J.)</button><button class="btn sm" data-act="crewHire" data-v="${role}">${R.board?'Wechsel vorschlagen':'Ersetzen'}</button><button class="btn sm warn" data-act="crewFire" data-v="${role}">Trennen</button>`:`<button class="btn sm pri" data-act="crewHire" data-v="${role}">Stelle besetzen</button>`}</div></div>`);
   }
   return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Mitarbeiter</h2><div class="small">Personalkosten <b>${money(mon(cost))}</b> / Budget ${money(mon(bud))} pro Monat</div></div>
    <div class="bar" style="margin-bottom:12px"><i style="width:${clamp(cost/bud*100,0,100)}%;background:${cost>bud?'var(--bad)':'var(--accent)'}"></i></div>
-   ${tabs}<div class="crewgrid">${people.join('')}</div>
+   ${crewEvHtml()}${tabs}<div class="crewgrid">${g==='board'?boardPanel():people.join('')+(g==='scout'?scoutPanel():'')}</div>
    <p class="small muted">Qualität 1–20, 10 entspricht dem Durchschnitt. Starke Mitarbeiter wirken positiv, schwache oder fehlende negativ. Die Wirkung siehst du an jeder Karte.</p>`;
 }
 function crewModal(role){return ()=>{

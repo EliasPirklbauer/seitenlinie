@@ -301,7 +301,7 @@ function vrModal(){return ()=>{
   if(step==='agent'&&!V.agent&&clubOk&&pDone&&V.player.conv>=25)V.agent=vrAgentInit(p,u);
   const tabs=[['club','1 · Verein',p.club===null?'—':clubOk?'✅':V.club&&V.club.st==='broken'?'❌':''],['player','2 · Spieler',pDone?(V.player.conv>=25?'✅':'❌'):''],['agent','3 · Berater & Vertrag',V.agent&&V.agent.st==='broken'?'❌':!clubOk||!pDone||V.player.conv<25?'🔒':'']];
   const cur=p.club!==null?club(p.club):null;
-  const head=`<div class="vrhead"><div class="row" style="gap:10px">${cur?badge(cur,34):'<span class="pill">vereinslos</span>'}<div><h2 style="margin:0">Verhandlungsraum · ${esc(fullname(p))}</h2><div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · Pot. ${p.pot} · Marktwert ${money(p.val)} · Vertrag bis ${contractEnd(p)}</div></div></div>
+  const head=`<div class="vrhead"><div class="row" style="gap:10px">${cur?badge(cur,34):'<span class="pill">vereinslos</span>'}<div><h2 style="margin:0">Verhandlungsraum · ${esc(fullname(p))}</h2><div class="small muted">${POS_LABEL[p.pos]} · ${p.age} J. · Stärke ${ovr(p)} · Pot. ${potDisp(p)} · Marktwert ${money(p.val)} · Vertrag bis ${contractEnd(p)}</div></div></div>
     <div class="seg vrtabs">${tabs.map(([k,l,ic])=>`<button class="${step===k?'on':''}" data-act="vrStep" data-v="${k}" ${k==='club'&&p.club===null?'disabled':''}>${l} ${ic}</button>`).join('')}</div></div>`;
   let body='';
   if(step==='club')body=p.club===null?'<p class="muted">Vereinslos – keine Ablöse nötig.</p>':vrClubView(p,V);
