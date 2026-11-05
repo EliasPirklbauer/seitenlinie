@@ -154,3 +154,17 @@ Object.assign(ACT,{
   calToday:()=>{const t=gameDate();UI.cal.y=+t.slice(0,4);UI.cal.m=+t.slice(5,7)-1;UI.cal.sel=t;render()},
   calMode:d=>{UI.cal.mode=d.v;render()},
   calDay:d=>{UI.cal.sel=d.v||null;render()}});
+
+/* ---------- Termin/Anstoßzeit einzelner Spiele (Spielplan, Startseite) ---------- */
+const WDAY_LONG=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+function whenOf(kind,obj,r,m){
+  try{
+    if(kind==='league'){const sl=leagueRoundSlots(obj,r),k=obj.fixtures[r].indexOf(m);return sl[k>=0?k:0]}
+    if(kind==='comp'){const sl=compRoundSlots(obj,r),k=r.matches.indexOf(m);return sl[k>=0?k:0]}
+    if(kind==='cup'){const sl=cupRoundSlots(obj,r,r.si||0,r.matches.length),k=r.matches.indexOf(m);return sl[k>=0?k:0]}
+    if(kind==='sc')return {d:satOf(r.w),t:'20:30'};
+  }catch(e){}
+  return {d:satOf(r&&r.w!==undefined?r.w:S.week),t:'15:30'};
+}
+function fmtWhenShort(x){if(!x)return '';const [y,mo,d]=x.d.split('-');return `${WDAYS[wdayIso(x.d)]} ${d}.${mo}.`}
+function fmtWhenLong(x){if(!x)return '';const [y,mo,d]=x.d.split('-');return `${WDAY_LONG[wdayIso(x.d)]}, ${+d}. ${MONTHS[+mo-1]} ${y}`}

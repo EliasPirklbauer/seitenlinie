@@ -163,11 +163,12 @@ function renderSetupWorld(){
 
 /* ---------- Übersicht ---------- */
 function nextUserGames(){
-  const list=[];const nx=nextUserMatch();if(nx)list.push({w:nx.w,m:nx.m,comp:null,order:0});
-  for(const f of userCompFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.C,label:COMP[f.C.key].short+' · '+f.label,order:1});
-  for(const f of userNatCupFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.cup,label:f.cup.name+' · '+f.label,order:2});
-  for(const f of userSupercupFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.sc,label:f.sc.name+' · '+f.label,order:-1});
-  return list.sort((a,b)=>a.w-b.w||a.order-b.order).filter((g,i,arr)=>g.w===arr[0].w);
+  const list=[];const nx=nextUserMatch();if(nx)list.push({w:nx.w,m:nx.m,comp:null,order:0,wh:whenOf('league',league(userClub()),nx.r,nx.m)});
+  for(const f of userCompFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.C,label:COMP[f.C.key].short+' · '+f.label,order:1,wh:whenOf('comp',f.C,f.r,f.m)});
+  for(const f of userNatCupFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.cup,label:f.cup.name+' · '+f.label,order:2,wh:whenOf('cup',f.cup,f.r,f.m)});
+  for(const f of userSupercupFixtures())if(f.m.hg===null&&f.w>=S.week)list.push({w:f.w,m:f.m,comp:f.sc,label:f.sc.name+' · '+f.label,order:-1,wh:whenOf('sc',f.sc,f.r,f.m)});
+  const k=g=>g.wh?g.wh.d+' '+g.wh.t:'';
+  return list.sort((a,b)=>a.w-b.w||(k(a)<k(b)?-1:k(a)>k(b)?1:a.order-b.order)).filter((g,i,arr)=>g.w===arr[0].w);
 }
 function renderHome(){
   const c=userClub(),L=league(c),tab=tableOf(L),rank=tab.findIndex(r=>r.id===S.user)+1,me=tab[rank-1];
@@ -175,11 +176,11 @@ function renderHome(){
   let next='<p class="muted">Die Saison ist beendet. Tippe auf „Saisonende“.</p>';
   if(ng.length){
     const g=ng[0],m=g.m,opp=club(m.h===S.user?m.a:m.h),home=m.h===S.user;const co=COACH[opp.staff.coach.trait];
-    const wait=g.w>S.week?`<div class="pill wrap" style="margin-bottom:8px">Diese Woche spielfrei – nächstes Spiel in Woche ${g.w+1}</div>`:'';
-    const more=ng.length>1&&ng[1].w===g.w?`<div class="pill wrap" style="margin-bottom:8px;border-color:var(--gold)">Englische Woche: ${ng.length} Spiele in Woche ${g.w+1}</div>`:'';
+    const wait=g.w>S.week?`<div class="pill wrap" style="margin-bottom:8px">Diese Woche spielfrei – nächstes Spiel am ${fmtWhenShort(g.wh)}</div>`:'';
+    const more=ng.length>1&&ng[1].w===g.w?`<div class="pill wrap" style="margin-bottom:8px;border-color:var(--gold)">Englische Woche: ${ng.map(x=>fmtWhenShort(x.wh)).join(' & ')}</div>`:'';
     const sub=g.comp?`${esc(g.label)} · ${esc(leagueName(opp))}`:`${nx.r+1}. Spieltag · Platz ${tab.findIndex(r=>r.id===opp.id)+1}`;
     const hc=home?c:opp,ac=home?opp:c;
-    next=`${wait}${more}<div class="small muted" style="text-align:center">${sub}</div>
+    next=`${wait}${more}<div class="nxwhen"><b>${fmtWhenLong(g.wh)}</b><span>Anstoß ${g.wh?g.wh.t:''} Uhr</span></div><div class="small muted" style="text-align:center">${sub}</div>
     <div class="vs"><div class="team">${badge(hc,54)}<b>${esc(hc.name)}</b><span class="small muted">Stärke ${clubAvg(hc)}</span></div><div class="mid">vs<small>${home?'Heimspiel':'Auswärtsspiel'}</small></div><div class="team">${badge(ac,54)}<b>${esc(ac.name)}</b><span class="small muted">Stärke ${clubAvg(ac)}</span></div></div>
     <div class="small" style="text-align:center">Gegnertrainer <b>${esc(opp.staff.coach.name)}</b>, ${co.label}. <span class="muted">${(()=>{ensureTactic(opp);const m=shapeMetrics(opp);return `Gegen den Ball ${m.oopShape}, mit Ball ${m.ipShape} · ${MENTALITY[opp.tactic.men]}, ${PRESSING[opp.tactic.press]}`})()}</span></div>`;
   }
@@ -761,20 +762,31 @@ function leagueSelect(cur,chg){
 function renderFixtures(){
   const u=userClub(),uL=league(u);
   const rows=[];
-  uL.fixtures.forEach((md,i)=>{const m=md.find(m=>m.h===S.user||m.a===S.user);rows.push({w:uL.rw[i],o:0,lbl:`${i+1}. ST`,m})});
-  userCompFixtures().forEach(f=>rows.push({w:f.w,o:1,lbl:`<span class="pill" style="font-size:11px">${COMP[f.C.key].short}</span>`,m:f.m,title:f.label}));
-  userNatCupFixtures().forEach(f=>rows.push({w:f.w,o:2,lbl:`<span class="pill" style="font-size:11px;border-color:var(--gold)">Pokal</span>`,m:f.m,title:f.cup.name+' · '+f.label}));
-  userSupercupFixtures().forEach(f=>rows.push({w:f.w,o:-1,lbl:`<span class="pill" style="font-size:11px;border-color:var(--blue)">Supercup</span>`,m:f.m,title:f.sc.name+' · '+f.label}));
-  rows.sort((a,b)=>a.w-b.w||a.o-b.o);
-  const mine=rows.map(x=>{const m=x.m;if(!m)return `<tr><td class="muted small">W${x.w+1}</td><td>${x.lbl}</td><td colspan="3" class="muted">spielfrei</td></tr>`;
+  uL.fixtures.forEach((md,i)=>{const m=md.find(m=>m.h===S.user||m.a===S.user);const wh=m?whenOf('league',uL,i,m):{d:satOf(uL.rw[i]),t:''};rows.push({w:uL.rw[i],o:0,lbl:`${i+1}. ST`,m,wh,mid:wh&&wh.mid})});
+  userCompFixtures().forEach(f=>rows.push({w:f.w,o:1,lbl:`<span class="pill" style="font-size:11px">${COMP[f.C.key].short}</span>`,m:f.m,title:f.label,wh:whenOf('comp',f.C,f.r,f.m)}));
+  userNatCupFixtures().forEach(f=>rows.push({w:f.w,o:2,lbl:`<span class="pill" style="font-size:11px;border-color:var(--gold)">Pokal</span>`,m:f.m,title:f.cup.name+' · '+f.label,wh:whenOf('cup',f.cup,f.r,f.m)}));
+  userSupercupFixtures().forEach(f=>rows.push({w:f.w,o:-1,lbl:`<span class="pill" style="font-size:11px;border-color:var(--blue)">Supercup</span>`,m:f.m,title:f.sc.name+' · '+f.label,wh:whenOf('sc',f.sc,f.r,f.m)}));
+  const key=x=>(x.wh?x.wh.d:'9999')+' '+(x.wh&&x.wh.t||'99:99');
+  rows.sort((a,b)=>key(a)<key(b)?-1:key(a)>key(b)?1:a.o-b.o);
+  let lastMonth='';
+  const mine=rows.map(x=>{const mo=x.wh?x.wh.d.slice(0,7):'';let head='';
+    if(mo&&mo!==lastMonth){lastMonth=mo;head=`<tr class="fxmonth"><td colspan="5">${MONTHS[+mo.slice(5,7)-1]} ${mo.slice(0,4)}</td></tr>`}
+    const when=`<td class="fxwhen"><b>${fmtWhenShort(x.wh)}</b><span>${x.m&&x.wh.t?x.wh.t+' Uhr':''}${x.mid?' · EW':''}</span></td>`;
+    const m=x.m;if(!m)return head+`<tr>${when}<td>${x.lbl}</td><td colspan="3" class="muted">spielfrei</td></tr>`;
     const home=m.h===S.user,opp=club(home?m.a:m.h);let res='<span class="muted">–</span>';
     if(m.hg!==null){const won=m.win!==undefined&&m.win!==null?m.win===S.user:null;const gf=home?m.hg:m.ag,ga=home?m.ag:m.hg;const cls=won===true?'good':won===false?'bad':gf>ga?'good':gf<ga?'bad':'';res=`<b class="${cls}">${resultText(m)}</b>`}
-    return `<tr class="${x.w===S.week?'me':''}" title="${esc(x.title||'')}"><td class="muted small">W${x.w+1}</td><td>${x.lbl}</td><td>${home?'H':'A'}</td><td>${badge(opp,22)} ${esc(opp.name)}</td><td class="n">${res}</td></tr>`}).join('');
+    return head+`<tr class="${x.w===S.week?'me':''}" title="${esc((x.title?x.title+' · ':'')+fmtWhenLong(x.wh)+(x.wh.t?', '+x.wh.t+' Uhr':'')+' · Spielwoche '+(x.w+1))}">${when}<td>${x.lbl}</td><td>${home?'H':'A'}</td><td>${badge(opp,22)} ${esc(opp.name)}</td><td class="n">${res}</td></tr>`}).join('');
   const lid=UI.fxLeague!==undefined&&UI.fxLeague!==null?UI.fxLeague:uL.id,L=S.leagues[lid];
   let sel=UI.fxRound;if(sel===undefined||sel===null||sel>=L.fixtures.length){sel=0;for(let r=0;r<L.fixtures.length;r++)if(L.rw[r]<=S.week)sel=r}
-  const all=L.fixtures[sel].map(m=>`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg!==null?m.hg+':'+m.ag:'-:-'}</b></td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`).join('');
-  return `<h2>Spielplan</h2><div class="grid g2"><div class="tw" style="max-height:72vh;overflow:auto"><table><thead><tr><th>Woche</th><th>Wettbewerb</th><th></th><th>Gegner</th><th class="n">Ergebnis</th></tr></thead><tbody>${mine}</tbody></table></div>
-  <div><div class="row" style="margin-bottom:8px">${leagueSelect(L.id,'fxLeague')}</div><div class="row" style="margin-bottom:8px"><button class="btn sm" data-act="fxRound" data-i="${Math.max(0,sel-1)}">◀</button><b>${sel+1}. Spieltag</b> <span class="small muted">Woche ${L.rw[sel]+1}</span><button class="btn sm" data-act="fxRound" data-i="${Math.min(L.fixtures.length-1,sel+1)}">▶</button></div><div class="tw"><table><tbody>${all}</tbody></table></div></div></div>`;
+  const sl=leagueRoundSlots(L,sel),items=L.fixtures[sel].map((m,k)=>({m,wh:sl[k]||{d:satOf(L.rw[sel]),t:''}}));
+  items.sort((a,b)=>(a.wh.d+a.wh.t)<(b.wh.d+b.wh.t)?-1:(a.wh.d+a.wh.t)>(b.wh.d+b.wh.t)?1:0);
+  const mid=sl[0]&&sl[0].mid;let lastD='',lastT='';
+  const all=items.map(({m,wh})=>{let h='';if(wh.d!==lastD){lastD=wh.d;lastT='';h=`<tr class="fxday"><td colspan="4">${fmtWhenLong(wh)}</td></tr>`}
+    const t=wh.t!==lastT?wh.t:'';lastT=wh.t;
+    return h+`<tr class="${m.h===S.user||m.a===S.user?'me':''}"><td class="fxtime">${t}</td><td style="text-align:right">${esc(club(m.h).name)} ${badge(club(m.h),20)}</td><td style="text-align:center"><b>${m.hg!==null?m.hg+':'+m.ag:'-:-'}</b></td><td>${badge(club(m.a),20)} ${esc(club(m.a).name)}</td></tr>`}).join('');
+  const span=items.length?(items[0].wh.d===items[items.length-1].wh.d?fmtWhenShort(items[0].wh):fmtWhenShort(items[0].wh)+' – '+fmtWhenShort(items[items.length-1].wh)):'';
+  return `<h2>Spielplan</h2><div class="grid g2"><div class="tw" style="max-height:72vh;overflow:auto"><table class="fxtab"><thead><tr><th>Termin</th><th>Runde</th><th></th><th>Gegner</th><th class="n">Erg.</th></tr></thead><tbody>${mine}</tbody></table></div>
+  <div><div class="row" style="margin-bottom:8px">${leagueSelect(L.id,'fxLeague')}</div><div class="row" style="margin-bottom:8px"><button class="btn sm" data-act="fxRound" data-i="${Math.max(0,sel-1)}">◀</button><b>${sel+1}. Spieltag</b> <span class="small muted">${span}${mid?' · <span class="pill" style="font-size:11px;border-color:var(--gold)">Englische Woche</span>':''}</span><button class="btn sm" data-act="fxRound" data-i="${Math.min(L.fixtures.length-1,sel+1)}">▶</button></div><div class="tw"><table class="fxtab"><tbody>${all}</tbody></table></div><p class="small muted">Anstoßzeiten nach Praxis der jeweiligen Liga · alle Zeiten Ortszeit</p></div></div>`;
 }
 
 /* ---------- Tabelle ---------- */
