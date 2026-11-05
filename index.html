@@ -576,6 +576,10 @@ html.desk .v3card.idle{border:1px solid var(--line);border-radius:var(--r)}
 .vrargs{display:flex;flex-wrap:wrap;gap:6px}.vrargs.col{flex-direction:column}
 .vrargs button{background:var(--night2);border:1px solid var(--line2);border-radius:10px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--text);text-align:left}
 .vrargs button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--night2))}.vrargs button.used{opacity:.5}.vrargs button:disabled{opacity:.35}
+.vrg{font-style:italic;color:var(--muted)}
+.vrpanel.busy{opacity:.55;pointer-events:none}
+.vrpanel .btn{white-space:normal;text-align:left}
+.vrmsg.typing>div{padding:6px 12px}
 </style>
 </head>
 <body>
@@ -596,6 +600,7 @@ html.desk .v3card.idle{border:1px solid var(--line);border-radius:var(--r)}
 <script src="live.js"></script>
 <script src="view3d.js"></script>
 <script src="stats.js"></script>
+<script src="talk.js"></script>
 <script src="room.js"></script>
 </body>
 </html>

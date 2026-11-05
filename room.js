@@ -8,7 +8,13 @@ function vrKey(){return S.season+':'+(S.week<4?'s':'w')}
 function vrOf(pid){S.vr=S.vr||{};let V=S.vr[pid];if(V&&V.key!==vrKey()){delete S.vr[pid];V=null}if(!V)V=S.vr[pid]={key:vrKey(),pid,club:null,player:null,agent:null,step:null};return V}
 function relOf(cid){return (S.rel||{})[cid]||0}
 function relAdd(cid,d){S.rel=S.rel||{};S.rel[cid]=clamp((S.rel[cid]||0)+d,-5,5)}
-function vrSay(st,who,t){st.msgs.push({who,t});if(st.msgs.length>60)st.msgs.splice(0,st.msgs.length-60)}
+function vrSay(st,who,t){
+  st.pend=st.pend||[];
+  if(who==='me'||!UI.modal){vrFlush(st);st.msgs.push({who,t})}else st.pend.push({who,t});
+  if(st.msgs.length>70)st.msgs.splice(0,st.msgs.length-70);
+}
+function vrFlush(st){if(st&&st.pend&&st.pend.length){st.msgs.push(...st.pend);st.pend=[]}}
+function vrFlushAll(V){if(!V)return;vrFlush(V.club);vrFlush(V.player);vrFlush(V.agent)}
 const VR_DIRV={
   star:{hi:['Willkommen. Ich sage es gleich: Wir verkaufen nicht an jeden.','Schön, dass Sie da sind. Unsere besten Spieler haben ihren Preis.'],conc:.28,floor:.96},
   schnaeppchen:{hi:['Setzen Sie sich. Bei uns hat alles seinen Preis – reden wir über Zahlen.','Ich bin Kaufmann. Wenn das Angebot stimmt, kommen wir zusammen.'],conc:.42,floor:.9},
@@ -45,27 +51,21 @@ function vrClubInit(p){
   if(p.until<=S.season){T*=.8;floor*=.78}
   const pat=clamp(70+rel*5+(pres.trait==='geduldig'?15:pres.trait==='ambitioniert'?-10:0),25,100);
   const st={T,floor,T0:T,pat,round:0,used:{},msgs:[],counter:null,st:'open',offer:normBid({fee:nice(scoutEst(p)*.85)}),dir:dir.name,trait:dir.trait};
-  vrSay(st,'sys',`Besprechung mit ${dir.name} (Sportdirektor, ${DIR[dir.trait].label}) von ${s.name}. Präsident: ${PRES[pres.trait].label}.`);
-  vrSay(st,'them',pick(DV.hi));
-  if(rel>=2)vrSay(st,'them','Mit Ihnen haben wir ja schon gute Geschäfte gemacht.');else if(rel<=-2)vrSay(st,'them','Ehrlich gesagt: Nach dem letzten Mal bin ich vorsichtig.');
+  vrSay(st,'sys',`Büro von ${dir.name}, Sportdirektor von ${s.name} (${DIR[dir.trait].label}). Präsident: ${PRES[pres.trait].label}.`);
+  for(const l of sdHello(p,s,dir,pres,rel))vrSay(st,'them',l);
   return st;
 }
 function vrArgEffect(C,p,arg){
   const s=club(p.club),used=C.used[arg];C.used[arg]=1;
   const inXI=s.lineup.includes(p.id),played=(tableOf(league(s)).find(r=>r.id===s.id)||{sp:0}).sp||0,share=played?p.apps/played:.5;
-  if(used&&arg!=='neutral'&&arg!=='final')return {txt:'Das hatten Sie schon gesagt. Wiederholungen machen es nicht besser.',pat:-6};
+  if(used&&arg!=='neutral'&&arg!=='final')return {txt:T(SD_ARG.repeat,{g:gest('tense')}),pat:-6};
   switch(arg){
-    case 'bench':if(!inXI&&share<.5){C.T*=.93;C.floor*=.95;return {txt:pick(['Gut, er kommt bei uns nicht so zum Zug, wie wir uns das vorgestellt haben.','Da haben Sie einen Punkt – er sitzt zu oft draußen.'])}}
-      return {txt:pick(['Er ist bei uns gesetzt, das wissen Sie genau.','Er spielt fast jedes Spiel. Netter Versuch.']),pat:-14};
-    case 'contract':if(p.until<=S.season+1){C.T*=p.until<=S.season?.88:.93;C.floor*=.94;return {txt:'Ja … der Vertrag. Wir wollen ihn nicht ablösefrei verlieren, da haben Sie recht.'}}
-      return {txt:'Sein Vertrag läuft noch lange. Wir stehen nicht unter Druck.',pat:-10};
-    case 'age':if(p.age>=30){C.T*=.95;C.floor*=.97;return {txt:'Er ist 30 plus, das stimmt. Aber er ist topfit.'}}
-      return {txt:`Er ist ${p.age}. Das Argument zieht nicht.`,pat:-10};
-    case 'wants':{const P=(S.vr[p.id]||{}).player;if(P&&P.conv>=60){C.T*=.95;C.floor*=.96;return {txt:'Ich habe schon gehört, dass er wechseln möchte. Gegen den Willen des Spielers zu arbeiten, bringt niemandem etwas.'}}
-      return {txt:'Mit dem Spieler haben Sie offenbar noch nicht gesprochen – oder er sieht das anders. Erzählen Sie mir nichts.',pat:-14}}
-    case 'alt':if(C.trait==='schnaeppchen'||s.budget<0){C.T*=.96;return {txt:'Hm. Andere Kandidaten … Lassen Sie uns nicht vorschnell sein.'}}
-      return {txt:pick(['Dann nehmen Sie doch die Alternativen.','Drohungen beeindrucken mich nicht.']),pat:-12};
-    case 'partner':C.pat=Math.min(100,C.pat+10);C.T*=.99;return {txt:'Langfristig denken gefällt mir. Gute Beziehungen sind in diesem Geschäft viel wert.'};
+    case 'bench':if(!inXI&&share<.5){C.T*=.93;C.floor*=.95;return {txt:sdArg('bench',1,p)}}return {txt:sdArg('bench',0,p),pat:-14};
+    case 'contract':if(p.until<=S.season+1){C.T*=p.until<=S.season?.88:.93;C.floor*=.94;return {txt:sdArg('contract',1,p)}}return {txt:sdArg('contract',0,p),pat:-10};
+    case 'age':if(p.age>=30){C.T*=.95;C.floor*=.97;return {txt:sdArg('age',1,p)}}return {txt:sdArg('age',0,p),pat:-10};
+    case 'wants':{const P=(S.vr[p.id]||{}).player;if(P&&P.conv>=60){C.T*=.95;C.floor*=.96;return {txt:sdArg('wants',1,p)}}return {txt:sdArg('wants',0,p),pat:-14}}
+    case 'alt':if(C.trait==='schnaeppchen'||s.budget<0){C.T*=.96;return {txt:sdArg('alt',1,p)}}return {txt:sdArg('alt',0,p),pat:-12};
+    case 'partner':C.pat=Math.min(100,C.pat+10);C.T*=.99;return {txt:sdArg('partner',1,p)};
   }
   return {txt:''};
 }
@@ -74,32 +74,31 @@ function vrClubPropose(p,arg){
   if(C.st!=='open')return;
   if(!isWindow()){vrSay(C,'sys','Das Transferfenster ist geschlossen – eine Einigung ist erst im nächsten Fenster möglich.');return}
   if(b.fee>u.tBudget){vrSay(C,'sys',`Dein Transferbudget reicht für ${money(b.fee)} sofort nicht (frei: ${money(u.tBudget)}). Nutze Raten oder einen Erfolgsbonus.`);return}
-  const argL=VR_ARGS.find(a=>a[0]===arg);
-  vrSay(C,'me',`Unser Angebot: ${bidText(b)}.${arg!=='neutral'?' '+argL[1].replace(/[„"]/g,''):''}`);
+  vrSay(C,'me',myOfferLine(b,arg,p));
   const ef=vrArgEffect(C,p,arg);if(ef.txt&&arg!=='final')vrSay(C,'them',ef.txt);C.pat+=ef.pat||0;
   C.round++;const v=bidValue(b,p);
   if(arg==='final'){
-    if(v>=C.floor){vrClubAgree(p,b,'Na gut. Sie haben gewonnen – wir machen es.');return}
-    if(C.pat>45&&rnd()<.35){const cb=normBid({...b,fee:nice(b.fee+(C.floor-v)*1.02)});C.counter=cb;C.lastFinal=1;vrSay(C,'them',`Ein letztes Wort von unserer Seite: ${bidText(cb)}. Darunter geht nichts.`);C.pat=Math.min(C.pat,15);return}
-    vrClubBreak(p,'Dann sind wir hier fertig. Viel Erfolg bei Ihrer Suche.');return;
+    if(v>=C.floor){vrClubAgree(p,b,`${gest('think')} … Na gut. Sie haben gewonnen.`);return}
+    if(C.pat>45&&rnd()<.35){const cb=normBid({...b,fee:nice(b.fee+(C.floor-v)*1.02)});C.counter=cb;C.lastFinal=1;vrSay(C,'them',sdFinalCounter(cb));C.pat=Math.min(C.pat,15);return}
+    vrClubBreak(p,sdBreak());return;
   }
-  if(v>=C.T*.98){vrClubAgree(p,b,pick(['Damit können wir leben. Abgemacht!','Einverstanden. Sie haben einen guten Spieler gekauft.','Handschlag – wir haben einen Deal.']));return}
-  if(v<C.T*.55){C.pat-=25;vrSay(C,'them',pick(['Das ist nicht Ihr Ernst. Das ist weit weg von jeder Realität.','Soll das ein Witz sein? So kommen wir nicht weiter.','Dafür bekommen Sie nicht einmal seine Schuhe.']));if(C.pat<=0)vrClubBreak(p,'Ich glaube, wir verschwenden hier unsere Zeit.');return}
+  if(v>=C.T*.98){vrClubAgree(p,b,`${gest('think')} ${pick(['Damit können wir leben.','Einverstanden.','Okay. Das ist fair.'])}`);return}
+  if(v<C.T*.55){C.pat-=25;vrSay(C,'them',sdInsult());if(C.pat<=0)vrClubBreak(p,sdBreak());return}
   const gap=C.T-v,conc=DV.conc*(.6+Math.max(0,C.pat)/200);
   C.T=Math.max(C.floor,C.T-gap*conc);C.pat-=8+Math.max(0,1-v/C.T)*22;
-  if(C.pat<=0){vrClubBreak(p,'Wir drehen uns im Kreis. Ich breche das Gespräch ab.');return}
+  if(C.pat<=0){vrClubBreak(p,sdBreak());return}
   let cb=normBid({...b,fee:nice(b.fee+(C.T-v))});
   if(cb.fee>u.tBudget){const extra=cb.fee-u.tBudget;cb.fee=nice(u.tBudget);cb.instY=Math.max(cb.instY||0,2);cb.inst=nice((cb.inst||0)+extra/Math.pow(.94,cb.instY)*1.03);cb=normBid(cb)}
   C.counter=cb;
   const close=v/C.T;
-  vrSay(C,'them',`${close>.9?pick(['Wir sind nah dran.','Das geht in die richtige Richtung.']):close>.75?pick(['Da fehlt noch ein gutes Stück.','Das reicht mir noch nicht.']):pick(['Wir liegen noch weit auseinander.','Da müssen Sie deutlich drauflegen.'])} Mein Vorschlag: ${bidText(cb)}.`);
+  vrSay(C,'them',sdCounter(close,cb,C.pat));
 }
 function vrClubAgree(p,b,txt){
-  const V=S.vr[p.id],C=V.club,s=club(p.club);C.st='agreed';C.deal=b;vrSay(C,'them',txt);
+  const V=S.vr[p.id],C=V.club,s=club(p.club);C.st='agreed';C.deal=b;vrSay(C,'them',txt);vrSay(C,'them',sdAgree(s.staff.dir,s.staff.pres));
   S.deals=S.deals||{};S.deals[p.id]={bid:b,season:S.season,exp:windowEnd()};S.bidRes=S.bidRes||{};S.bidRes[p.id]={res:'yes',bid:b,seller:s.id};
   if(bidValue(b,p)<=C.T0*1.05&&C.pat>30)relAdd(s.id,.5);
   addNews('offer',`🤝 Einigung mit ${esc(s.name)}: ${fullname(p)}`,`Im Verhandlungsraum mit ${esc(C.dir)} vereinbart: <b>${bidText(b)}</b>. Jetzt musst du dich noch mit Spieler und Berater einigen – bis zum Ende des Transferfensters.`);
-  vrSay(C,'sys','✅ Ablöse vereinbart. Weiter mit dem Spielergespräch.');
+  vrSay(C,'sys',`✅ Ablöse vereinbart: ${bidText(b)}. Weiter mit dem Spielergespräch.`);
 }
 function vrClubBreak(p,txt){
   const C=S.vr[p.id].club,s=club(p.club);C.st='broken';vrSay(C,'them',txt);relAdd(s.id,-1);
@@ -126,8 +125,8 @@ function vrPlayerInit(p,u){
   const q=p.club!==null?inqFor(p.id,S.user):null;if(q&&inqFresh(q)&&q.res&&q.res.agent){conv+=q.res.agent.lvl==='yes'?10:q.res.agent.lvl==='no'?-15:0}
   const st={w,conv:clamp(Math.round(conv),5,95),turns:9,used:{},known:[],msgs:[],promise:{},st:'open',demand:0};
   const A=agentOf(p);
-  vrSay(st,'sys',`Treffen mit ${fullname(p)} (${p.age} J., ${POS_LABEL[p.pos]}) – sein Berater ${A.name} (${A.lbl}) ist dabei.`);
-  vrSay(st,'them',st.conv>=60?pick(['Schön, dass es geklappt hat. Ich habe viel von Ihrem Projekt gehört.','Danke für die Einladung – ich bin neugierig.']):st.conv>=35?pick(['Hallo. Ich höre mir gern an, was Sie vorhaben.','Mal sehen, was Sie mir erzählen.']):pick(['Ehrlich gesagt bin ich nur hier, weil mein Berater darauf bestanden hat.','Ich bin eigentlich zufrieden, wo ich bin.']));
+  vrSay(st,'sys',`Ein ruhiges Hotelrestaurant. ${fullname(p)} (${p.age} J., ${POS_LABEL[p.pos]}) kommt mit seinem Berater ${A.name}.`);
+  for(const l of plHello(p,st.conv))vrSay(st,'them',l);
   return st;
 }
 function vrTop(P,n){return Object.entries(P.w).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0])}
@@ -156,36 +155,39 @@ const VR_PITCH=[
 function vrPlayerMove(p,k,role){
   const P=S.vr[p.id].player,u=userClub(),cur=p.club!==null?club(p.club):null;
   if(P.st!=='open'||P.turns<=0)return;
-  if(P.used[k]&&k!=='play'){vrSay(P,'them','Das haben Sie mir schon erzählt.');P.conv-=2;return}
+  if(P.used[k]&&k!=='play'){vrSay(P,'them',pick(['*lächelt* Das haben Sie mir schon erzählt, Trainer.','Ja, das sagten Sie schon.']));P.conv-=2;return}
   P.used[k]=1;P.turns--;
   const say=t=>vrSay(P,'them',t),me=t=>vrSay(P,'me',t);
-  if(k==='q_prio'){me('Was ist dir bei deinem nächsten Verein wirklich wichtig?');const t=vrTop(P,1)[0];if(!P.known.includes(t))P.known.push(t);
-    say({money:'Ich will ehrlich sein: Ich möchte für meine Familie ausgesorgt haben.',play:'Ich will spielen. Jede Woche. Auf der Bank werde ich verrückt.',title:'Ich will Titel gewinnen, solange ich noch kann.',dev:'Ich will mich weiterentwickeln und irgendwann auf höchstem Niveau spielen.',prestige:'Ich träume von den großen Stadien und den großen Abenden.',home:'Meine Familie ist mir das Wichtigste. Sie muss sich wohlfühlen.'}[t]);return}
-  if(k==='q_more'){me('Und was spielt sonst noch eine Rolle?');const t=vrTop(P,2)[1];if(!P.known.includes(t))P.known.push(t);
-    say({money:'Natürlich muss auch das Finanzielle passen.',play:'Spielzeit ist mir auch wichtig.',title:'Und ich will um etwas spielen, nicht im Mittelfeld der Tabelle versauern.',dev:'Ich möchte einen Trainer, der mich besser macht.',prestige:'Eine starke Liga wäre schön.',home:'Und meine Familie soll sich wohlfühlen.'}[t]);return}
-  if(k==='q_now'){me(`Wie zufrieden bist du gerade${cur?' bei '+cur.short:''}?`);
+  if(k==='q_prio'){me(pick([`${firstOf(p)}, sag mal ganz offen: Was ist dir bei deinem nächsten Verein wirklich wichtig?`,'Erzähl mal – worauf kommt es dir bei deinem nächsten Schritt an?']));const t=vrTop(P,1)[0];if(!P.known.includes(t))P.known.push(t);
+    say(`${gest('think')} ${pick(PL_PRIO[t])}`);return}
+  if(k==='q_more'){me(pick(['Und was spielt sonst noch eine Rolle?','Gibt es noch etwas, das dir wichtig ist?']));const t=vrTop(P,2)[1];if(!P.known.includes(t))P.known.push(t);
+    say(PL_MORE[t]);return}
+  if(k==='q_now'){me(`Wie geht es dir eigentlich gerade${cur?' bei '+cur.short:''}? Ehrlich.`);
     if(!cur){say('Ohne Verein ist es nicht leicht. Ich will so schnell wie möglich wieder auf den Platz.');P.conv+=4;return}
     const sit=clubSituation(cur);say(p.mor<45?`Ehrlich? Nicht gut. Ich bin ${ROLES[p.role].label}, aber ich fühle mich nicht wertgeschätzt.`:p.mor>78?`Eigentlich sehr gut. ${cur.short} ist ${sit.v>=.6?'erfolgreich':'mein Zuhause'}. Sie müssen mir schon etwas bieten.`:`Es ist okay. Bei ${cur.short} läuft es ${sit.v<=-.6?'gerade schlecht':'ganz normal'}.`);return}
   // Überzeugungsversuche
   const w=P.w[k],mw=Math.max(...Object.values(P.w)),cred=vrCred(k,p,u,role||'stamm'),rel=w/mw;
   let d=rel*cred*22-(cred<.4?6:0)-(rel<.35?3:0);
   const texts={
-    play:()=>{me(`Bei uns wirst du ${ROLES[role].label}. Das verspreche ich dir.`);P.promise.role=role;
-      return cred>=.9?'Das klingt gut. Ich will Verantwortung übernehmen.':cred>=.6?'Hm. Sie haben auf meiner Position schon gute Leute … aber ich glaube Ihnen.':'Ehrlich? Sie haben doch längst stärkere Spieler auf meiner Position. Das glaube ich Ihnen nicht.'},
-    title:()=>{me('Wir wollen Titel gewinnen – und du sollst ein Teil davon sein.');P.promise.title=1;return cred>=.7?'Das ist genau das, was ich hören will.':cred>=.4?'Titel? Na ja … mal sehen, wie realistisch das ist.':'Bei allem Respekt – um Titel spielen Sie nicht.'},
-    dev:()=>{me('Bei uns bekommst du Spielzeit und einen Trainer, der dich besser macht.');return cred>=.7?'Das ist mir wichtig. Ich will den nächsten Schritt machen.':'Ich weiß nicht, ob ich bei Ihnen wirklich weiterkomme.'},
-    prestige:()=>{me(`Die ${league(u).name} – volle Stadien, große Abende${inIntlComp(u)?', dazu Europapokal':''}.`);return cred>=.7?'Davon habe ich als Kind geträumt.':cred>=.4?'Die Liga ist interessant, ja.':'Ehrlich gesagt ist das sportlich kein Schritt nach vorne für mich.'},
-    home:()=>{me('Du würdest wieder in deiner Heimat spielen – nah bei Familie und Freunden.');return cred>=.9?'Das wäre schön. Meine Familie würde sich sehr freuen.':'Ich komme ja gar nicht von hier.'},
-    money:()=>{me('Finanziell wird sich das für dich richtig lohnen.');P.demand+=.06;return rel>.75?'Das hört mein Berater gern. Und ich auch, ehrlich gesagt.':'Geld ist nicht alles. Aber gut zu wissen.'}};
+    play:()=>{const rivals=squadOf(u).filter(q=>q.pos===p.pos&&ovr(q)>=ovr(p)).sort((a,b)=>ovr(b)-ovr(a));
+      me(pick([`Ich plane mit dir als ${ROLES[role].label}. Das ist kein Gerede, das verspreche ich dir.`,`Du wirst bei uns ${ROLES[role].label}. Mein Wort darauf.`]));P.promise.role=role;
+      return cred>=.9?pick(['Das klingt gut. Ich will Verantwortung übernehmen.','Genau das wollte ich hören, Trainer.']):cred>=.6?`Hm. ${rivals[0]?'Mit '+rivals[0].ln+' haben Sie auf meiner Position schon einen starken Mann':'Sie haben auf meiner Position schon gute Leute'} … aber ich glaube Ihnen.`:`Ehrlich? ${rivals.length?'Sie haben doch '+rivals.slice(0,2).map(q=>q.ln).join(' und ')+' auf meiner Position.':'Das glaube ich Ihnen nicht.'} Wie soll das gehen?`},
+    title:()=>{me(pick(['Wir wollen Titel gewinnen. Und du sollst ein Teil davon sein.','Ich will mit dieser Mannschaft etwas gewinnen – mit dir.']));P.promise.title=1;const r=rankOf(u.id);
+      return cred>=.7?pick(['Das ist genau das, was ich hören will.','Titel … *lächelt* ja, da bin ich dabei.']):cred>=.4?`Titel? ${r?'Sie stehen auf Platz '+r+'. ':''}Na ja … mal sehen, wie realistisch das ist.`:'Bei allem Respekt, Trainer – um Titel spielen Sie im Moment nicht.'},
+    dev:()=>{me('Bei uns bekommst du Spielzeit und wir arbeiten jeden Tag an dir. Du wirst besser, versprochen.');return cred>=.7?'Das ist mir wichtig. Ich will den nächsten Schritt machen.':'Ich weiß nicht, ob ich bei Ihnen wirklich weiterkomme. Ich brauche Minuten.'},
+    prestige:()=>{me(`Stell dir vor: ${league(u).name}, volle Stadien, die großen Abende${inIntlComp(u)?' – und dazu Europapokal':''}.`);return cred>=.7?'*grinst* Davon habe ich als Kind geträumt.':cred>=.4?'Die Liga ist interessant, ja.':`Ehrlich gesagt ist das sportlich kein Schritt nach vorne für mich${cur?' – bei '+cur.short+' spiele ich auch nicht schlechter':''}.`},
+    home:()=>{me('Du würdest wieder in deiner Heimat spielen. Nah bei deiner Familie und deinen Freunden.');return cred>=.9?'Das wäre schön … meine Mutter würde jedes Spiel im Stadion sehen.':'*lacht* Ich komme ja gar nicht von hier, Trainer.'},
+    money:()=>{me('Und finanziell wird sich das für dich richtig lohnen, das kann ich dir sagen.');P.demand+=.06;return rel>.75?`*schaut zu ${agentOf(p).name.split(' ')[0]}* Das hört mein Berater gern. Und ich auch, ehrlich gesagt.`:'Geld ist nicht alles. Aber gut zu wissen.'}};
   const reply=texts[k]();
   if(k==='money')d=rel*14;
   P.conv=clamp(Math.round(P.conv+d),0,100);
-  say(reply+(d>=10?' 😊':d<=0?' 😕':''));
+  say(`${plReact(d)} ${reply}`);
   if(P.turns===0)vrSay(P,'sys','Die Gesprächszeit ist um. Beende das Gespräch, um zum Berater zu wechseln.');
 }
 function vrPlayerEnd(p){
   const P=S.vr[p.id].player;if(P.st!=='open')return;P.st='done';
-  vrSay(P,'them',P.conv>=70?'Ich habe ein richtig gutes Gefühl. Sprechen Sie mit meinem Berater über die Details.':P.conv>=45?'Ich denke darüber nach. Mein Berater meldet sich.':P.conv>=25?'Ich bin noch nicht überzeugt. Wenn, dann muss das Finanzielle stimmen.':'Ich glaube nicht, dass das passt. Tut mir leid.');
+  vrSay(P,'me',pick(['Danke, dass du dir die Zeit genommen hast. Lass es dir durch den Kopf gehen.','Ich will dich wirklich haben. Denk in Ruhe drüber nach.']));
+  vrSay(P,'them',plEnd(P.conv,p));
   vrSay(P,'sys',P.conv>=25?'Weiter zum Gespräch mit dem Berater.':'❌ Der Spieler hat kein Interesse – die Gespräche mit dem Berater sind sinnlos.');
 }
 
@@ -201,9 +203,9 @@ function vrAgentInit(p,u){
   const askW=dem*AV.open,askSi=rw(mon(dem)*(p.club===null?4:1.2)),askAf=rw(Math.max(fee*.05,mon(dem)*2.5)*(A.type==='biz'?1.3:1));
   const st={A,role,years,dem,askW,askSi,askAf,ask:pkgVal(askW,years,askSi,askAf,AV.afw),floor:pkgVal(dem*AV.floor,years,askSi*.5,askAf*.6,AV.afw),pat:clamp(60+(P.conv-50)*.5,25,95),
     msgs:[],st:'open',round:0,rival:null,offer:{mw:Math.round(mon(dem)*.92/100)*100,years,si:rw(askSi*.5),af:rw(askAf*.6),role},counter:null};
-  vrSay(st,'sys',`Vertragsgespräch mit ${A.name} (${A.agency}) – ${A.lbl}: ${A.desc}.`);
-  vrSay(st,'them',`Mein Mandant möchte ${money(mon(askW))} brutto im Monat als ${ROLES[role].label}, ${years} ${years===1?'Jahr':'Jahre'}, ${money(askSi)} Handgeld. Mein Honorar: ${money(askAf)}.`);
-  if(P.promise.role)vrSay(st,'them',`Und die Rolle als ${ROLES[P.promise.role].label}, die Sie ihm versprochen haben, schreiben wir ins Protokoll.`);
+  vrSay(st,'sys',`Besprechungsraum in der Geschäftsstelle. ${A.name} (${A.agency}) – ${A.lbl}: ${A.desc}.`);
+  for(const l of agHello(A,p,{W:askW,role,years,si:askSi,af:askAf}))vrSay(st,'them',l);
+  if(P.promise.role)vrSay(st,'them',`Und die Rolle als ${ROLES[P.promise.role].label}, die Sie ${firstOf(p)} versprochen haben – die halten wir schriftlich fest.`);
   return st;
 }
 const AG_TAC=[['neutral','Sachlich'],['deadline','Frist setzen'],['flatter','Wertschätzung zeigen'],['bluff','Bluff durchschauen'],['walk','„Mein letztes Wort"']];
@@ -211,26 +213,26 @@ function vrAgentMove(p,tac){
   const V=S.vr[p.id],G=V.agent,u=userClub(),A=G.A,AV=AG_V[A.type],o=G.offer;
   if(G.st!=='open')return;
   const W=wk(o.mw),v=pkgVal(W,o.years,o.si,o.af,AV.afw);
-  vrSay(G,'me',`${money(o.mw)} brutto/Monat, ${o.years} ${o.years===1?'Jahr':'Jahre'}, ${ROLES[o.role].label}, ${money(o.si)} Handgeld, ${money(o.af)} Honorar.${tac==='deadline'?' Ich brauche bis morgen eine Antwort.':tac==='flatter'?' Ich schätze Ihre Arbeit sehr.':tac==='walk'?' Das ist mein letztes Wort.':''}`);
+  vrSay(G,'me',myAgentLine(o,tac));
   // Rolle muss passen
   const gap=ROLE_ORDER.indexOf(o.role)-ROLE_ORDER.indexOf(G.role);
-  if(gap>=1){vrSay(G,'them',`Als ${ROLES[o.role].label}? Wir hatten über ${ROLES[G.role].label} gesprochen. So nicht.`);G.pat-=12;if(G.pat<=0)vrAgentBreak(p);return}
+  if(gap>=1){vrSay(G,'them',`${gest('tense')} Als ${ROLES[o.role].label}? Wir hatten über ${ROLES[G.role].label} gesprochen. So unterschreibt er nicht.`);G.pat-=12;if(G.pat<=0)vrAgentBreak(p);return}
   let conc=AV.conc;G.round++;
   if(tac==='bluff'){
-    if(!G.rival){vrSay(G,'them','Welchen Bluff? Ich habe nichts dergleichen gesagt.');G.pat-=6}
-    else if(G.rival.real){G.ask*=1.04;G.pat-=15;vrSay(G,'them',`Kein Bluff. ${club(G.rival.cid).name} wartet nicht ewig – überlegen Sie gut.`)}
-    else{G.ask=Math.max(G.floor,G.ask*.94);G.pat-=4;G.rival.called=1;vrSay(G,'them','… Na gut. Lassen wir das andere Angebot beiseite.')}
+    if(!G.rival){vrSay(G,'them','*hebt die Augenbrauen* Welcher Bluff? Ich habe nichts dergleichen gesagt.');G.pat-=6}
+    else if(G.rival.real){G.ask*=1.04;G.pat-=15;vrSay(G,'them',`*legt sein Handy auf den Tisch und zeigt Ihnen eine Nachricht* Kein Bluff. ${club(G.rival.cid).name} wartet nicht ewig – überlegen Sie gut.`)}
+    else{G.ask=Math.max(G.floor,G.ask*.94);G.pat-=4;G.rival.called=1;vrSay(G,'them',`${gest('think')} … *räuspert sich* Na gut. Lassen wir das andere Angebot beiseite.`)}
     G.rival=null;
   }
-  if(tac==='deadline'){if(A.type==='fast'){conc+=.2;vrSay(G,'them','Klare Fristen mag ich. Dann lassen Sie uns das zügig abschließen.')}else if(A.type==='poker'){G.pat-=15;G.ask*=1.02;vrSay(G,'them','Fristen? Die setze in diesem Spiel ich.')}else{conc+=.1}}
-  if(tac==='flatter'){G.pat=Math.min(100,G.pat+10);conc+=.05;vrSay(G,'them',A.type==='biz'?'Freundlich sind viele. Am Ende zählen Zahlen.':'Danke, das hört man selten.')}
+  if(tac==='deadline'){if(A.type==='fast'){conc+=.2;vrSay(G,'them','Klare Fristen mag ich. Dann lassen Sie uns das zügig abschließen.')}else if(A.type==='poker'){G.pat-=15;G.ask*=1.02;vrSay(G,'them','*lacht kurz* Fristen? Die setze in diesem Spiel ich.')}else{conc+=.1}}
+  if(tac==='flatter'){G.pat=Math.min(100,G.pat+10);conc+=.05;vrSay(G,'them',A.type==='biz'?'Freundlich sind viele. Am Ende zählen Zahlen.':'*lächelt* Danke, das hört man in diesem Geschäft selten.')}
   if(tac==='walk'){
-    if(v>=G.floor){vrAgentAgree(p,'Gut. Dann machen wir es so.');return}
-    const P=V.player;if(P.conv>=60&&rnd()<.45){G.ask=G.floor;G.counter=vrCounter(G,o,AV);vrSay(G,'them',`Mein Mandant will unbedingt zu Ihnen. Letzter Vorschlag: ${money(G.counter.mw)} im Monat, ${money(G.counter.si)} Handgeld, ${money(G.counter.af)} Honorar – sonst ist er weg.`);G.pat=Math.min(G.pat,12);return}
+    if(v>=G.floor){vrAgentAgree(p,`${gest('think')} … Gut. Dann machen wir es so.`);return}
+    const P=V.player;if(P.conv>=60&&rnd()<.45){G.ask=G.floor;G.counter=vrCounter(G,o,AV);vrSay(G,'them',`*seufzt* Mein Mandant will unbedingt zu Ihnen, sonst wäre ich jetzt aufgestanden. Letzter Vorschlag: ${spM(G.counter.mw)} im Monat, ${spM(G.counter.si)} Handgeld, ${spM(G.counter.af)} Honorar.`);G.pat=Math.min(G.pat,12);return}
     vrAgentBreak(p);return;
   }
-  if(v>=G.ask*.985){vrAgentAgree(p,pick(['Damit sind wir einverstanden.','Abgemacht – mein Mandant unterschreibt.','Das passt. Wir haben einen Vertrag.']));return}
-  if(v<G.floor*.75){G.pat-=20;vrSay(G,'them',pick(['Damit brauchen wir gar nicht weiterreden.','Das ist eine Beleidigung für meinen Mandanten.']));if(G.pat<=0)vrAgentBreak(p);return}
+  if(v>=G.ask*.985){vrAgentAgree(p,`*schaut kurz auf sein Handy, dann zu Ihnen* ${AG_VOICE[A.type].yes}`);return}
+  if(v<G.floor*.75){G.pat-=20;vrSay(G,'them',`${gest('tense')} ${pick(['Damit brauchen wir gar nicht weiterreden.','Das ist eine Beleidigung für meinen Mandanten.','Haben Sie sich da verrechnet?'])}`);if(G.pat<=0)vrAgentBreak(p);return}
   G.ask=Math.max(G.floor,G.ask-(G.ask-v)*conc);G.pat-=7+Math.max(0,1-v/G.ask)*20;
   if(G.pat<=0){vrAgentBreak(p);return}
   G.counter=vrCounter(G,o,AV);
@@ -239,9 +241,9 @@ function vrAgentMove(p,tac){
     const real=(S.aineg||[]).find(n=>n.pid===p.id&&n.buyer!==S.user)||(S.talks||[]).find(t=>t.pid===p.id&&t.from!==S.user&&t.st==='open');
     let cid=real?(real.buyer!==undefined?real.buyer:real.from):null;
     if(!cid){const cands=S.clubs.filter(c=>!c.guest&&c.id!==S.user&&c.id!==p.club&&Math.abs(c.rep-u.rep)<12);const c=cands.length?pick(cands):null;cid=c?c.id:null}
-    if(cid!==null){G.rival={real:!!real,cid};vrSay(G,'them',`Nur damit Sie es wissen: ${club(cid).name} hat ebenfalls angefragt. ${real?'Konkret.':'Sehr konkret.'}`)}
+    if(cid!==null){G.rival={real:!!real,cid};vrSay(G,'them',`${gest('phone')} Nur damit Sie es wissen: ${club(cid).name} hat ebenfalls angefragt. ${real?'Konkret.':'Sehr konkret.'}`)}
   }
-  vrSay(G,'them',`Wir kommen Ihnen entgegen: ${money(G.counter.mw)} brutto im Monat, ${money(G.counter.si)} Handgeld, ${money(G.counter.af)} Honorar.${G.ask<=G.floor*1.01?' Weiter runter geht es nicht.':''}`);
+  vrSay(G,'them',agCounter(A,G.counter,G.pat,G.ask<=G.floor*1.01));
 }
 function vrCounter(G,o,AV){
   // jede Position wandert anteilig von deinem Angebot Richtung seiner Ausgangsforderung
@@ -250,7 +252,7 @@ function vrCounter(G,o,AV){
   const mw=Math.ceil((o.mw+f*(mon(G.askW)-o.mw))/100)*100,si=rw(o.si+f*Math.max(0,G.askSi-o.si)),af=rw(o.af+f*Math.max(0,G.askAf-o.af));
   return {...o,mw:Math.max(o.mw,mw),si:Math.max(o.si,si),af:Math.max(o.af,af)};
 }
-function vrAgentBreak(p){const G=S.vr[p.id].agent;G.st='broken';p.negTries=3;vrSay(G,'them','So wird das nichts. Wir beenden die Gespräche.');vrSay(G,'sys','❌ Der Berater hat abgebrochen – in diesem Fenster ist der Spieler für dich erledigt.');
+function vrAgentBreak(p){const G=S.vr[p.id].agent;G.st='broken';p.negTries=3;vrSay(G,'them','*klappt den Laptop zu und steht auf* So wird das nichts. Wir beenden die Gespräche – ich wünsche Ihnen alles Gute.');vrSay(G,'sys','❌ Der Berater hat abgebrochen – in diesem Fenster ist der Spieler für dich erledigt.');
   addNews('transfer',`❌ Berater bricht ab: ${fullname(p)}`,`${esc(G.A.name)} hat die Vertragsgespräche beendet.`)}
 function vrAgentAgree(p,txt){
   const V=S.vr[p.id],G=V.agent,u=userClub(),o=G.offer,W=wk(o.mw);
@@ -261,7 +263,7 @@ function vrAgentAgree(p,txt){
   if(u.players.length>=32)return fail('Dein Kader ist voll (max. 32).');
   if(W>u.wBudget-wageBill(u))return fail(`Das Gehalt sprengt dein Gehaltsbudget (frei: ${money(mon(u.wBudget-wageBill(u)))}/Monat).`);
   if(u.tBudget<fee+o.si+o.af)return fail(`Nicht genug Transferbudget für Ablöse, Handgeld und Honorar (nötig: ${money(fee+o.si+o.af)}).`);
-  vrSay(G,'them',txt);G.st='agreed';
+  vrSay(G,'them',txt);vrSay(G,'them',`*reicht Ihnen die Hand* ${firstOf(p)} wird sich riesig freuen. Ich rufe ihn gleich an.`);G.st='agreed';
   const until=S.season+o.years-(S.week<winterStart()?1:0),fromName=p.club!==null?club(p.club).name:'vereinslos';
   executeDeal(p,u,{...(D?D.bid:{}),fee},{wage:W,until,role:o.role,ct:{si:o.si}});if(S.deals)delete S.deals[p.id];
   if(o.si){payBonus(o.si,'si');u.tBudget=Math.max(0,u.tBudget-o.si)}
@@ -271,7 +273,7 @@ function vrAgentAgree(p,txt){
   p.mor=clamp(60+V.player.conv*.35,40,95);
   addNews('transfer',`Neuzugang: ${fullname(p)}`,`Von ${esc(fromName)} für ${D?bidText(D.bid):fee?money(fee):'ablösefrei'} · ${money(o.mw)} brutto/Monat bis ${contractEnd(p)} · ${ROLES[o.role].label} · Handgeld ${money(o.si)} · Beraterhonorar ${money(o.af)}.${prom.length?' Versprochen: '+prom.map(x=>x.k==='role'?ROLES[x.role].label:'Kampf um Titel').join(', ')+'.':''}`);
   vrSay(G,'sys',`✅ ${fullname(p)} unterschreibt bei ${u.name}!`);
-  delete S.vr[p.id];UI.vrDone={pid:p.id,msgs:G.msgs};
+  vrFlush(G);delete S.vr[p.id];UI.vrDone={pid:p.id,msgs:G.msgs};
   S.rng=RNG;save();toast(`${fullname(p)} unterschreibt!`);
 }
 
@@ -304,10 +306,20 @@ function vrModal(){return ()=>{
   if(step==='club')body=p.club===null?'<p class="muted">Vereinslos – keine Ablöse nötig.</p>':vrClubView(p,V);
   else if(step==='player')body=vrPlayerView(p,V);
   else body=vrAgentView(p,V,clubOk,pDone);
+  setTimeout(vrPump,0);
   return `<div class="vrc">${head}${body}<div class="row" style="margin-top:12px;justify-content:space-between"><span class="small muted">Gespräche bleiben bis zum Ende des Transferfensters gespeichert.</span><button class="btn" data-act="vrClose">Raum verlassen</button></div></div>`;
 }}
-function vrLog(msgs,p,them){
-  return `<div class="vrlog" id="vrlog">${msgs.map(m=>m.who==='sys'?`<div class="vrsys">${esc(m.t)}</div>`:`<div class="vrmsg ${m.who}"><span class="vrav">${m.who==='me'?'Du':esc((them||'?').split(' ').map(x=>x[0]).join('').slice(0,2))}</span><div>${esc(m.t)}</div></div>`).join('')}</div>`;
+function vrLog(msgs,p,them,typing){
+  return `<div class="vrlog" id="vrlog">${msgs.map(m=>m.who==='sys'?`<div class="vrsys">${esc(m.t)}</div>`:`<div class="vrmsg ${m.who}"><span class="vrav">${m.who==='me'?'Du':esc((them||'?').split(' ').map(x=>x[0]).join('').slice(0,2))}</span><div>${vrFmt(m.t)}</div></div>`).join('')}${typing?`<div class="vrmsg them typing"><span class="vrav">${esc(typing.split(' ').map(x=>x[0]).join('').slice(0,2))}</span><div><span class="small muted">${esc(typing.split(' ')[0])} spricht</span> <span class="dots"><i></i><i></i><i></i></span></div></div>`:''}</div>`;
+}
+function vrFmt(t){return esc(t).replace(/\*([^*]+)\*/g,'<em class="vrg">$1</em>')}
+function vrBusy(st){return !!(st&&st.pend&&st.pend.length)}
+function vrPump(){
+  clearTimeout(vrPump.t);
+  if(!UI.vr||!UI.modal||!S.vr)return;const V=S.vr[UI.vr.pid];if(!V)return;
+  const st=V.step==='club'?V.club:V.step==='player'?V.player:V.agent;if(!vrBusy(st))return;
+  const m=st.pend[0],d=m.who==='sys'?600:Math.min(3600,800+m.t.length*22);
+  vrPump.t=setTimeout(()=>{if(!vrBusy(st))return;st.msgs.push(st.pend.shift());render();vrScroll()},d);
 }
 function meter(lbl,v,inv){const c=v>=60?'var(--good)':v>=35?'var(--gold)':'var(--bad)';return `<div class="vrmeter"><span>${lbl}</span><div class="cbar"><i style="width:${clamp(v,0,100)}%;background:${c}"></i></div><b>${Math.round(clamp(v,0,100))}</b></div>`}
 function vrAmt(path,v){return `<label class="minp"><input type="text" inputmode="decimal" data-chg="vrAmt" data-k="${path}" value="${v?fmtNum(v):''}" placeholder="0"><span>€</span></label>`}
@@ -325,7 +337,7 @@ function vrClubView(p,V){
     <div class="small muted" style="margin-top:4px">${esc((VR_ARGS.find(a=>a[0]===UI.vr.draftArg)||[])[2]||'')}</div>
     <div class="small" style="margin-top:8px">Gesamtwert für ihn ca. <b>${money(bidValue(normBid(b),p))}</b> · <span class="${close>=.9?'good':close>=.75?'gold':'bad'}">${hint}</span> · Transferbudget ${money(u.tBudget)}</div>
     <div class="row" style="margin-top:10px"><button class="btn pri" data-act="vrClubGo">Angebot vorlegen</button>${C.counter?`<button class="btn" data-act="vrClubAccept">Seinen Vorschlag annehmen (${money(bidTotal(C.counter))})</button>`:''}</div>`;
-  return `<div class="vrgrid"><div>${vrLog(C.msgs,p,C.dir)}</div><div class="card vrpanel">${meter('Geduld des Sportdirektors',C.pat)}<div class="small muted" style="margin:2px 0 10px">Runde ${C.round} · Beziehung zu ${esc(club(p.club).short)}: ${relOf(p.club)>0?'gut':relOf(p.club)<0?'angespannt':'neutral'}</div>${ctrl}</div></div>`;
+  return `<div class="vrgrid"><div>${vrLog(C.msgs,p,C.dir,vrBusy(C)?C.dir:null)}</div><div class="card vrpanel ${vrBusy(C)?'busy':''}">${meter('Geduld des Sportdirektors',C.pat)}<div class="small muted" style="margin:2px 0 10px">Runde ${C.round} · Beziehung zu ${esc(club(p.club).short)}: ${relOf(p.club)>0?'gut':relOf(p.club)<0?'angespannt':'neutral'}</div>${ctrl}</div></div>`;
 }
 function vrPlayerView(p,V){
   const P=V.player,u=userClub(),known=P.known.map(k=>`<span class="pill gold">★ ${PRIO_LBL[k]}</span>`).join(' ');
@@ -335,7 +347,7 @@ function vrPlayerView(p,V){
      <label class="f" style="margin-top:10px">⚽ Rolle versprechen <span class="muted">(Empfehlung: ${ROLES[suggestRole(p,u)].short})</span></label>
      <div class="seg">${ROLE_ORDER.filter(r=>r!=='perspektive'||p.age<=21).map(r=>`<button class="${P.promise.role===r?'on':''}" data-act="vrPl" data-v="play" data-r="${r}" ${P.turns<=0?'disabled':''}>${ROLES[r].short}</button>`).join('')}</div>
      <div class="row" style="margin-top:12px"><button class="btn pri" data-act="vrPlEnd">Gespräch beenden</button></div>`;
-  return `<div class="vrgrid"><div>${vrLog(P.msgs,p,fullname(p))}</div><div class="card vrpanel">${meter('Überzeugung',P.conv)}
+  return `<div class="vrgrid"><div>${vrLog(P.msgs,p,fullname(p),vrBusy(P)?fullname(p):null)}</div><div class="card vrpanel ${vrBusy(P)?'busy':''}">${meter('Überzeugung',P.conv)}
     <div class="small" style="margin:6px 0 10px">${known?'Weiß ich schon: '+known:'<span class="muted">Was ihm wichtig ist, weißt du noch nicht.</span>'}${P.promise.role?`<div class="small" style="margin-top:4px">Versprochen: <b>${ROLES[P.promise.role].label}</b>${P.promise.title?', Kampf um Titel':''}</div>`:P.promise.title?'<div class="small" style="margin-top:4px">Versprochen: Kampf um Titel</div>':''}</div>${ctrl}</div></div>`;
 }
 function vrAgentView(p,V,clubOk,pDone){
@@ -354,14 +366,14 @@ function vrAgentView(p,V,clubOk,pDone){
     <div class="small" style="margin-top:8px"><span class="${close>=.985?'good':close>=.9?'gold':'bad'}">${close>=.985?'Das sollte reichen.':close>=.9?'Nah dran.':close>=.75?'Da fehlt noch etwas.':'Weit auseinander.'}</span> · Gehaltsbudget frei ${money(mon(free))}/Monat · Transferbudget ${money(u.tBudget)}</div>
     <div class="row" style="margin-top:10px"><button class="btn pri" data-act="vrAgGo">Angebot machen</button>${G.counter?`<button class="btn" data-act="vrAgAccept">Seinen Vorschlag annehmen (${money(G.counter.mw)}/Monat · ${money(G.counter.si+G.counter.af)} einmalig)</button>`:''}</div>
     <div class="small muted" style="margin-top:6px">Dem Berater ist sein Honorar ${AV.afw>1.2?'besonders ':''}wichtig${AV.afw>1.2?' – hier lässt sich Gehalt sparen':''}.</div>`;
-  return `<div class="vrgrid"><div>${vrLog(G.msgs,p,G.A.name)}</div><div class="card vrpanel">${meter('Geduld des Beraters',G.pat)}${meter('Überzeugung des Spielers',V.player.conv)}<div style="margin-top:10px">${ctrl}</div></div></div>`;
+  return `<div class="vrgrid"><div>${vrLog(G.msgs,p,G.A.name,vrBusy(G)?G.A.name:null)}</div><div class="card vrpanel ${vrBusy(G)?'busy':''}">${meter('Geduld des Beraters',G.pat)}${meter('Überzeugung des Spielers',V.player.conv)}<div style="margin-top:10px">${ctrl}</div></div></div>`;
 }
 function vrScroll(){setTimeout(()=>{const e=document.getElementById('vrlog');if(e)e.scrollTop=e.scrollHeight},0)}
 function vrPath(V,path){const [a,k]=path.split('.');return a==='club'?[V.club.offer,k]:[V.agent.offer,k]}
 Object.assign(ACT,{
   vrOpen:d=>{UI.vrDone=null;vrOpen(d.id);vrScroll()},
-  vrClose:()=>{UI.modal=null;UI.vr=null;UI.vrDone=null;S.rng=RNG;save();render()},
-  vrStep:d=>{const V=vrOf(UI.vr.pid);V.step=d.v;render();vrScroll()},
+  vrClose:()=>{if(S.vr&&UI.vr)vrFlushAll(S.vr[UI.vr.pid]);clearTimeout(vrPump.t);UI.modal=null;UI.vr=null;UI.vrDone=null;S.rng=RNG;save();render()},
+  vrStep:d=>{const V=vrOf(UI.vr.pid);vrFlushAll(V);V.step=d.v;render();vrScroll()},
   vrArg:d=>{UI.vr.draftArg=d.v;render()},
   vrAgTac:d=>{UI.vr.agTac=d.v;render()},
   vrSet:d=>{const V=vrOf(UI.vr.pid),[o,k]=vrPath(V,d.k);o[k]=isNaN(+d.v)?d.v:+d.v;render()},
