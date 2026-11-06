@@ -71,15 +71,16 @@ function render(){
   else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,training:renderTraining,fans:renderFans,media:renderMedia,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
-  const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
-  app.innerHTML=`<div class="shell">
+  const adv=inLive?'':over?`<button class="btn pri adv" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri adv" data-act="advance">Weiter ▶</button>`;
+  const vt=(NAV.find(x=>x[0]===v)||[0,''])[1];
+  app.innerHTML=`<div class="shell" style="--club:${c.colors[0]};--club2:${c.colors[1]}">
    <header class="top">
      <div class="brand"><i></i>Seitenlinie</div>
      <div class="club">${badge(c,30)}<div style="min-width:0"><b>${esc(c.name)}</b><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(league(c).name)} · ${S.season}/${(S.season+1)%100}</div></div></div>
-     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<div class="stat hide-m"><span>Woche</span><b>${Math.min(S.week+1,S.weeks)} / ${S.weeks}</b></div><div class="stat hide-m"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>${adv}</div>
+     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<div class="stat hide-m pro-only"><span>${WDAY_LONG[wdayIso(gameDate(S.week))]}</span><b>${fmtDate(gameDate(S.week))}</b></div><div class="stat hide-m"><span>Woche</span><b>${Math.min(S.week+1,S.weeks)} / ${S.weeks}</b></div><div class="stat hide-m pro-only"><span>Kontostand</span><b>${money(c.budget)}</b></div><div class="stat hide-m"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>${adv}</div>
    </header>
    <nav class="side nav">${nav}</nav>
-   <main class="main">${body}</main>
+   <main class="main"><div class="crumb pro-only">${esc(c.name)} <span>›</span> ${esc(vt||'')}</div>${body}</main>
    <nav class="bnav">${nav}</nav>
   </div>${updateBanner()}${modalHtml()}${toastHtml()}`;
 }
@@ -1045,7 +1046,7 @@ function renderMenu(){
   return `<h2>Menü</h2><div class="grid g2">
    <div class="card"><h3>Spielstand</h3><p class="small muted">Das Spiel speichert automatisch nach jeder Woche auf diesem Gerät. Um auf einem anderen Gerät weiterzuspielen, exportiere den Spielstand und importiere ihn dort.</p>
     <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
-   <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'desk')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
+   <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['pro','🖥️ Manager-Zentrale (PC)'],['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'pro')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
    ${installCard()}
    <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
    <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe, nationale Pokale und Fünfjahreswertung. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
@@ -1095,7 +1096,7 @@ function renderSeasonEndScreen(){
    ========================================================= */
 function newSeed(){return (Date.now()^Math.floor(Math.random()*1e9))>>>0}
 const ACT={
-  setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':'#131b2e';render()},
+  setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':d.v==='pro'?'#0e1116':'#131b2e';render()},
   nav:d=>{if(UI.view==='live'&&UI.live&&!UI.live.done)return;UI.view=d.v;UI.selSlot=null;if(d.v==='table')UI.tableLeague=UI.tableLeague;window.scrollTo(0,0);render()},
   closeModal:()=>{UI.modal=null;UI.selSlot=null;UI.neg=null;render()},
   continue:async()=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave();UI.loading=null;if(sv){try{applySave(sv);UI.view='home';render()}catch(e){toast('Spielstand konnte nicht geladen werden')}}else{UI.meta=null;render();toast('Kein Spielstand gefunden')}},

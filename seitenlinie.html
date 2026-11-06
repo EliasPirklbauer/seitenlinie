@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f1e9da">
-<script>(function(){var t="desk";try{t=localStorage.getItem("sl-theme")||"desk"}catch(e){}document.documentElement.className=t;var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==="desk"?"#f1e9da":"#131b2e"})()</script>
+<meta name="theme-color" content="#0e1116">
+<script>(function(){var t="pro";try{if(!localStorage.getItem("sl-theme2")){localStorage.setItem("sl-theme","pro");localStorage.setItem("sl-theme2","1")}t=localStorage.getItem("sl-theme")||"pro"}catch(e){}document.documentElement.className=t;var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==="desk"?"#f1e9da":t==="pro"?"#0e1116":"#131b2e"})()</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Seitenlinie">
@@ -609,6 +609,90 @@ html.desk .v3card.idle{border:1px solid var(--line);border-radius:var(--r)}
 .ceff{font-weight:600;font-size:13px;margin-top:4px}
 .crow.cand{align-items:center}
 .av.fog{font-size:12px;color:var(--muted);font-family:Rubik,sans-serif;font-weight:600;min-width:42px}
+
+/* ===================== Theme „Manager-Zentrale“ (PC) ===================== */
+.pro-only{display:none!important}
+html.pro .pro-only{display:flex!important}
+html.pro .crumb.pro-only{display:block!important}
+html.pro{
+  --night:#0e1116;--night2:#141820;--panel:#181d26;--panel2:#1f2530;--panel3:#283040;--line:#262d39;--line2:#323b4a;
+  --text:#e7ebf1;--muted:#98a2b3;--dim:#6b7586;
+  --accent:#3b9eff;--accent-ink:#ffffff;--accent-soft:rgba(59,158,255,.13);
+  --good:#36c983;--bad:#ff5a5f;--info:#3b9eff;--gold:#f2c14e;--blue:#3b9eff;
+  --go:#22b573;--go2:#1a9a61;
+  --r:4px;--r2:3px;--shadow:0 1px 2px rgba(0,0,0,.35);
+}
+html.pro,html.pro body{font-size:14px;line-height:1.45;letter-spacing:.005em}
+html.pro body{background:var(--night)}
+html.pro ::-webkit-scrollbar{width:10px;height:10px}html.pro ::-webkit-scrollbar-thumb{background:#2b3341;border-radius:5px;border:2px solid var(--night)}html.pro ::-webkit-scrollbar-track{background:transparent}
+/* Rundungen und Glanz raus – kantig, ruhig, professionell */
+html.pro :is(.card,.btn,.pill,input,select,textarea,.tw,.modal,.seg,.seg button,.toast,.upd,.acol,.ptile,.cbig>div,.ksum>div,.tl,.nkpi>div,.clist,.cclause,.minp,.chipsel button,.bench,.bp,.rcard,.cday,.ev.goal,.news,.nav a,.vrpanel,.tday,.tunit,.ivo,.mart,.mticker,.pscore>div,.tslot select,.card .card){border-radius:4px}
+html.pro .pitch,html.pro .minipitch{border-radius:6px}
+html.pro h1,html.pro h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em}
+html.pro h2{font-size:24px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+html.pro .main>h2:first-of-type:before{content:"";width:4px;height:22px;background:var(--club,var(--accent));box-shadow:5px 0 0 var(--club2,transparent);margin-right:6px}
+html.pro h3{font-family:var(--display);text-transform:uppercase;letter-spacing:.09em;font-size:13.5px;color:#c9d2df;font-weight:700}
+/* Panels mit Titelleiste */
+html.pro .card{background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);padding:12px 14px}
+html.pro .card>h3:first-child{margin:-12px -14px 12px;padding:9px 14px;background:linear-gradient(180deg,#212835,#1c222d);border-bottom:1px solid var(--line);border-radius:4px 4px 0 0}
+html.pro .card .card{background:var(--night2);border-color:var(--line)}
+html.pro .clist{background:var(--night2)}
+/* Kopfzeile */
+html.pro .top{background:#0b0e13;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom:1px solid #1d232d;padding-top:calc(8px + var(--sat));padding-bottom:8px;box-shadow:0 2px 0 var(--club,var(--accent))}
+html.pro .top .brand{font-size:20px;text-transform:uppercase;letter-spacing:.12em;font-weight:800}
+html.pro .top .brand i{width:8px;height:20px;border-radius:1px;background:var(--club,var(--accent));box-shadow:4px 0 0 var(--club2,#fff)}
+html.pro .top .meta{gap:22px}
+html.pro .top .meta .stat{border-left:1px solid #222a36;padding-left:14px}
+html.pro .top .meta .stat span{text-transform:uppercase;letter-spacing:.08em;font-size:10px;color:var(--dim)}
+html.pro .top .meta .stat b{font-size:18px;color:#fff}
+html.pro .btn.pri.adv{background:var(--go);border-color:var(--go);color:#fff;font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:16px;padding:9px 26px;box-shadow:0 0 0 1px rgba(0,0,0,.3) inset}
+html.pro .btn.pri.adv:hover{background:var(--go2)}
+/* Seitenleiste */
+html.pro .side{background:#0b0e13;border-right:1px solid #1d232d;padding:10px 0;top:57px;height:calc(100vh - 57px)}
+html.pro .nav a{border-radius:0;margin:0;padding:9px 18px;font-size:13px;font-weight:600;color:#9aa4b5;text-transform:uppercase;letter-spacing:.05em;border-left:3px solid transparent}
+html.pro .nav a:hover{background:#141a23;color:#fff}
+html.pro .nav a.on{background:linear-gradient(90deg,rgba(59,158,255,.16),transparent);color:#fff;border-left-color:var(--accent)}
+html.pro .nav a.on:before{display:none}
+html.pro .nav a svg{width:17px;height:17px;stroke-width:1.7}
+html.pro .shell{grid-template-columns:214px 1fr}
+html.pro .main{max-width:1680px;padding:16px 22px 28px}
+html.pro .crumb{font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:6px}
+html.pro .crumb span{margin:0 6px;color:#465063}
+/* Knöpfe, Pillen, Eingaben */
+html.pro .btn{background:#222936;border:1px solid #2f3846;padding:7px 14px;font-size:13px;font-weight:600;box-shadow:none}
+html.pro .btn:hover{background:#2a3241;border-color:#3a4456}
+html.pro .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:none}
+html.pro .btn.pri:hover{filter:brightness(1.08)}
+html.pro .btn.sm{padding:4px 10px;font-size:12px}
+html.pro .pill{background:#1f2632;border-color:#2e3746;font-size:11.5px;padding:1px 8px}
+html.pro input,html.pro select,html.pro textarea{background:#10141b;border-color:#2b3341;padding:6px 10px}
+/* Tabs als Reiterleiste */
+html.pro .seg{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:0;gap:0}
+html.pro .seg button{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:12.5px;letter-spacing:.06em;margin-bottom:-1px}
+html.pro .seg button.on{background:transparent;color:#fff;border-bottom-color:var(--accent);box-shadow:none}
+html.pro .seg button:hover{color:#fff}
+/* Tabellen – dicht und sachlich */
+html.pro table{border-collapse:collapse;font-size:13px}
+html.pro th{background:#1a2029;color:#8792a4;text-transform:uppercase;letter-spacing:.07em;font-size:10.5px;font-weight:700;border-bottom:1px solid var(--line2)}
+html.pro td{border-bottom:1px solid #20262f;padding-top:6px;padding-bottom:6px}
+html.pro tbody tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+html.pro tbody tr:hover td{background:rgba(59,158,255,.06)}
+html.pro tr.me td{background:rgba(59,158,255,.11)!important;box-shadow:inset 0 0 0 0 transparent}
+/* Nachrichten & Meldungen */
+html.pro .news{background:#141922;border:1px solid var(--line);border-left:3px solid var(--line2)}
+html.pro .modal{border-color:#323b4a;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+html.pro .toast{border-radius:4px}
+/* Mobil: flache Leiste statt schwebender Pille */
+@media (max-width:900px){
+  html.pro .bnav{left:0;right:0;bottom:0;border-radius:0;border:0;border-top:1px solid #1d232d;background:#0b0e13;backdrop-filter:none;padding-bottom:var(--sab)}
+  html.pro .bnav a{text-transform:uppercase;letter-spacing:.04em;font-size:9.5px}
+  html.pro .bnav a.on{color:#fff;box-shadow:inset 0 2px 0 var(--accent)}
+  html.pro .main{padding:12px 12px calc(84px + var(--sab))}
+  html.pro .top .meta .stat{border-left:0;padding-left:0}
+  html.pro .shell{grid-template-columns:1fr}
+  html.pro .hide-m.pro-only{display:none!important}
+  html.pro .btn.pri.adv{padding:8px 16px;font-size:15px}
+}
 </style>
 </head>
 <body>
@@ -1019,7 +1103,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.35.0';
+const APP_VERSION='0.36.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -4517,15 +4601,16 @@ function render(){
   else body=({home:renderHome,squad:renderSquad,tactic:renderTactic,fixtures:renderFixtures,calendar:renderCalendar,table:renderTable,staff:renderStaff,training:renderTraining,fans:renderFans,media:renderMedia,stats:renderStats,transfers:renderTransfers,finance:renderFinance,cups:renderCups,world:renderWorld,menu:renderMenu}[v]||renderHome)();
   const nav=NAV.map(([k,l])=>`<a class="${v===k?'on':''}" data-act="nav" data-v="${k}" href="#" aria-label="${l}">${icon(k)}<span>${l}</span></a>`).join('');
   const inLive=v==='live'&&UI.live&&!UI.live.done,over=S.week>=S.weeks;
-  const adv=inLive?'':over?`<button class="btn pri" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri" data-act="advance">Weiter ▶</button>`;
-  app.innerHTML=`<div class="shell">
+  const adv=inLive?'':over?`<button class="btn pri adv" data-act="toSeason">Saisonende ▶</button>`:`<button class="btn pri adv" data-act="advance">Weiter ▶</button>`;
+  const vt=(NAV.find(x=>x[0]===v)||[0,''])[1];
+  app.innerHTML=`<div class="shell" style="--club:${c.colors[0]};--club2:${c.colors[1]}">
    <header class="top">
      <div class="brand"><i></i>Seitenlinie</div>
      <div class="club">${badge(c,30)}<div style="min-width:0"><b>${esc(c.name)}</b><div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(league(c).name)} · ${S.season}/${(S.season+1)%100}</div></div></div>
-     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<div class="stat hide-m"><span>Woche</span><b>${Math.min(S.week+1,S.weeks)} / ${S.weeks}</b></div><div class="stat hide-m"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>${adv}</div>
+     <div class="meta">${navigator.onLine?'':'<span class="pill" title="Kein Internet – das Spiel läuft trotzdem">📴</span>'}<div class="stat hide-m pro-only"><span>${WDAY_LONG[wdayIso(gameDate(S.week))]}</span><b>${fmtDate(gameDate(S.week))}</b></div><div class="stat hide-m"><span>Woche</span><b>${Math.min(S.week+1,S.weeks)} / ${S.weeks}</b></div><div class="stat hide-m pro-only"><span>Kontostand</span><b>${money(c.budget)}</b></div><div class="stat hide-m"><span>Transferbudget</span><b>${money(c.tBudget)}</b></div>${adv}</div>
    </header>
    <nav class="side nav">${nav}</nav>
-   <main class="main">${body}</main>
+   <main class="main"><div class="crumb pro-only">${esc(c.name)} <span>›</span> ${esc(vt||'')}</div>${body}</main>
    <nav class="bnav">${nav}</nav>
   </div>${updateBanner()}${modalHtml()}${toastHtml()}`;
 }
@@ -5491,7 +5576,7 @@ function renderMenu(){
   return `<h2>Menü</h2><div class="grid g2">
    <div class="card"><h3>Spielstand</h3><p class="small muted">Das Spiel speichert automatisch nach jeder Woche auf diesem Gerät. Um auf einem anderen Gerät weiterzuspielen, exportiere den Spielstand und importiere ihn dort.</p>
     <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
-   <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'desk')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
+   <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['pro','🖥️ Manager-Zentrale (PC)'],['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'pro')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
    ${installCard()}
    <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
    <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe, nationale Pokale und Fünfjahreswertung. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
@@ -5541,7 +5626,7 @@ function renderSeasonEndScreen(){
    ========================================================= */
 function newSeed(){return (Date.now()^Math.floor(Math.random()*1e9))>>>0}
 const ACT={
-  setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':'#131b2e';render()},
+  setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':d.v==='pro'?'#0e1116':'#131b2e';render()},
   nav:d=>{if(UI.view==='live'&&UI.live&&!UI.live.done)return;UI.view=d.v;UI.selSlot=null;if(d.v==='table')UI.tableLeague=UI.tableLeague;window.scrollTo(0,0);render()},
   closeModal:()=>{UI.modal=null;UI.selSlot=null;UI.neg=null;render()},
   continue:async()=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave();UI.loading=null;if(sv){try{applySave(sv);UI.view='home';render()}catch(e){toast('Spielstand konnte nicht geladen werden')}}else{UI.meta=null;render();toast('Kein Spielstand gefunden')}},
