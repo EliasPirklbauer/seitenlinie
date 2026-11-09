@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.38.0';
+const APP_VERSION='0.39.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -299,7 +299,7 @@ function makeClub(name,code,L,i,n){
   const c={id:S.clubs.length,name,short:sh,assoc:code,league:L.id,rep,econ,
     stadium:sp.stadium,colors:sp.colors,budget:sp.budget,tBudget:0,wBudget:0,
     staff:sp.staff,players:[],lineup:[],tactic:null,expRank:i+1,firedSeason:0};
-  if(O.stName)c.stName=O.stName;if(O.city)c.city=O.city;if(O.founded)c.founded=O.founded;
+  c.slot=code+'|'+L.tier+'|'+i;if(O.stName)c.stName=O.stName;if(O.city)c.city=O.city;if(O.founded)c.founded=O.founded;
   if(O.loy!=null)c.fans={mood:Math.round(clamp(52+(rep-60)*.15+8,30,80)),loy:O.loy,next:null,log:[]};
   c.tactic={...COACH[c.staff.coach.trait].t};
   S.clubs.push(c);L.clubs.push(c.id);
@@ -341,6 +341,7 @@ function newWorld(seed,activeCodes,sel,manager){
       lt.clubs.forEach((nm,i)=>{const c=makeClub(nm,code,L,i,lt.clubs.length);if(sel&&code===sel.code&&lt.tier===sel.tier&&i===sel.idx)S.user=c.id})});
     for(let t=0;t<ids.length-1;t++){const k=Math.min(promoCount(ids[t].clubs.length),promoCount(ids[t+1].clubs.length));ids[t].down=k;ids[t+1].up=k}
   }
+  if(typeof edInsertPlayers==='function')edInsertPlayers();
   refillFreeAgents();
   schedule();
   S.clubs.forEach(c=>{autoLineup(c);c.target=boardTarget(c)});
