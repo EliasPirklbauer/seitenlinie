@@ -61,7 +61,7 @@ function toastHtml(){return UI.toast?`<div class="toast">${UI.toast}</div>`:''}
 function render(){
   const app=document.getElementById('app');
   if(UI.loading){app.innerHTML=`<div class="title"><div class="card" style="text-align:center;max-width:420px"><div style="font-size:40px">🌍</div><h2>${UI.loading}</h2><p class="muted small">Einen Moment – Vereine, Kader und Spielpläne werden erzeugt.</p></div></div>`;return}
-  if(!S||S.user===null){app.innerHTML=(UI.setup?renderSetup():renderTitle())+updateBanner()+modalHtml()+toastHtml();return}
+  if(!S||S.user===null){app.innerHTML=(UI.ed?renderEditor():UI.setup?renderSetup():renderTitle())+updateBanner()+modalHtml()+toastHtml();return}
   const c=userClub(),v=UI.view;
   let body='';
   if(v==='live')body=renderLive();
@@ -102,6 +102,7 @@ function renderTitle(){
    <div class="grid" style="margin-top:20px">
     ${slotsHtml()}
     <button class="btn ${m?'':'pri'}" style="justify-content:center;padding:12px" data-act="newCareer">＋ Neue Karriere</button>
+    <button class="btn" style="justify-content:center" data-act="edOpen">🛠️ Editor – Vereine bearbeiten</button>
     <button class="btn" style="justify-content:center" data-act="importOpen">Spielstand importieren</button>
    </div>
    ${UI.oldSave&&!m&&false?'<p class="small gold" style="margin-top:14px">Hinweis: Karrieren aus Version 0.3 und älter (fiktive Einzel-Liga) lassen sich in der neuen Weltversion nicht fortsetzen.</p>':''}
@@ -128,10 +129,10 @@ function renderSetupClub(){
     if(d.noLeague)right=`<div class="card"><h2>${esc(a.name)}</h2><p>${esc(d.info)}</p></div>`;
     else{
       const L=assocLeaguesInfo(st.assoc);const tier=Math.min(st.tier,L.length);const lt=L[tier-1];
-      const cards=lt.clubs.map((nm,i)=>{const rep=repFor(a,tier,i,lt.clubs.length),econ=econOf(st.assoc,tier),staff=staffForAssoc(nm,st.seed,st.assoc),col=clubColors(nm);
-        const fake={colors:col,short:shortName(nm)};const sel=st.pick&&st.pick.code===st.assoc&&st.pick.tier===tier&&st.pick.idx===i;
+      const cards=lt.clubs.map((nm,i)=>{const sp=clubSpec(st.assoc,tier,i,lt.clubs.length,nm,st.seed),rep=sp.rep,econ=sp.econ,staff=sp.staff;
+        const fake={colors:sp.colors,short:sp.short};const sel=st.pick&&st.pick.code===st.assoc&&st.pick.tier===tier&&st.pick.idx===i;
         return `<div class="card clubpick ${sel?'on':''}" data-act="pickClub" data-i="${i}"><div class="row" style="flex-wrap:nowrap">${badge(fake,34)}<div style="min-width:0"><b>${esc(nm)}</b><div class="small gold">${stars(rep)}</div></div></div>
-          <div class="small" style="margin-top:6px">Budget ca. <b>${money(estBudget(rep,econ))}</b> · Stadion ${estStadium(rep,econ).toLocaleString('de-DE')}</div>
+          <div class="small" style="margin-top:6px">Budget ca. <b>${money(sp.budget)}</b> · Stadion ${sp.stadium.toLocaleString('de-DE')}${sp.o&&Object.keys(sp.o).length?' · <span class="gold">✎ bearbeitet</span>':''}</div>
           <div class="small muted">Präsident: ${PRES[staff.pres.trait].label} · Sportdir.: ${DIR[staff.dir.trait].label}</div></div>`}).join('');
       right=`<div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(a.name)}</h2><span class="small muted">${a.confed}</span></div>
        <div class="seg" style="margin:10px 0">${L.map(l=>`<button class="${l.tier===tier?'on':''}" data-act="pickTier" data-v="${l.tier}">${esc(l.name)}</button>`).join('')}</div>
@@ -1040,7 +1041,7 @@ function clubModal(id){
   return ()=>{
     const c=club(id),st=c.staff,ps=squadOf(c).sort((a,b)=>POS_ORDER[a.pos]-POS_ORDER[b.pos]||ovr(b)-ovr(a));
     const staffRow=(role,s,info)=>`<div class="news"><b>${role}: ${esc(s.name)}</b><div class="small">${info}</div></div>`;
-    return `<div class="row" style="flex-wrap:nowrap">${badge(c,44)}<div><h2 style="margin:0">${esc(c.name)}</h2><div class="small muted">${esc(leagueName(c))}${c.guest?'':' · Platz '+rankOf(c.id)} · Ø-Stärke ${clubAvg(c)} · Budget ${money(c.budget)} · Stadion ${c.stadium.toLocaleString('de-DE')}</div></div></div>
+    return `<div class="row" style="flex-wrap:nowrap">${badge(c,44)}<div><h2 style="margin:0">${esc(c.name)}</h2><div class="small muted">${esc(leagueName(c))}${c.guest?'':' · Platz '+rankOf(c.id)} · Ø-Stärke ${clubAvg(c)} · Budget ${money(c.budget)} · ${c.stName?esc(c.stName)+' (':'Stadion '}${c.stadium.toLocaleString('de-DE')}${c.stName?')':''}${c.city?' · '+esc(c.city):''}${c.founded?' · gegr. '+c.founded:''}</div></div></div>
     <div style="margin-top:12px">${staffRow('Präsident',st.pres,`${PRES[st.pres.trait].label} – ${PRES[st.pres.trait].desc}`)}${staffRow('Sportdirektor',st.dir,`${DIR[st.dir.trait].label} – ${DIR[st.dir.trait].desc}`)}${c.id===S.user?staffRow('Trainer',st.coach,'Das bist du.'):staffRow('Trainer',st.coach,`${COACH[st.coach.trait].label} – ${COACH[st.coach.trait].desc}`)}</div>
     <div class="small muted">Taktik: ${c.tactic.f} · ${MENTALITY[c.tactic.men]} · ${PRESSING[c.tactic.press]} · ${STYLE[c.tactic.style]}</div>
     ${(S.comps||[]).filter(C=>!C.bg&&C.teams.includes(c.id)).map(C=>`<div class="small">🏅 ${COMP[C.key].name}: ${compStatus(C,c.id)}</div>`).join('')}

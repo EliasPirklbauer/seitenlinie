@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.37.0';
+const APP_VERSION='0.38.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -135,6 +135,16 @@ function genClubNames(a,n,r,used){
   }
   return out;
 }
+/* ---------- Editor-Datenbank (eigene Vereinsdaten, gilt für neue Karrieren) ---------- */
+const EDB_KEY='seitenlinie_editor';let EDB_CACHE=null;
+function edDB(){if(!EDB_CACHE){try{EDB_CACHE=JSON.parse(localStorage.getItem(EDB_KEY)||'{}')}catch(e){EDB_CACHE={}}}EDB_CACHE.clubs=EDB_CACHE.clubs||{};EDB_CACHE.leagues=EDB_CACHE.leagues||{};return EDB_CACHE}
+function edSave(){try{localStorage.setItem(EDB_KEY,JSON.stringify(edDB()))}catch(e){}for(const k in STRUCT_CACHE)delete STRUCT_CACHE[k]}
+function edOv(code,tier,i){return edDB().clubs[code+'|'+tier+'|'+i]||null}
+function clubSpec(code,tier,i,n,name,seed){
+  const a=ASSOC[code],o=edOv(code,tier,i)||{},rep=o.rep!=null?o.rep:repFor(a,tier,i,n),econ=o.econ!=null?o.econ:econOf(code,tier),st=staffForAssoc(name,seed,code);
+  if(o.pres)st.pres.name=o.pres;if(o.presT&&PRES[o.presT])st.pres.trait=o.presT;if(o.coach)st.coach.name=o.coach;if(o.coachT&&COACH[o.coachT])st.coach.trait=o.coachT;if(o.dir)st.dir.name=o.dir;if(o.dirT&&DIR[o.dirT])st.dir.trait=o.dirT;
+  return {o,rep,econ,short:o.short||shortName(name),colors:o.c1?[o.c1,o.c2||'#ffffff']:clubColors(name),stadium:o.stadium||estStadium(rep,econ),budget:o.budget!=null?o.budget:estBudget(rep,econ),staff:st};
+}
 const STRUCT_CACHE={};
 function assocStructure(code,seed){
   const key=code+':'+seed;if(STRUCT_CACHE[key])return STRUCT_CACHE[key];
@@ -148,8 +158,9 @@ function assocStructure(code,seed){
     let names;
     if(d.clubs&&d.clubs[t])names=d.clubs[t].split('|');
     else{const n=t===0?defaultSize(a):Math.min(20,leagues[t-1].clubs.length);names=genClubNames(a,n,r,used)}
+    names=names.map((x,i)=>{const o=edOv(code,t+1,i);return o&&o.name?o.name:x});
     names.forEach(x=>used.add(x));
-    const lname=(d.names&&d.names[t])||(t===0?a.name+' – 1. Liga':a.name+' – '+(t+1)+'. Liga');
+    const lname=edDB().leagues[code+'|'+(t+1)]||(d.names&&d.names[t])||(t===0?a.name+' – 1. Liga':a.name+' – '+(t+1)+'. Liga');
     leagues.push({tier:t+1,name:lname,clubs:names,real:!!(d.clubs&&d.clubs[t])});
   }
   return STRUCT_CACHE[key]=leagues;
@@ -283,18 +294,20 @@ function randAge(){return clamp(Math.round(25.5+gauss()*4),17,35)}
 
 /* ---------- Welt erzeugen ---------- */
 function makeClub(name,code,L,i,n){
-  const a=ASSOC[code],rep=repFor(a,L.tier,i,n),econ=econOf(code,L.tier);
-  let sh=shortName(name);if(L.clubs.some(id=>S.clubs[id].short===sh))sh=shortAlt(name);
+  const sp=clubSpec(code,L.tier,i,n,name,S.seed),rep=sp.rep,econ=sp.econ,O=sp.o;
+  let sh=sp.short;if(!O.short&&L.clubs.some(id=>S.clubs[id].short===sh))sh=shortAlt(name);
   const c={id:S.clubs.length,name,short:sh,assoc:code,league:L.id,rep,econ,
-    stadium:estStadium(rep,econ),colors:clubColors(name),budget:estBudget(rep,econ),tBudget:0,wBudget:0,
-    staff:staffForAssoc(name,S.seed,code),players:[],lineup:[],tactic:null,expRank:i+1,firedSeason:0};
+    stadium:sp.stadium,colors:sp.colors,budget:sp.budget,tBudget:0,wBudget:0,
+    staff:sp.staff,players:[],lineup:[],tactic:null,expRank:i+1,firedSeason:0};
+  if(O.stName)c.stName=O.stName;if(O.city)c.city=O.city;if(O.founded)c.founded=O.founded;
+  if(O.loy!=null)c.fans={mood:Math.round(clamp(52+(rep-60)*.15+8,30,80)),loy:O.loy,next:null,log:[]};
   c.tactic={...COACH[c.staff.coach.trait].t};
   S.clubs.push(c);L.clubs.push(c.id);
   const baseQ=26+rep*.56;
   for(const pos in SQUAD_TEMPLATE)for(const off of SQUAD_TEMPLATE[pos]){
     const p=genPlayer(pos,baseQ+off+gauss()*3,randAge(),code);p.club=c.id;p.wage=rw(p.wage*econ);S.players[p.id]=p;c.players.push(p.id);
   }
-  assignRoles(c);initBudgets(c);
+  assignRoles(c);initBudgets(c);if(O.tb!=null)c.tBudget=O.tb;
   return c;
 }
 function makeFixtures(ids){
