@@ -87,16 +87,24 @@ function render(){
 function toast(msg){UI.toast=msg;render();clearTimeout(toast.t);toast.t=setTimeout(()=>{UI.toast=null;render()},2400)}
 
 /* ---------- Titel ---------- */
+function slotsHtml(){
+  const l=slotsList().sort((a,b)=>(b.ts||0)-(a.ts||0));if(!l.length)return '';const cur=curSlot();
+  const when=ts=>{if(!ts)return '';const d=new Date(ts);return d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})};
+  return `<div class="svslots"><div class="small muted" style="text-align:left;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Deine Karrieren (${l.length})</div>${l.map(x=>`<div class="svslot ${x.id===cur?'cur':''}">
+    <span class="badge" style="background:${(x.colors||['#445','#fff'])[0]};color:${(x.colors||['#445','#fff'])[1]};border-color:${(x.colors||['#445','#fff'])[1]};width:34px;height:34px;font-size:13px">${esc(x.short||(x.club||'?').slice(0,3).toUpperCase())}</span>
+    <div class="svinfo"><b>${esc(x.name||x.club)}</b>${x.fired?' <span class="pill">vereinslos</span>':''}<div class="small muted">${x.name?esc(x.club)+' · ':''}${esc(x.league)} · ${x.season}/${(x.season+1)%100} · Woche ${Math.min(x.week+1,x.weeks)}${x.manager?' · '+esc(x.manager):''}</div><div class="small muted">Zuletzt gespielt: ${when(x.ts)}</div></div>
+    <div class="svbtn">${UI.delSlot===x.id?`<button class="btn sm warn" data-act="slotDelYes" data-v="${x.id}">Wirklich löschen</button><button class="btn sm" data-act="slotDelNo">Abbrechen</button>`:`<button class="btn sm pri" data-act="slotLoad" data-v="${x.id}">Laden</button><button class="btn sm" data-act="slotRen" data-v="${x.id}" title="Umbenennen">✏️</button><button class="btn sm" data-act="slotDel" data-v="${x.id}" title="Löschen">🗑️</button>`}</div></div>`).join('')}</div>`;
+}
 function renderTitle(){
-  const m=UI.meta;
-  return `<div class="title"><div class="card" style="max-width:460px;width:100%;text-align:center;padding:34px 28px 28px">
+  const m=slotsList().length;
+  return `<div class="title"><div class="card" style="max-width:${m?620:460}px;width:100%;text-align:center;padding:34px 28px 28px">
    <div class="lamps"><i></i><i></i><i></i><i></i><i></i></div><h1 class="wordmark">Seitenlinie</h1><div class="chalk"></div><p class="muted" style="margin:0">Dein Fußball Manager für 211 Verbände – auch ohne Internet.</p>
    <div class="grid" style="margin-top:20px">
-    ${m?`<button class="btn pri" style="justify-content:center;padding:12px" data-act="continue">Karriere fortsetzen</button><div class="small muted">${esc(m.club)} · ${esc(m.league)} · Saison ${m.season}/${(m.season+1)%100} · Woche ${Math.min(m.week+1,m.weeks)}</div>`:''}
-    <button class="btn ${m?'':'pri'}" style="justify-content:center;padding:12px" data-act="newCareer">Neue Karriere</button>
+    ${slotsHtml()}
+    <button class="btn ${m?'':'pri'}" style="justify-content:center;padding:12px" data-act="newCareer">＋ Neue Karriere</button>
     <button class="btn" style="justify-content:center" data-act="importOpen">Spielstand importieren</button>
    </div>
-   ${UI.oldSave&&!m?'<p class="small gold" style="margin-top:14px">Hinweis: Karrieren aus Version 0.3 und älter (fiktive Einzel-Liga) lassen sich in der neuen Weltversion nicht fortsetzen.</p>':''}
+   ${UI.oldSave&&!m&&false?'<p class="small gold" style="margin-top:14px">Hinweis: Karrieren aus Version 0.3 und älter (fiktive Einzel-Liga) lassen sich in der neuen Weltversion nicht fortsetzen.</p>':''}
    ${!PWA.standalone&&(PWA.deferred||PWA.ios)?`<div style="margin-top:16px">${PWA.deferred?'<button class="btn" style="width:100%;justify-content:center" data-act="install">📲 Als App installieren</button>':'<p class="small muted">📲 Als App installieren: in Safari Teilen ⬆️ → „Zum Home-Bildschirm“</p>'}</div>`:''}
   </div></div>`;
 }
@@ -1048,7 +1056,7 @@ function renderMenu(){
     <div class="row"><button class="btn" data-act="saveNow">💾 Jetzt speichern</button><button class="btn" data-act="exportOpen">📤 Exportieren</button><button class="btn" data-act="importOpen">📥 Importieren</button></div>${SAVE_STATUS==='fail'?'<p class="small bad">Letztes Speichern fehlgeschlagen – bitte exportieren.</p>':''}</div>
    <div class="card"><h3>Design</h3><p class="small muted">Wie soll dein Arbeitsplatz aussehen?</p><div class="seg">${[['pro','🖥️ Manager-Zentrale (PC)'],['desk','☀️ Trainerbüro (hell)'],['night','🌙 Flutlicht (dunkel)']].map(([k,l])=>`<button class="${(document.documentElement.className||'pro')===k?'on':''}" data-act="setTheme" data-v="${k}">${l}</button>`).join('')}</div></div>
    ${installCard()}
-   <div class="card"><h3>Karriere</h3><p class="small muted">Startet eine neue Karriere. Der aktuelle Spielstand wird überschrieben, sobald du die neue Karriere startest.</p><button class="btn warn" data-act="newCareer">Neue Karriere</button></div>
+   <div class="card"><h3>Karrieren</h3><p class="small muted">Du kannst beliebig viele Karrieren parallel spielen (bis zu ${MAX_SLOTS}). Jede hat ihren eigenen Speicherstand – eine neue Karriere überschreibt nichts.</p><div class="small" style="margin-bottom:8px">Aktueller Speicherstand: <b>${esc(S.slotName||userClub().name)}</b></div><div class="row"><button class="btn pri" data-act="switchCareer">🔁 Karriere wechseln</button><button class="btn" data-act="newCareer">＋ Neue Karriere</button><button class="btn" data-act="slotRen" data-v="${curSlot()}">✏️ Umbenennen</button></div></div>
    <div class="card"><h3>Über</h3><p class="small muted">Seitenlinie v${APP_VERSION}. 6 Konföderationen, 211 Verbände, ${S.leagues.length} aktive Ligen, ${COMPS.length} internationale Vereinswettbewerbe, nationale Pokale und Fünfjahreswertung. Echte Ligen und Vereine (Stand ca. Saison 2025/26, Auf- und Absteiger 2026 evtl. nicht berücksichtigt). Alle Spieler sind fiktiv. Alle Ligen laufen im europäischen Kalender.</p></div>
   </div>`;
 }
@@ -1099,6 +1107,12 @@ const ACT={
   setTheme:d=>{document.documentElement.className=d.v;try{localStorage.setItem('sl-theme',d.v)}catch(e){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d.v==='desk'?'#f1e9da':d.v==='pro'?'#0e1116':'#131b2e';render()},
   nav:d=>{if(UI.view==='live'&&UI.live&&!UI.live.done)return;UI.view=d.v;UI.selSlot=null;if(d.v==='table')UI.tableLeague=UI.tableLeague;window.scrollTo(0,0);render()},
   closeModal:()=>{UI.modal=null;UI.selSlot=null;UI.neg=null;render()},
+  slotLoad:async d=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave(d.v);UI.loading=null;if(sv){try{setCur(d.v);applySave(sv);UI.view='home';UI.modal=null;render()}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Spielstand konnte nicht geladen werden')}}else{toast('Spielstand nicht gefunden');render()}},
+  slotDel:d=>{UI.delSlot=d.v;render()},
+  slotDelNo:()=>{UI.delSlot=null;render()},
+  slotDelYes:async d=>{await deleteSlot(d.v);UI.delSlot=null;toast('Karriere gelöscht');render()},
+  slotRen:d=>{const l=slotsList(),x=l.find(y=>y.id===d.v);if(!x)return;const n=prompt('Name für diese Karriere:',x.name||x.club);if(n===null)return;x.name=n.trim().slice(0,40);slotsWrite(l);if(S&&curSlot()===d.v)S.slotName=x.name;render()},
+  switchCareer:()=>{if(S&&S.user!==null){S.rng=RNG;save()}setTimeout(()=>{S=null;UI.view='home';UI.modal=null;UI.live=null;render();window.scrollTo(0,0)},150)},
   continue:async()=>{UI.loading='Spielstand wird geladen…';render();const sv=await loadSave();UI.loading=null;if(sv){try{applySave(sv);UI.view='home';render()}catch(e){toast('Spielstand konnte nicht geladen werden')}}else{UI.meta=null;render();toast('Kein Spielstand gefunden')}},
   newCareer:()=>{UI.modal=null;UI.setup={step:'club',confed:'UEFA',assoc:'GER',tier:1,pick:null,name:S&&S.manager||'',seed:newSeed(),q:'',active:new Set()};UI.setupPrev=S;S=null;render();window.scrollTo(0,0)},
   backTitle:()=>{UI.setup=null;S=UI.setupPrev||null;if(S){RNG=S.rng||1;resetCache();UI.view='menu'}render()},
@@ -1113,6 +1127,8 @@ const ACT={
   startCareer:()=>{
     const st=UI.setup,codes=[st.pick.code,...[...st.active].filter(c=>c!==st.pick.code)];
     UI.loading='Welt wird erstellt…';render();
+    if(slotsList().length>=MAX_SLOTS){UI.loading=null;render();return toast(`Maximal ${MAX_SLOTS} Karrieren – bitte zuerst eine löschen.`)}
+    setCur(newSlotId());
     setTimeout(()=>{newWorld(st.seed,codes,st.pick,st.name.trim()||'Manager');startCareer(st.name.trim()||'Manager');UI.setup=null;UI.loading=null;UI.view='home';UI.tableLeague=null;UI.fxLeague=null;render()},40);
   },
   advance:()=>{if(S.fired){UI.view="home";render();toast("Nimm zuerst ein Jobangebot an.");return}
@@ -1225,7 +1241,7 @@ const ACT={
   shareExp:()=>{try{const f=new File([exportText()],`seitenlinie_${S.season}_w${S.week}.json`,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:'Seitenlinie Spielstand'}).catch(()=>{});else toast('Teilen nicht möglich – Text kopieren')}catch(e){toast('Teilen nicht möglich – Text kopieren')}},
   download:()=>{try{const b=new Blob([exportText()],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`seitenlinie_${S.season}_w${S.week}.json`;document.body.appendChild(a);a.click();a.remove();toast('Download gestartet')}catch(e){toast('Download nicht möglich – Text kopieren')}},
   copyExp:()=>{const t=exportText();try{navigator.clipboard.writeText(t).then(()=>toast('Kopiert!'),()=>toast('Kopieren nicht erlaubt – bitte Datei nutzen'))}catch(e){toast('Kopieren nicht möglich')}},
-  doImport:()=>{const t=document.getElementById('impTxt').value.trim();if(!t)return toast('Kein Text');try{applySave(JSON.parse(t));UI.modal=null;UI.setup=null;UI.view='home';render();toast('Spielstand geladen')}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Ungültiger Spielstand')}},
+  doImport:()=>{const t=document.getElementById('impTxt').value.trim();if(!t)return toast('Kein Text');try{const o=JSON.parse(t);const prev=CUR_SLOT;setCur(newSlotId());try{applySave(o)}catch(e){if(prev)setCur(prev);throw e}save();UI.modal=null;UI.setup=null;UI.view='home';render();toast('Spielstand geladen')}catch(e){toast(e.message==='alt'?'Spielstand aus alter Version – nicht kompatibel':'Ungültiger Spielstand')}},
 };
 function negDateFix(N){const p=S.players[N.pid],endY=N.years===0?p.until:S.season+N.years,cEnd=`${endY+1}-06-30`,t=gameDate();
   for(const k of ['rf','ru'])if(N[k]){if(N[k]>cEnd)N[k]=cEnd;if(N[k]<t)N[k]=t}

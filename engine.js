@@ -6,7 +6,7 @@ const SAVE_KEY='seitenlinie_save_v4';
 const META_KEY='seitenlinie_meta';
 const OLD_KEYS=['seitenlinie_save_v1'];
 const VERSION=9;
-const APP_VERSION='0.36.0';
+const APP_VERSION='0.37.0';
 
 /* ---------- Zufall ---------- */
 let RNG=1;
@@ -932,18 +932,30 @@ const IDB={db:null,
   async set(k,v){const db=IDB.db||await IDB.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})},
   async del(k){const db=IDB.db||await IDB.open();return new Promise((res)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=()=>res();t.onerror=()=>res()})}};
 let SAVE_STATUS='ok';
-function writeMeta(){try{const c=userClub();localStorage.setItem(META_KEY,JSON.stringify({club:c.name,league:league(c).name,season:S.season,week:S.week,weeks:S.weeks,v:VERSION}))}catch(e){}}
+/* ---------- Mehrere Speicherstände (Karrieren) ---------- */
+const SLOTS_KEY='seitenlinie_slots',CUR_KEY='seitenlinie_cur',MAX_SLOTS=12;let CUR_SLOT=null;
+function slotKey(id){return id==='s1'?SAVE_KEY:'seitenlinie_save_'+id}
+function slotsList(){try{let l=JSON.parse(localStorage.getItem(SLOTS_KEY)||'null');if(!l){l=[];const m=readMeta();if(m)l.push({id:'s1',...m,ts:Date.now()});localStorage.setItem(SLOTS_KEY,JSON.stringify(l))}return l}catch(e){return []}}
+function slotsWrite(l){try{localStorage.setItem(SLOTS_KEY,JSON.stringify(l))}catch(e){}}
+function newSlotId(){return 's'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36)}
+function curSlot(){if(CUR_SLOT)return CUR_SLOT;try{CUR_SLOT=localStorage.getItem(CUR_KEY)||null}catch(e){}if(!CUR_SLOT){const l=slotsList();CUR_SLOT=l.length?l.sort((a,b)=>(b.ts||0)-(a.ts||0))[0].id:'s1'}return CUR_SLOT}
+function setCur(id){CUR_SLOT=id;try{localStorage.setItem(CUR_KEY,id)}catch(e){}}
+function writeMeta(){try{const c=userClub(),id=curSlot(),m={club:c.name,short:c.short,colors:c.colors,league:league(c).name,season:S.season,week:S.week,weeks:S.weeks,v:VERSION,app:APP_VERSION,manager:S.manager||(c.staff.coach&&c.staff.coach.name)||'',name:S.slotName||'',ts:Date.now(),fired:!!S.fired};
+  if(id==='s1')localStorage.setItem(META_KEY,JSON.stringify(m));
+  const l=slotsList().filter(x=>x.id!==id);l.unshift({id,...m});slotsWrite(l)}catch(e){}}
+async function deleteSlot(id){try{await IDB.del(slotKey(id))}catch(e){}try{localStorage.removeItem(slotKey(id));if(id==='s1')localStorage.removeItem(META_KEY)}catch(e){}
+  slotsWrite(slotsList().filter(x=>x.id!==id));if(CUR_SLOT===id){CUR_SLOT=null;try{localStorage.removeItem(CUR_KEY)}catch(e){}}}
 let SAVE_BUSY=false,SAVE_PENDING=false;
 function save(){
   if(!S||S.user===null)return;S.rng=RNG;writeMeta();
   if(SAVE_BUSY){SAVE_PENDING=true;return}
   SAVE_BUSY=true;const txt=JSON.stringify(S);
   const done=()=>{SAVE_BUSY=false;if(SAVE_PENDING){SAVE_PENDING=false;save()}};
-  IDB.set(SAVE_KEY,txt).then(()=>{SAVE_STATUS='ok';done()}).catch(()=>{try{localStorage.setItem(SAVE_KEY,txt);SAVE_STATUS='ok'}catch(e){SAVE_STATUS='fail'}done()});
+  const key=slotKey(curSlot());IDB.set(key,txt).then(()=>{SAVE_STATUS='ok';done()}).catch(()=>{try{localStorage.setItem(key,txt);SAVE_STATUS='ok'}catch(e){SAVE_STATUS='fail'}done()});
 }
-async function loadSave(){
-  let t=null;try{t=await IDB.get(SAVE_KEY)}catch(e){}
-  if(!t){try{t=localStorage.getItem(SAVE_KEY)}catch(e){}}
+async function loadSave(id){
+  const key=slotKey(id||curSlot());let t=null;try{t=await IDB.get(key)}catch(e){}
+  if(!t){try{t=localStorage.getItem(key)}catch(e){}}
   if(!t)return null;try{return JSON.parse(t)}catch(e){return null}
 }
 function readMeta(){try{return JSON.parse(localStorage.getItem(META_KEY)||'null')}catch(e){return null}}
